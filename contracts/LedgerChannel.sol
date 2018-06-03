@@ -20,6 +20,9 @@ contract LedgerChannel {
     bytes32 public stateHash;
     bytes32 public VCrootHash;
 
+    // timeout storage
+    uint256 public updateLCtimeout; // when update LC times out
+
     bool public isOpen = false; // true when both parties have joined
     bool public isUpdateLCSettling = false;
     bool public isFinal = false;
@@ -126,19 +129,30 @@ contract LedgerChannel {
         require(partyA == _getSig(_state, sigV[0], sigR[0], sigS[0]));
         require(partyB == _getSig(_state, sigV[1], sigR[1], sigS[1]));
 
+        // update LC state
         sequence = _sequence;
         balanceA = _balanceA;
         balanceB = _balanceB;
+        VCrootHash = VCroot;
+
         isUpdateLCSettling = true;
-        updateLCtimeout = now + confirmTime; 
+        updateLCtimeout = now + confirmTime;
     }
 
     function challengeUpdateLCstate(uint256 isClose, uint256 sequence, uint256 _balanceA, uint256 _balanceB, bytes32 VCroot, uint8[2] sigV, bytes32[2] sigR, bytes32[2] sigS) public {
         
     }
 
-    // TODO: Check that updateLCstate past its timeout time
-    function startSettleVC(bytes _forceState, uint _channelID) public payable{
+    // Check time has passed on updateLCtimeout
+    function setUpdateFinalized() public {
+        // updateFinal = true;
+        // updateLCtimeout = 0;
+    }
+
+    // TODO: Check the update finalized flag
+    // Currently you have to settle all channels if you are to settle one
+    // change this to accept a sig not check the sender
+    function startSettleVC(bytes _forceState, uint _vcID) public payable{
         // Make sure one of the parties has signed this subchannel update
         require(_hasOneSig(msg.sender));
 
@@ -155,12 +169,14 @@ contract LedgerChannel {
         subChannels[_channelID].subSettlementPeriodEnd = now + _getChallengePeriod(subChannels[_channelID].subState);
     }
 
-    function challengeSettleVC(bytes _forceState, uint _channelID) public payable{
+    // challenger can agree to latest state proposed by initiator, or present a higher VC state
+    function challengeSettleVC(bytes _forceState, uint _vcID) public payable{
+        // check forceState VC sequence, challenge state must have higher or equal sequence
 
     }
 
     function closeVirtualChannel(uint _vcID) public {
-        // TODO: Check the VC is past settlement time
+        // TODO: Check the vcID is past teh VC settlement time
         // Rebalance LC ledger
         // Rebalance open channel merkle root
         // set
