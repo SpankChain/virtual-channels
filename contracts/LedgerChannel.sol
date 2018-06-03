@@ -1,7 +1,7 @@
 pragma solidity ^0.4.23;
 
-/// @title SpankChain Virtual-Channel - A multisignature "wallet" for general state
-/// @author Nathan Ginnever (Finality Labs)
+/// @title SpankChain Virtual-Channels - A layer2 hub and spoke payment network 
+/// @author Nathan Ginnever
 
 contract LedgerChannel {
 
@@ -9,17 +9,21 @@ contract LedgerChannel {
     string public constant VERSION = "0.0.1";
 
 
-    address public partyA;
-    address public partyB;
+    address public partyA; // VC participant
+    address public partyB; // Hub
     uint256 public balanceA;
     uint256 public balanceB;
     uint256 public sequence;
     uint256 public confirmTime = 100 minutes;
-
+    uint256 public LCopenTimeout = 0;
+    uint256 public LCcloseTimeout = 0;
     bytes32 public stateHash;
+    bytes32 public VCrootHash;
 
     bool public isOpen = false; // true when both parties have joined
-    bool public isPending = false; // true when waiting for counterparty to join agreement
+    bool public isUpdateLCSettling = false;
+    bool public isFinal = false;
+
     address public closingParty = address(0x0);
 
     // virtual-channel state
@@ -34,9 +38,9 @@ contract LedgerChannel {
         uint subchan1; // ID of LC AI
         uint subchan2; // ID of LC BI
         // channel state
-        address partyA;
-        address partyB;
-        address partyI;
+        address partyA; // VC participant A
+        address partyB; // VC participant B
+        address partyI; // LC party B hub
         uint256 balanceA;
         uint256 balanceB;
         uint256 balanceI;
@@ -59,9 +63,17 @@ contract LedgerChannel {
         balanceB = _balanceB;
         sequeunce = 0;
         stateHash = keccak256(0, 0, 0x0, partyA, partyB, balanceA, balanceB);
+        LCopenTimeout = now + confirmTime;
     }
 
-    function joinChannel(uint8 _v, bytes32 _r, bytes32 _s) public payable {
+    function LCOpenTimeout() public {
+        require(msg.sender == partyA && isOpen == false);
+        if (now > LCopenTimeout) {
+            selfdestruct(partyA);
+        }
+    }
+
+    function openChannel(uint8 _v, bytes32 _r, bytes32 _s) public payable {
         // only allow pre-deployed extension contracts
         //require(_assertExtension(_ext));
         // require the channel is not open yet
@@ -89,7 +101,7 @@ contract LedgerChannel {
     }
 
     // TODO: Check there are no open virtual channels, the client should have cought this before signing a close LC state update
-    function closeChannel(uint256 isClose, uint256 sequence, uint256 _balanceA, uint256 _balanceB, uint8[2] sigV, bytes32[2] sigR, bytes32[2] sigS) public {
+    function consensusCloseChannel(uint256 isClose, uint256 sequence, uint256 _balanceA, uint256 _balanceB, uint8[2] sigV, bytes32[2] sigR, bytes32[2] sigS) public {
         require(isClose == 1, 'State did not have a signed close sentinel');
 
         bytes32 _state = keccak256(isClose, sequence, 0x0, partyA, partyB, _balanceA, _balanceB);
@@ -103,32 +115,71 @@ contract LedgerChannel {
         isOpen = false;
     }
 
+    // Byzantine functions
 
-    function closeVirtualChannel(uint _vcID) public {
+    function initUpdateLCstate(uint256 isClose, uint256 _sequence, uint256 _balanceA, uint256 _balanceB, bytes32 VCroot, uint8[2] sigV, bytes32[2] sigR, bytes32[2] sigS) public {
+        require(isClose == 0, 'State should not have a signed close sentinel');
+        require(sequence < _sequence);
 
-        uint isSettle;
-        bytes memory _state;
-        (,isSettle,,,,,,,,,_state) = deployedMetaChannel.getSubChannel(_subchannelID);
-        //require(isSettle == 1);
+        bytes32 _state = keccak256(isClose, sequence, VCroot, partyA, partyB, _balanceA, _balanceB);
 
-        address _ext = _getInterpreter(_state);
+        require(partyA == _getSig(_state, sigV[0], sigR[0], sigS[0]));
+        require(partyB == _getSig(_state, sigV[1], sigR[1], sigS[1]));
 
-        _finalizeSubchannel(_state, _ext);
+        sequence = _sequence;
+        balanceA = _balanceA;
+        balanceB = _balanceB;
+        isUpdateLCSettling = true;
+        updateLCtimeout = now + confirmTime; 
     }
 
-    function closeWithMetachannel() public {
-        // TODO send all remaining msig funds to challenger to punish counterparty from dropping off
-        // this prevents the counterparty knowing that it would cost more to go on chain than the
-        // value that has been exchanged in a subchannel. Use the msig balance as a bond of trust
-        MetaChannel deployedMetaChannel = MetaChannel(registry.resolveAddress(metachannel));
+    function challengeUpdateLCstate(uint256 isClose, uint256 sequence, uint256 _balanceA, uint256 _balanceB, bytes32 VCroot, uint8[2] sigV, bytes32[2] sigR, bytes32[2] sigS) public {
+        
+    }
 
-        uint isClosed;
-        bytes memory _state;
-        isClosed = deployedMetaChannel.isClosed();
-        require(isClosed == 1);
-        _state = deployedMetaChannel.state();
+    // TODO: Check that updateLCstate past its timeout time
+    function startSettleVC(bytes _forceState, uint _channelID) public payable{
+        // Make sure one of the parties has signed this subchannel update
+        require(_hasOneSig(msg.sender));
 
-        _finalizeAll(_state);
+        // sub-channel must be open
+        require(subChannels[_channelID].isSubClose == 0);
+
+        // Check forcestate against current state
+        uint _length = _forceState.length;
+        require(address(subChannels[_channelID].CTFaddress).delegatecall(bytes4(keccak256("validateState(bytes)")), bytes32(32), bytes32(_length), _forceState));
+
+        subChannels[_channelID].challenger = msg.sender;
+        subChannels[_channelID].subSequence = _getSequence(_forceState);
+        subChannels[_channelID].subState = _forceState;
+        subChannels[_channelID].subSettlementPeriodEnd = now + _getChallengePeriod(subChannels[_channelID].subState);
+    }
+
+    function challengeSettleVC(bytes _forceState, uint _channelID) public payable{
+
+    }
+
+    function closeVirtualChannel(uint _vcID) public {
+        // TODO: Check the VC is past settlement time
+        // Rebalance LC ledger
+        // Rebalance open channel merkle root
+        // set
+    }
+
+    function startSettleLC() public {
+        // again channel root must be 0x0
+        // Same logic as update but close flag and different timeout storage location `LCcloseTimeout`
+        // call initUpdateLCState()
+    }
+
+    function challengeSettleLC() public {
+        // Same logic as update but close flag and different timeout storage location `LCcloseTimeout`
+        // call initUpdateLCState()
+    }
+
+    function byzantineCloseChannel() public{
+        // require(LCcloseTimeout < now)
+        // isFinal == true;
     }
 
     // Internal
@@ -138,10 +189,16 @@ contract LedgerChannel {
         partyB.transfer(_balanceB);
     }
 
-    // send all funds to metachannel if a channel is in dispute
-    function _finalizeSubchannel(bytes _s, address _ext) internal {
-        uint _length = _s.length;
-        require(address(_ext).delegatecall(bytes4(keccak256("finalizeByzantine(bytes)")), bytes32(32), bytes32(_length), _s));
+    function _CheckVC(uint vid, address p1, uint bal1, uint subchan1, address Ingrid,
+                               address p2, uint bal2, uint subchan2, uint validity, bytes sig) private view {
+        require(id == subchan1 || id == subchan2);
+        require(Ingrid == alice.id || Ingrid == bob.id);
+        require(Other(Ingrid, alice.id, bob.id) == p1 || Other(Ingrid, alice.id, bob.id) == p2);
+        require(CheckSignature(Other(msg.sender, alice.id, bob.id), vid, p1, cash1, subchan1, Ingrid, p2, cash2, subchan2, validity, 0, sig));
+
+        // check the vc state provided by either alice or ingrid to force close a VC
+        // check the state is signed by Alice and Bob
+        // check the balance settling against the LC balance does not go beyond partyA or B's bond in the VC
     }
 
 
