@@ -27,6 +27,8 @@ contract LedgerChannel {
     bool public isUpdateLCSettling = false;
     bool public isFinal = false;
 
+    uint256 public numOpenVC = 0;
+
     address public closingParty = address(0x0);
 
     // virtual-channel state
@@ -90,7 +92,7 @@ contract LedgerChannel {
         isOpen = true;
 
         // check that the state is signed by the sender and sender is in the state
-        require(partyB == _getSig(_state, _v, _r, _s));
+        //require(partyB == _getSig(_state, _v, _r, _s));
     }
 
 
@@ -143,18 +145,16 @@ contract LedgerChannel {
         
     }
 
-    // Check time has passed on updateLCtimeout
-    function setUpdateFinalized() public {
-        // updateFinal = true;
-        // updateLCtimeout = 0;
-    }
-
     // TODO: Check the update finalized flag
     // Currently you have to settle all channels if you are to settle one
     // change this to accept a sig not check the sender
-    function startSettleVC(bytes _forceState, uint _vcID) public payable{
-        // Make sure one of the parties has signed this subchannel update
-        require(_hasOneSig(msg.sender));
+    function startSettleVC(bytes _oldState, bytes _forceState, uint _vcID) public payable{
+        // Check time has passed on updateLCtimeout and has not passed the time to store a vc state
+        require(updateLCtimeout < now && now < updateLCtimeout + confirmTime);
+        // Check the oldState is in the root hash
+        // check the new state is a higher sequence or eual
+        // Make sure Alice and Bob have signed this update (A/B in oldState)
+        // store VC data
 
         // sub-channel must be open
         require(subChannels[_channelID].isSubClose == 0);
@@ -167,34 +167,33 @@ contract LedgerChannel {
         subChannels[_channelID].subSequence = _getSequence(_forceState);
         subChannels[_channelID].subState = _forceState;
         subChannels[_channelID].subSettlementPeriodEnd = now + _getChallengePeriod(subChannels[_channelID].subState);
+        subChannels[_channelID].isSettling = 1;
     }
 
     // challenger can agree to latest state proposed by initiator, or present a higher VC state
     function challengeSettleVC(bytes _forceState, uint _vcID) public payable{
+        // sub-channel must be open
+        require(subChannels[_channelID].isSettling == 1);
+        // Check time has passed on updateLCtimeout and has not passed the time to store a vc state
+        require(updateLCtimeout < now && now < updateLCtimeout + confirmTime);
         // check forceState VC sequence, challenge state must have higher or equal sequence
+        // to the previously stored in startSettleVC
+        // Check signed by alice and bob
+        // store new VC state
+        subChannels[_channelID].isSettled = 1;
 
     }
 
     function closeVirtualChannel(uint _vcID) public {
-        // TODO: Check the vcID is past teh VC settlement time
+        require(subChannels[_channelID].isSettled == 1);
         // Rebalance LC ledger
-        // Rebalance open channel merkle root
-        // set
+        // Rebalance open channel merkle root (don't do this)
+        // reduce the number of open virtual channels stored on LC
     }
 
-    function startSettleLC() public {
-        // again channel root must be 0x0
-        // Same logic as update but close flag and different timeout storage location `LCcloseTimeout`
-        // call initUpdateLCState()
-    }
-
-    function challengeSettleLC() public {
-        // Same logic as update but close flag and different timeout storage location `LCcloseTimeout`
-        // call initUpdateLCState()
-    }
 
     function byzantineCloseChannel() public{
-        // require(LCcloseTimeout < now)
+        require(numOpenChannels == 0);
         // isFinal == true;
     }
 
