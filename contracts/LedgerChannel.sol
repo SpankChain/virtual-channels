@@ -14,14 +14,13 @@ contract LedgerChannel {
     uint256 public balanceA;
     uint256 public balanceB;
     uint256 public sequence;
-    uint256 public confirmTime = 100 minutes;
-    uint256 public LCopenTimeout = 0;
-    uint256 public LCcloseTimeout = 0;
     bytes32 public stateHash;
     bytes32 public VCrootHash;
 
     // timeout storage
-    uint256 public updateLCtimeout; // when update LC times out
+    uint256 public confirmTime = 100 minutes;
+    uint256 public LCopenTimeout = 0;
+    uint256 public updateLCtimeout = 0; // when update LC times out
 
     bool public isOpen = false; // true when both parties have joined
     bool public isUpdateLCSettling = false;
