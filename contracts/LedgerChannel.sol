@@ -142,13 +142,8 @@ contract LedgerChannel {
         
     // }
 
-    function initVC(uint _vcID, uint256 _sequence, address _partyB, uint256 _balanceA, uint256 _balanceB) public {
-        require(_sequence == 0);
-
-    }
-
     // Params: vc init state, vc final balance, vcID
-    function startSettleVC(uint _vcID, uint256 _sequence, address _partyB, uint256 _balanceA, uint256 _balanceB, uint256 updateSeq, uint256 updateBalA, uint256 updateBalB, uint8[4] sigV, bytes32[4] sigR, bytes32[4] sigS) public payable{
+    function settleVC(uint _vcID, uint256 _sequence, address _partyB, uint256 _balanceA, uint256 _balanceB, uint256 updateSeq, uint256 updateBalA, uint256 updateBalB, uint8[4] sigV, bytes32[4] sigR, bytes32[4] sigS) public payable{
         // Check time has passed on updateLCtimeout and has not passed the time to store a vc state
         require(updateLCtimeout < now && now < updateLCtimeout + confirmTime);
         // partyB is now Ingrid 
