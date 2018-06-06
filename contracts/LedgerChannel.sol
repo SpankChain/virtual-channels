@@ -33,29 +33,27 @@ contract LedgerChannel {
 
     // virtual-channel state
     struct VirtualChannel {
-        uint isClose;
-        uint isInSettlementState;
-        uint sequence;
+        uint256 isClose;
+        uint256 isInSettlementState;
+        uint256 sequence;
         address challenger; // Initiator of challenge
-        uint settlementPeriodLength; // timeout length for challenges
-        uint settlementPeriodEnd; // Validity
-        uint settledAt;
-        uint subchan1; // ID of LC AI
-        uint subchan2; // ID of LC BI
+        uint256 timeout;
+        //uint256 subchan1; // ID of LC AI
+        //uint256 subchan2; // ID of LC BI
         // channel state
         address partyA; // VC participant A
         address partyB; // VC participant B
-        address partyI; // LC party B hub
+        address partyI; // LC hub
         uint256 balanceA;
         uint256 balanceB;
-        uint256 balanceI;
+        //uint256 balanceI;
     }
 
-    mapping(uint => VirtualChannel) VirtualChannels;
+    mapping(uint => VirtualChannel) virtualChannels;
 
-    constructor(address _partyA, address _partyB, uint256 _balanceA, uint256 _balanceB) public payable {
+    constructor(address _partyA, address _partyB, uint256 _balanceA, uint256 _balanceI) public payable {
         require(_partyA != 0x0, 'No partyA address provided to LC constructor');
-        require(_partyB != 0x0, 'No partyB address provided to LC constructor');
+        require(_partyI != 0x0, 'No partyB address provided to LC constructor');
         require(msg.value == _balanceA);
         require(msg.sender == _partyA);
         // Set initial ledger channel state
@@ -63,11 +61,12 @@ contract LedgerChannel {
         // to be signed from this requirement
         // Alternative is to check a sig as in joinChannel
         partyA = _partyA;
-        partyB = _partyB;
+        partyI = _partyI;
         balanceA = _balanceA;
-        balanceB = _balanceB;
+        balanceI = _balanceI;
         sequeunce = 0;
-        stateHash = keccak256(0, 0, 0x0, partyA, partyB, balanceA, balanceB);
+        // is close flag, lc state sequence, number open vc, vc root hash, partyA... 
+        stateHash = keccak256(0, 0, 0, 0x0, partyA, partyI, balanceA, balanceI);
         LCopenTimeout = now + confirmTime;
     }
 
@@ -79,116 +78,133 @@ contract LedgerChannel {
     }
 
     function openChannel(uint8 _v, bytes32 _r, bytes32 _s) public payable {
-        // only allow pre-deployed extension contracts
-        //require(_assertExtension(_ext));
         // require the channel is not open yet
         require(isOpen == false);
         // Initial state
-        bytes32 _state = keccak256(0, 0, partyA, partyB, balanceA, balanceB);
+        bytes32 _state = keccak256(0, 0, 0x0, partyA, partyI, balanceA, balanceI);
         address recover = _getSig(_state, _v, _r, _s);
-        require(keccak256(0, partyA, recover, balanceA, msg.value) == stateHash);
+        require(_state == stateHash);
 
         // no longer allow joining functions to be called
         isOpen = true;
 
         // check that the state is signed by the sender and sender is in the state
-        //require(partyB == _getSig(_state, _v, _r, _s));
+        require(partyB == recover);
     }
 
 
     // additive updates of monetary state
     function deposit(address recipient) public payable {
         require(isOpen == true, 'Tried adding funds to a closed channel');
-        require(recipient == partyA || recipient == partyB);
+        require(recipient == partyA || recipient == partyI);
 
         if(partyA == recipient) { balanceA += msg.value; }
-        if(partyB == recipient) { balanceB += msg.value; }
+        if(partyI == recipient) { balanceI += msg.value; }
     }
 
     // TODO: Check there are no open virtual channels, the client should have cought this before signing a close LC state update
-    function consensusCloseChannel(uint256 isClose, uint256 sequence, uint256 _balanceA, uint256 _balanceB, uint8[2] sigV, bytes32[2] sigR, bytes32[2] sigS) public {
+    function consensusCloseChannel(uint256 isClose, uint256 sequence, uint256 _balanceA, uint256 _balanceI, uint8[2] sigV, bytes32[2] sigR, bytes32[2] sigS) public {
         require(isClose == 1, 'State did not have a signed close sentinel');
 
-        bytes32 _state = keccak256(isClose, sequence, 0x0, partyA, partyB, _balanceA, _balanceB);
+        // assume num open vc is 0 and root hash is 0x0
+        bytes32 _state = keccak256(isClose, sequence, 0, 0x0, partyA, partyI, _balanceA, _balanceI);
 
         require(partyA == _getSig(_state, sigV[0], sigR[0], sigS[0]));
-        require(partyB == _getSig(_state, sigV[1], sigR[1], sigS[1]));
+        require(partyI == _getSig(_state, sigV[1], sigR[1], sigS[1]));
 
-        require(_hasAllSigs(_partyA, _partyB));
-
-        _finalizeAll(_balanceA, _balanceB);
+        _finalizeAll(_balanceA, _balanceI);
         isOpen = false;
     }
 
     // Byzantine functions
 
-    function initUpdateLCstate(uint256 isClose, uint256 _sequence, uint256 _balanceA, uint256 _balanceB, bytes32 VCroot, uint8[2] sigV, bytes32[2] sigR, bytes32[2] sigS) public {
+    function updateLCstate(uint256 isClose, uint256 _sequence, uint256 _numOpenVc, uint256 _balanceA, uint256 _balanceI, bytes32 VCroot, uint8[2] sigV, bytes32[2] sigR, bytes32[2] sigS) public {
         require(isClose == 0, 'State should not have a signed close sentinel');
         require(sequence < _sequence);
 
-        bytes32 _state = keccak256(isClose, sequence, VCroot, partyA, partyB, _balanceA, _balanceB);
+        bytes32 _state = keccak256(isClose, sequence, VCroot, numOpenVc, partyA, partyI, _balanceA, _balanceI);
 
         require(partyA == _getSig(_state, sigV[0], sigR[0], sigS[0]));
-        require(partyB == _getSig(_state, sigV[1], sigR[1], sigS[1]));
+        require(partyI == _getSig(_state, sigV[1], sigR[1], sigS[1]));
 
         // update LC state
         sequence = _sequence;
+        numOpenVC = _numOpenVc;
         balanceA = _balanceA;
-        balanceB = _balanceB;
+        balanceI = _balanceI;
         VCrootHash = VCroot;
 
         isUpdateLCSettling = true;
         updateLCtimeout = now + confirmTime;
     }
 
-    function challengeUpdateLCstate(uint256 isClose, uint256 sequence, uint256 _balanceA, uint256 _balanceB, bytes32 VCroot, uint8[2] sigV, bytes32[2] sigR, bytes32[2] sigS) public {
+    // function challengeUpdateLCstate(uint256 isClose, uint256 sequence, uint256 _balanceA, uint256 _balanceB, bytes32 VCroot, uint8[2] sigV, bytes32[2] sigR, bytes32[2] sigS) public {
         
+    // }
+
+    function initVC(uint _vcID, uint256 _sequence, address _partyB, uint256 _balanceA, uint256 _balanceB) public {
+        require(_sequence == 0);
+
     }
 
-    // TODO: Check the update finalized flag
-    // Currently you have to settle all channels if you are to settle one
-    // change this to accept a sig not check the sender
-    function startSettleVC(bytes _oldState, bytes _forceState, uint _vcID) public payable{
+    // Params: vc init state, vc final balance, vcID
+    function startSettleVC(uint _vcID, uint256 _sequence, address _partyB, uint256 _balanceA, uint256 _balanceB, uint256 updateSeq, uint256 updateBalA, uint256 updateBalB, uint8[4] sigV, bytes32[4] sigR, bytes32[4] sigS) public payable{
         // Check time has passed on updateLCtimeout and has not passed the time to store a vc state
         require(updateLCtimeout < now && now < updateLCtimeout + confirmTime);
+        // partyB is now Ingrid 
+        bytes32 _initState = keccak256(_sequence, partyA, _partyB, partyI, _balanceA, _balanceB);
+
+        // Make sure Alice and Bob have signed initial vc state (A/B in oldState)
+        require(partyA == _getSig(_initState, sigV[0], sigR[0], sigS[0]));
+        require(partyB == _getSig(_initState, sigV[1], sigR[1], sigS[1]));
+
+        bytes32 _upateState = keccak256(updateSeq, partyA, _partyB, partyI, updateBalA, updateBalB);
+
+        // Make sure Alice and Bob have signed a higher sequence new state
+        require(partyA == _getSig(_upateState, sigV[2], sigR[2], sigS[2]));
+        require(partyB == _getSig(_upateState, sigV[3], sigR[3], sigS[3]));
+
+        if(_initState != _upateState) {
+            // check the new state is a higher sequence or eual
+            require(virtualChannels[_vcID].sequence < updateSeq);
+        } else {
+            // only allow startSettleVC to be called once with init state only
+            // if a valid higher sequence is passesd in, another higher sequence
+            // will have to follow
+            require(virtualChannels[_vcID].sequence == 0);
+        }
+
         // Check the oldState is in the root hash
-        // check the new state is a higher sequence or eual
-        // Make sure Alice and Bob have signed this update (A/B in oldState)
+
         // store VC data
 
         // sub-channel must be open
-        require(subChannels[_channelID].isSubClose == 0);
+        require(virtualChannels[_vcID].isClose == 0);
+        // we may want to record who is initiating on-chain settles
+        virtualChannels[_vcID].challenger = msg.sender;
+        virtualChannels[_vcID].sequence = updateSeq;
 
-        // Check forcestate against current state
-        uint _length = _forceState.length;
-        require(address(subChannels[_channelID].CTFaddress).delegatecall(bytes4(keccak256("validateState(bytes)")), bytes32(32), bytes32(_length), _forceState));
+        // channel state
+        virtualChannels[_vcID].partyA = partyA; // VC participant A
+        virtualChannels[_vcID].partyB = _partyB; // VC participant B
+        virtualChannels[_vcID].partyI = partyI; // LC hub
+        virtualChannels[_vcID].balanceA = updateBalA;
+        virtualChannels[_vcID].balanceB = updateBalB;
 
-        subChannels[_channelID].challenger = msg.sender;
-        subChannels[_channelID].subSequence = _getSequence(_forceState);
-        subChannels[_channelID].subState = _forceState;
-        subChannels[_channelID].subSettlementPeriodEnd = now + _getChallengePeriod(subChannels[_channelID].subState);
-        subChannels[_channelID].isSettling = 1;
+        virtualChannels[_vcID].timeout = now + confirmTime;
+        virtualChannels[_vcID].isInSettlementState = 1;
     }
 
     // challenger can agree to latest state proposed by initiator, or present a higher VC state
-    function challengeSettleVC(bytes _forceState, uint _vcID) public payable{
-        // sub-channel must be open
-        require(subChannels[_channelID].isSettling == 1);
-        // Check time has passed on updateLCtimeout and has not passed the time to store a vc state
-        require(updateLCtimeout < now && now < updateLCtimeout + confirmTime);
-        // check forceState VC sequence, challenge state must have higher or equal sequence
-        // to the previously stored in startSettleVC
-        // Check signed by alice and bob
-        // store new VC state
-        subChannels[_channelID].isSettled = 1;
+    // function challengeSettleVC(bytes _forceState, uint _vcID) public payable{
 
-    }
+    // }
 
     function closeVirtualChannel(uint _vcID) public {
-        require(subChannels[_channelID].isSettled == 1);
-        // Rebalance LC ledger
-        // Rebalance open channel merkle root (don't do this)
+        require(subChannels[_channelID].isInSettlementState == 1);
+        require(virtualChannels[_vcID].timeout < now);
         // reduce the number of open virtual channels stored on LC
+        // re-introduce the balances back into the LC state from the settled VC
     }
 
 
