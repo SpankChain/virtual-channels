@@ -147,9 +147,9 @@ contract LedgerChannel {
         // partyB is now Ingrid
         bytes32 _initState = keccak256(_vcID, _sequence, bytes32(_partyA), bytes32(_partyB), _balanceA, _balanceB);
 
-        // Make sure Alice and Bob have signed initial vc state (A/B in oldState)
+        // Make sure Alice has signed initial vc state (A/B in oldState)
         require(_partyA == ECTools.recoverSigner(_initState, sigA));
-        require(_partyB == ECTools.recoverSigner(_initState, sigB));
+        //require(_partyB == ECTools.recoverSigner(_initState, sigB));
 
         // Check the oldState is in the root hash
         require(_isContained(_initState, _proof, Channels[_lcID].VCrootHash));
@@ -171,9 +171,9 @@ contract LedgerChannel {
 
         bytes32 _upateState = keccak256(_vcID, updateSeq, bytes32(_partyA), bytes32(_partyB), updateBalA, updateBalB);
 
-        // Make sure Alice and Bob have signed a higher sequence new state
+        // Make sure Alice has signed a higher sequence new state
         require(virtualChannels[_vcID].partyA == ECTools.recoverSigner(_upateState, sigA));
-        require(virtualChannels[_vcID].partyB == ECTools.recoverSigner(_upateState, sigB));
+        //require(virtualChannels[_vcID].partyB == ECTools.recoverSigner(_upateState, sigB));
 
         // store VC data
         // we may want to record who is initiating on-chain settles
