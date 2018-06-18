@@ -264,12 +264,12 @@ contract('Test Disputed Ether Payments', function(accounts) {
     let proof = [vcRootHash]
     proof = Utils.marshallState(proof)
     // todo: generate vcID before vc creation and perhaps store in state
-    await lc.initVCstate(web3.sha3('2222', {encoding: 'hex'}), web3.sha3('1337', {encoding: 'hex'}), proof, 0, partyA, partyB, web3.toWei(5, 'ether'), web3.toWei(7, 'ether'), AB_vcS0_sigA, AB_vcS0_sigB)
+    await lc.initVCstate(web3.sha3('2222', {encoding: 'hex'}), web3.sha3('1337', {encoding: 'hex'}), proof, 0, partyA, partyB, web3.toWei(5, 'ether'), web3.toWei(7, 'ether'), AB_vcS0_sigA)
 
   })
 
   it("Igrid or a watcher supply latest known vc state vcS1", async () => {
-    await lc.settleVC(web3.sha3('2222', {encoding: 'hex'}), web3.sha3('1337', {encoding: 'hex'}), 1, partyA, partyB, web3.toWei(3, 'ether'), web3.toWei(9, 'ether'), AB_vcS1_sigA, AB_vcS1_sigB)
+    await lc.settleVC(web3.sha3('2222', {encoding: 'hex'}), web3.sha3('1337', {encoding: 'hex'}), 1, partyA, partyB, web3.toWei(3, 'ether'), web3.toWei(9, 'ether'), AB_vcS1_sigA)
   })
 
   it("Hub may now sign Alice's lcS2 state to consensus close VC", async () => {
