@@ -261,6 +261,8 @@ contract LedgerChannel {
         );
     }
 
+    //TODO: verify state transition since the hub did not agree to this state
+    // make sure the A/B balances are not beyond ingrids bonds    
     function initVCstate(
         bytes32 _lcID, 
         bytes32 _vcID, 
