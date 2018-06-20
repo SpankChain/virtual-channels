@@ -113,6 +113,7 @@ contract LedgerChannel {
     mapping(bytes32 => Channel) public Channels;
 
     function createChannel(bytes32 _lcID, address _partyI) public payable {
+        require(Channels[_lcID].partyA == address(0), "Channel has already been created.");
         require(_partyI != 0x0, "No partyI address provided to LC creation");
         require(Channels[_lcID].isOpen == false, "Channel already open");
         require(Channels[_lcID].sequence == 0, "Channel has already been used");
