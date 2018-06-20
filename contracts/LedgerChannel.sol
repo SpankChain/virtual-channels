@@ -262,6 +262,8 @@ contract LedgerChannel {
         );
     }
 
+    //TODO: verify state transition since the hub did not agree to this state
+    // make sure the A/B balances are not beyond ingrids bonds    
     function initVCstate(
         bytes32 _lcID, 
         bytes32 _vcID, 
@@ -290,7 +292,7 @@ contract LedgerChannel {
         //require(_partyB == ECTools.recoverSigner(_initState, sigB));
 
         // Check the oldState is in the root hash
-        require(_isContained(_initState, _proof, Channels[_lcID].VCrootHash));
+        //require(_isContained(_initState, _proof, Channels[_lcID].VCrootHash));
 
         virtualChannels[_vcID].partyA = _partyA; // VC participant A
         virtualChannels[_vcID].partyB = _partyB; // VC participant B
@@ -321,7 +323,7 @@ contract LedgerChannel {
         require(Channels[_lcID].updateLCtimeout < now); // for testing!
 
         bytes32 _updateState = keccak256(
-            abi.encodePacked(_vcID, updateSeq, bytes32(_partyA), bytes32(_partyB), updateBalA, updateBalB)
+            abi.encodePacked(_vcID, updateSeq, _partyA, _partyB, updateBalA, updateBalB)
         );
 
         // Make sure Alice has signed a higher sequence new state
