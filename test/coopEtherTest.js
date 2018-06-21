@@ -33,6 +33,9 @@ let BI_lcS2
 let AB_vcS0
 let AB_vcS1
 
+let AB_vc2_S0
+let AB_vc2_S1
+
 // signature storage
 let AI_lcS0_sigA
 let AI_lcS1_sigA
@@ -202,10 +205,12 @@ contract('Test Cooperative Ether Payments', function(accounts) {
     var buf = Utils.hexToBuffer(hash)
     var elems = []
     elems.push(buf)
+    elems.push(Utils.hexToBuffer('0x0000000000000000000000000000000000000000000000000000000000000000'))
     var merkle = new MerkleTree(elems)
 
     vcRootHash = Utils.bufferToHex(merkle.getRoot())
-
+    console.log(vcRootHash)
+    console.log(merkle.proof(buf))
     // AI_lcS1 = []
     // AI_lcS1.push(0)
     // AI_lcS1.push(1)
@@ -239,6 +244,7 @@ contract('Test Cooperative Ether Payments', function(accounts) {
     var buf = Utils.hexToBuffer(hash)
     var elems = []
     elems.push(buf)
+    elems.push(Utils.hexToBuffer('0x0000000000000000000000000000000000000000000000000000000000000000'))
     var merkle = new MerkleTree(elems)
 
     vcRootHash = Utils.bufferToHex(merkle.getRoot())

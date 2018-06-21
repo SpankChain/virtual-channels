@@ -289,7 +289,6 @@ contract LedgerChannel {
 
         // Make sure Alice has signed initial vc state (A/B in oldState)
         require(_partyA == ECTools.recoverSigner(_initState, sigA));
-        //require(_partyB == ECTools.recoverSigner(_initState, sigB));
 
         // Check the oldState is in the root hash
         //require(_isContained(_initState, _proof, Channels[_lcID].VCrootHash));
@@ -297,6 +296,8 @@ contract LedgerChannel {
         virtualChannels[_vcID].partyA = _partyA; // VC participant A
         virtualChannels[_vcID].partyB = _partyB; // VC participant B
         virtualChannels[_vcID].sequence = _sequence;
+        virtualChannels[_vcID].balanceA = _balanceA;
+        virtualChannels[_vcID].balanceB = _balanceB;
         virtualChannels[_vcID].updateVCtimeout = now + confirmTime;
 
         emit DidVCInit(_lcID, _vcID, _proof, _sequence, _partyA, _partyB, _balanceA, _balanceB);
@@ -318,6 +319,7 @@ contract LedgerChannel {
         // sub-channel must be open
         require(!virtualChannels[_vcID].isClose, "VC is closed.");
         require(virtualChannels[_vcID].sequence < updateSeq, "VC sequence is higher than update sequence.");
+        require(virtualChannels[_vcID].balanceB < updateBalB, "State updates may only increase recipient balance.");
         // Check time has passed on updateLCtimeout and has not passed the time to store a vc state
         //require(Channels[_lcID].updateLCtimeout < now && now < virtualChannels[_vcID].updateVCtimeout);
         require(Channels[_lcID].updateLCtimeout < now); // for testing!
@@ -328,7 +330,6 @@ contract LedgerChannel {
 
         // Make sure Alice has signed a higher sequence new state
         require(virtualChannels[_vcID].partyA == ECTools.recoverSigner(_updateState, sigA));
-        //require(virtualChannels[_vcID].partyB == ECTools.recoverSigner(_upateState, sigB));
 
         // store VC data
         // we may want to record who is initiating on-chain settles

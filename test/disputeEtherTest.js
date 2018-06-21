@@ -292,8 +292,8 @@ contract('Test Disputed Ether Payments', function(accounts) {
       { type: 'uint256', value: '1' }, // sequence
       { type: 'address', value: partyA }, // partyA
       { type: 'address', value: partyB }, // counterparty
-      { type: 'uint256', value: web3latest.utils.toWei('5') },
-      { type: 'uint256', value: web3latest.utils.toWei('7') }
+      { type: 'uint256', value: web3latest.utils.toWei('2') },
+      { type: 'uint256', value: web3latest.utils.toWei('10') }
     )
 
   })
@@ -352,7 +352,7 @@ contract('Test Disputed Ether Payments', function(accounts) {
   })
 
   it("Igrid or a watcher supply latest known vc state vcS1", async () => {
-    await lc.settleVC(web3latest.utils.sha3('2222', {encoding: 'hex'}), web3latest.utils.sha3('1337', {encoding: 'hex'}), '1', partyA, partyB, web3latest.utils.toWei('5'), web3latest.utils.toWei('7'), AB_vcS1_sigA)
+    await lc.settleVC(web3latest.utils.sha3('2222', {encoding: 'hex'}), web3latest.utils.sha3('1337', {encoding: 'hex'}), '1', partyA, partyB, web3latest.utils.toWei('2'), web3latest.utils.toWei('10'), AB_vcS1_sigA)
   })
 
   it("Hub may now sign Alice's lcS2 state to consensus close VC", async () => {
