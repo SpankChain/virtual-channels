@@ -185,6 +185,7 @@ contract('Test Disputed Ether Payments', function(accounts) {
       { type: 'uint256', value: '0' }, // sequence
       { type: 'address', value: partyA }, // partyA
       { type: 'address', value: partyB }, // counterparty
+      { type: 'uint256', value: web3latest.utils.toWei('12') }, // hub bond
       { type: 'uint256', value: web3latest.utils.toWei('3') },
       { type: 'uint256', value: web3latest.utils.toWei('9') }
     )
@@ -201,6 +202,8 @@ contract('Test Disputed Ether Payments', function(accounts) {
     var buf = Utils.hexToBuffer(hash)
     var elems = []
     elems.push(buf)
+    elems.push(Utils.hexToBuffer('0x0000000000000000000000000000000000000000000000000000000000000000'))
+
     var merkle = new MerkleTree(elems)
 
     vcRootHash = Utils.bufferToHex(merkle.getRoot())
@@ -238,6 +241,8 @@ contract('Test Disputed Ether Payments', function(accounts) {
     var buf = Utils.hexToBuffer(hash)
     var elems = []
     elems.push(buf)
+    elems.push(Utils.hexToBuffer('0x0000000000000000000000000000000000000000000000000000000000000000'))
+
     var merkle = new MerkleTree(elems)
 
     vcRootHash = Utils.bufferToHex(merkle.getRoot())
@@ -292,6 +297,7 @@ contract('Test Disputed Ether Payments', function(accounts) {
       { type: 'uint256', value: '1' }, // sequence
       { type: 'address', value: partyA }, // partyA
       { type: 'address', value: partyB }, // counterparty
+      { type: 'uint256', value: web3latest.utils.toWei('12') }, // hub bond
       { type: 'uint256', value: web3latest.utils.toWei('2') },
       { type: 'uint256', value: web3latest.utils.toWei('10') }
     )
@@ -344,10 +350,22 @@ contract('Test Disputed Ether Payments', function(accounts) {
 
   it("Ingrid initiates settling vc with initial state", async () => {
     // Todo multiple channels and actual tree reformation
-    let proof = [vcRootHash]
+    var hash = web3latest.utils.sha3(AB_vcS0, {encoding: 'hex'})
+    var buf = Utils.hexToBuffer(hash)
+    var elems = []
+    elems.push(buf)
+    elems.push(Utils.hexToBuffer('0x0000000000000000000000000000000000000000000000000000000000000000'))
+
+    var merkle = new MerkleTree(elems)
+    let proof = []
+    proof.push(Utils.bufferToHex(buf))
+    //proof.push(Utils.bufferToHex(merkle.proof(buf)))
+    proof.push('0x0000000000000000000000000000000000000000000000000000000000000000')
+    //let proof = merkle.proof(buf)
     proof = Utils.marshallState(proof)
+    console.log(proof)
     // todo: generate vcID before vc creation and perhaps store in state
-    await lc.initVCstate(web3latest.utils.sha3('2222', {encoding: 'hex'}), web3latest.utils.sha3('1337', {encoding: 'hex'}), proof, '0', partyA, partyB, web3latest.utils.toWei('3'), web3latest.utils.toWei('9'), AB_vcS0_sigA)
+    await lc.initVCstate(web3latest.utils.sha3('2222', {encoding: 'hex'}), web3latest.utils.sha3('1337', {encoding: 'hex'}), proof, '0', partyA, partyB, web3latest.utils.toWei('12'), web3latest.utils.toWei('3'), web3latest.utils.toWei('9'), AB_vcS0_sigA)
 
   })
 

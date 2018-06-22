@@ -106,6 +106,7 @@ contract LedgerChannel {
         address partyI; // LC hub
         uint256 balanceA;
         uint256 balanceB;
+        uint256 bond;
         //uint256 balanceI;
     }
 
@@ -271,20 +272,21 @@ contract LedgerChannel {
         uint256 _sequence, 
         address _partyA, 
         address _partyB, 
-        uint256 _balanceA, 
-        uint256 _balanceB, 
+        uint256 _bond,
+        uint256 _balanceA,
+        uint256 _balanceB,
         string sigA
     ) 
         public 
     {
         // sub-channel must be open
         require(!virtualChannels[_vcID].isClose, "VC is closed.");
-        require(virtualChannels[_vcID].sequence == 0, "VC sequence is not 0.");
+        require(virtualChannels[_vcID].sequence == 0, "VC sequence is not 0");
         // Check time has passed on updateLCtimeout and has not passed the time to store a vc state
         require(Channels[_lcID].updateLCtimeout < now, "LC timeout over.");
         // partyB is now Ingrid
         bytes32 _initState = keccak256(
-            abi.encodePacked(_vcID, _sequence, _partyA, _partyB, _balanceA, _balanceB)
+            abi.encodePacked(_vcID, _sequence, _partyA, _partyB, _bond, _balanceA, _balanceB)
         );
 
         // Make sure Alice has signed initial vc state (A/B in oldState)
@@ -298,6 +300,7 @@ contract LedgerChannel {
         virtualChannels[_vcID].sequence = _sequence;
         virtualChannels[_vcID].balanceA = _balanceA;
         virtualChannels[_vcID].balanceB = _balanceB;
+        virtualChannels[_vcID].bond = _bond;
         virtualChannels[_vcID].updateVCtimeout = now + confirmTime;
 
         emit DidVCInit(_lcID, _vcID, _proof, _sequence, _partyA, _partyB, _balanceA, _balanceB);
@@ -309,7 +312,7 @@ contract LedgerChannel {
         bytes32 _vcID, 
         uint256 updateSeq, 
         address _partyA, 
-        address _partyB, 
+        address _partyB,
         uint256 updateBalA, 
         uint256 updateBalB, 
         string sigA
@@ -320,12 +323,13 @@ contract LedgerChannel {
         require(!virtualChannels[_vcID].isClose, "VC is closed.");
         require(virtualChannels[_vcID].sequence < updateSeq, "VC sequence is higher than update sequence.");
         require(virtualChannels[_vcID].balanceB < updateBalB, "State updates may only increase recipient balance.");
+        require(virtualChannels[_vcID].bond == updateBalA + updateBalB, "Incorrect balances for bonded amount");
         // Check time has passed on updateLCtimeout and has not passed the time to store a vc state
         //require(Channels[_lcID].updateLCtimeout < now && now < virtualChannels[_vcID].updateVCtimeout);
         require(Channels[_lcID].updateLCtimeout < now); // for testing!
 
         bytes32 _updateState = keccak256(
-            abi.encodePacked(_vcID, updateSeq, _partyA, _partyB, updateBalA, updateBalB)
+            abi.encodePacked(_vcID, updateSeq, _partyA, _partyB, virtualChannels[_vcID].bond, updateBalA, updateBalB)
         );
 
         // Make sure Alice has signed a higher sequence new state

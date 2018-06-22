@@ -188,7 +188,8 @@ contract('Test Cooperative Ether Payments', function(accounts) {
       { type: 'bytes32', value: web3latest.utils.sha3('1337', {encoding: 'hex'}) }, // vc id
       { type: 'uint256', value: 0 }, // sequence
       { type: 'address', value: partyB }, // partyA
-      { type: 'address', value: partyB }, // hub
+      { type: 'address', value: partyB }, // hub,
+      { type: 'uint256', value: web3latest.utils.toWei('12') }, // hub bond
       { type: 'uint256', value: web3latest.utils.toWei('5') },
       { type: 'uint256', value: web3latest.utils.toWei('7') }
     )
@@ -211,6 +212,9 @@ contract('Test Cooperative Ether Payments', function(accounts) {
     vcRootHash = Utils.bufferToHex(merkle.getRoot())
     console.log(vcRootHash)
     console.log(merkle.proof(buf))
+    console.log(buf)
+    console.log(merkle.proof(Utils.hexToBuffer('0x0000000000000000000000000000000000000000000000000000000000000000')))
+
     // AI_lcS1 = []
     // AI_lcS1.push(0)
     // AI_lcS1.push(1)
@@ -299,6 +303,7 @@ contract('Test Cooperative Ether Payments', function(accounts) {
       { type: 'uint256', value: 0 }, // sequence
       { type: 'address', value: partyB }, // partyA
       { type: 'address', value: partyB }, // hub
+      { type: 'uint256', value: web3latest.utils.toWei('12') }, // hub bond
       { type: 'uint256', value: web3latest.utils.toWei('5') },
       { type: 'uint256', value: web3latest.utils.toWei('7') }
     )

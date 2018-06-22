@@ -5,4 +5,6 @@ module.exports = async function(deployer) {
   deployer.deploy(EC);
   deployer.link(EC, LC);
   deployer.deploy(LC);
+  console.log(LC.address)
+  console.log('weeeeee')
 };
