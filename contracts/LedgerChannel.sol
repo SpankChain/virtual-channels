@@ -184,6 +184,8 @@ contract LedgerChannel {
     {
         // assume num open vc is 0 and root hash is 0x0
         require(Channels[_lcID].sequence < _sequence);
+        require(Channels[_lcID].balanceA + Channels[_lcID].balanceI == _balanceA + _balanceI);
+
         bytes32 _state = keccak256(
             abi.encodePacked(
                 true,
@@ -224,7 +226,7 @@ contract LedgerChannel {
         public 
     {
         require(Channels[_lcID].sequence < _sequence); // do same as vc sequence check
-
+        require(Channels[_lcID].balanceA + Channels[_lcID].balanceI >= _balanceA + _balanceI);
         bytes32 _state = keccak256(
             abi.encodePacked(
                 false, 
