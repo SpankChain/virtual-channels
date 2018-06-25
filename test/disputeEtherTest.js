@@ -31,6 +31,8 @@ let BI_lcS2
 
 let AB_vcS0
 let AB_vcS1
+let AB_vc1
+let AB_vc2
 
 // signature storage
 let AI_lcS0_sigA
@@ -221,6 +223,58 @@ contract('Test Disputed Ether Payments', function(accounts) {
     BI_lcS1_sigI = await web3latest.eth.sign(BI_lcS1, partyI)
   })
 
+  it("Assign Bob multiple vc", async () => {
+    AB_vc1 = web3latest.utils.soliditySha3(
+      { type: 'bytes32', value: web3latest.utils.sha3('random', {encoding: 'hex'}) }, // vc id
+      { type: 'uint256', value: '0' }, // sequence
+      { type: 'address', value: partyA }, // partyA
+      { type: 'address', value: partyB }, // counterparty
+      { type: 'uint256', value: web3latest.utils.toWei('1') }, // hub bond
+      { type: 'uint256', value: web3latest.utils.toWei('2') },
+      { type: 'uint256', value: web3latest.utils.toWei('3') }
+    )
+
+    AB_vc2 = web3latest.utils.soliditySha3(
+      { type: 'bytes32', value: web3latest.utils.sha3('random2', {encoding: 'hex'}) }, // vc id
+      { type: 'uint256', value: '0' }, // sequence
+      { type: 'address', value: partyA }, // partyA
+      { type: 'address', value: partyB }, // counterparty
+      { type: 'uint256', value: web3latest.utils.toWei('4') }, // hub bond
+      { type: 'uint256', value: web3latest.utils.toWei('5') },
+      { type: 'uint256', value: web3latest.utils.toWei('6') }
+    )
+
+    var buf = Utils.hexToBuffer(AB_vc1)
+    var buf1 = Utils.hexToBuffer(AB_vc2)
+    var buf2 = Utils.hexToBuffer(AB_vcS0)
+    var elems = []
+    elems.push(buf)
+    elems.push(buf1)
+    elems.push(buf2)
+    elems.push(Utils.hexToBuffer('0x0000000000000000000000000000000000000000000000000000000000000000'))
+
+    var merkle = new MerkleTree(elems)
+
+    vcRootHash = Utils.bufferToHex(merkle.getRoot())
+
+    BI_lcS2 = web3latest.utils.soliditySha3(
+      { type: 'bool', value: false }, // isclose
+      //{ type: 'bytes32', value: web3.sha3('lc4', {encoding: 'hex'}) }, // lcid
+      { type: 'uint256', value: '2' }, // sequence
+      { type: 'uint256', value: '3' }, // open VCs
+      { type: 'bytes32', value: vcRootHash }, // VC root hash
+      { type: 'address', value: partyB }, // partyA
+      { type: 'address', value: partyI }, // hub
+      { type: 'uint256', value: web3latest.utils.toWei('3') },
+      { type: 'uint256', value: web3latest.utils.toWei('15') }
+    ) 
+  })
+
+  it("Bob/Hub signs lcS2 state", async () => {
+    BI_lcS2_sigB = await web3latest.eth.sign(BI_lcS2, partyB)
+    BI_lcS2_sigI = await web3latest.eth.sign(BI_lcS2, partyI)
+  })
+
   it("Alice generates virtual channel payment with Bob", async () => {   
     AB_vcS1 = web3latest.utils.soliditySha3(
       { type: 'bytes32', value: web3latest.utils.sha3('1337', {encoding: 'hex'}) }, // vc id
@@ -257,7 +311,7 @@ contract('Test Disputed Ether Payments', function(accounts) {
 
   // TODO: doesnt make sense to settle on single direction payment receiver
   it("Ingrid initiates settling on-chain with byzantine Bob", async () => {
-    await lc.updateLCstate(web3latest.utils.sha3('2222', {encoding: 'hex'}), '1', '1', web3latest.utils.toWei('3'), web3latest.utils.toWei('15'), vcRootHash, BI_lcS1_sigB, BI_lcS1_sigI)
+    await lc.updateLCstate(web3latest.utils.sha3('2222', {encoding: 'hex'}), '2', '3', web3latest.utils.toWei('3'), web3latest.utils.toWei('15'), vcRootHash, BI_lcS2_sigB, BI_lcS2_sigI)
     // let seq = await lc2.sequence()
     // let numvc = await lc2.numOpenVC()
     // let ba = await lc2.balanceA()
@@ -269,17 +323,27 @@ contract('Test Disputed Ether Payments', function(accounts) {
   })
 
   it("Ingrid initiates settling vc with initial state", async () => {
-    var buf = Utils.hexToBuffer(AB_vcS0)
+    var buf = Utils.hexToBuffer(AB_vc1)
+    var buf1 = Utils.hexToBuffer(AB_vc2)
+    var buf2 = Utils.hexToBuffer(AB_vcS0)
     var elems = []
     elems.push(buf)
+    elems.push(buf1)
+    elems.push(buf2)
     elems.push(Utils.hexToBuffer('0x0000000000000000000000000000000000000000000000000000000000000000'))
 
     var merkle = new MerkleTree(elems)
-    let mproof = merkle.proof(buf)
-    console.log(Utils.bufferToHex(mproof))
+    console.log(merkle.layers)
+    let mproof = merkle.proof(buf2)
+    //console.log(Utils.bufferToHex(mproof))
+    console.log(mproof)
     let proof = []
-    proof.push(Utils.bufferToHex(buf))
-    proof.push('0x0000000000000000000000000000000000000000000000000000000000000000')
+    for(var i=0; i<mproof.length; i++){
+      proof.push(Utils.bufferToHex(mproof[i]))
+    }
+    console.log(proof)
+    proof.unshift(AB_vcS0)
+    console.log(proof)
 
     proof = Utils.marshallState(proof)
     console.log(web3latest.utils.sha3(proof, {encoding: 'hex'}))
