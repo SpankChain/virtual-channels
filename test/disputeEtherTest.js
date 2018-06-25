@@ -333,22 +333,18 @@ contract('Test Disputed Ether Payments', function(accounts) {
     elems.push(Utils.hexToBuffer('0x0000000000000000000000000000000000000000000000000000000000000000'))
 
     var merkle = new MerkleTree(elems)
-    console.log(merkle.layers)
+
     let mproof = merkle.proof(buf2)
-    //console.log(Utils.bufferToHex(mproof))
-    console.log(mproof)
+
     let proof = []
     for(var i=0; i<mproof.length; i++){
       proof.push(Utils.bufferToHex(mproof[i]))
     }
-    console.log(proof)
+
     proof.unshift(AB_vcS0)
-    console.log(proof)
 
     proof = Utils.marshallState(proof)
-    console.log(web3latest.utils.sha3(proof, {encoding: 'hex'}))
-    let rt = await lc.Channels(web3latest.utils.sha3('2222', {encoding: 'hex'}))
-    console.log(rt[5])
+
     // todo: generate vcID before vc creation and perhaps store in state
     await lc.initVCstate(web3latest.utils.sha3('2222', {encoding: 'hex'}), web3latest.utils.sha3('1337', {encoding: 'hex'}), proof, '0', partyA, partyB, web3latest.utils.toWei('12'), web3latest.utils.toWei('3'), web3latest.utils.toWei('9'), AB_vcS0_sigA)
   })
@@ -370,7 +366,7 @@ contract('Test Disputed Ether Payments', function(accounts) {
     // var balB = await web3latest.eth.getBalance(partyI)
     // console.log('Balance A before close: ' + balA)
     // console.log('Balance I before close: ' + balB)
-    await lc.byzantineCloseChannel(web3latest.utils.sha3('2222', {encoding: 'hex'}))
+    //await lc.byzantineCloseChannel(web3latest.utils.sha3('2222', {encoding: 'hex'}))
     // balA = await web3latest.eth.getBalance(partyA)
     // balB = await web3latest.eth.getBalance(partyI)
     // console.log('Balance A after close: ' + balA)
