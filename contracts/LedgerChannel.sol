@@ -83,7 +83,7 @@ contract LedgerChannel {
         uint256 balanceA;
         uint256 balanceI;
         uint256 sequence;
-        bytes32 stateHash;
+        //bytes32 stateHash;
         bytes32 VCrootHash;
         uint256 LCopenTimeout;
         uint256 updateLCtimeout; // when update LC times out
@@ -295,7 +295,7 @@ contract LedgerChannel {
         require(_partyA == ECTools.recoverSigner(_initState, sigA));
 
         // Check the oldState is in the root hash
-        //require(_isContained(_initState, _proof, Channels[_lcID].VCrootHash));
+        require(_isContained(_initState, _proof, Channels[_lcID].VCrootHash) == true);
 
         virtualChannels[_vcID].partyA = _partyA; // VC participant A
         virtualChannels[_vcID].partyB = _partyB; // VC participant B
@@ -304,6 +304,9 @@ contract LedgerChannel {
         virtualChannels[_vcID].balanceB = _balanceB;
         virtualChannels[_vcID].bond = _bond;
         virtualChannels[_vcID].updateVCtimeout = now + confirmTime;
+
+        //LC is no longer settling
+        //Channels[_lcID].isUpdateLCSettling == false;
 
         emit DidVCInit(_lcID, _vcID, _proof, _sequence, _partyA, _partyB, _balanceA, _balanceB);
     }
