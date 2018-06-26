@@ -39,7 +39,8 @@ contract LedgerChannel {
         uint256 numOpenVc, 
         uint256 balanceA, 
         uint256 balanceI, 
-        bytes32 vcRoot
+        bytes32 vcRoot,
+        uint256 updateLCtimeout
     );
 
     event DidLCClose (
@@ -68,7 +69,8 @@ contract LedgerChannel {
         address partyB, 
         uint256 updateBalA, 
         uint256 updateBalB,
-        address challenger
+        address challenger,
+        uint256 updateVCtimeout
     );
 
     event DidVCClose(
@@ -261,7 +263,8 @@ contract LedgerChannel {
             _numOpenVc, 
             _balanceA, 
             _balanceI, 
-            _VCroot
+            _VCroot,
+            Channels[_lcID].updateLCtimeout
         );
     }
 
@@ -352,7 +355,7 @@ contract LedgerChannel {
         virtualChannels[_vcID].updateVCtimeout = now + confirmTime;
         virtualChannels[_vcID].isInSettlementState = true;
 
-        emit DidVCSettle(_lcID, _vcID, updateSeq, _partyA, _partyB, updateBalA, updateBalB, msg.sender);
+        emit DidVCSettle(_lcID, _vcID, updateSeq, _partyA, _partyB, updateBalA, updateBalB, msg.sender, virtualChannels[_vcID].updateVCtimeout);
     }
 
     function closeVirtualChannel(bytes32 _lcID, bytes32 _vcID) public {
