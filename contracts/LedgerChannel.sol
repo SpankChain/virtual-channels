@@ -44,6 +44,7 @@ contract LedgerChannel {
 
     event DidLCClose (
         bytes32 indexed channelId,
+        uint256 sequence,
         uint256 balanceA,
         uint256 balanceI
     );
@@ -138,9 +139,8 @@ contract LedgerChannel {
         if (now > Channels[_lcID].LCopenTimeout) {
             Channels[_lcID].partyA.transfer(Channels[_lcID].balanceA);
             // only safe to delete since no action was taken on this channel
+            emit DidLCClose(_lcID, 0, Channels[_lcID].balanceA, 0);
             delete Channels[_lcID];
-
-            emit DidLCClose(_lcID, Channels[_lcID].balanceA, 0);
         }
     }
 
@@ -208,7 +208,7 @@ contract LedgerChannel {
         Channels[_lcID].isOpen = false;
         numChannels--;
 
-        emit DidLCClose(_lcID, _balanceA, _balanceI);
+        emit DidLCClose(_lcID, _sequence, _balanceA, _balanceI);
     }
 
     // Byzantine functions
@@ -393,7 +393,7 @@ contract LedgerChannel {
         Channels[_lcID].isOpen = false;
         numChannels--;
 
-        emit DidLCClose(_lcID, balanceA, balanceI);
+        emit DidLCClose(_lcID, Channels[_lcID].sequence, balanceA, balanceI);
     }
 
     function _isContained(bytes32 _hash, bytes _proof, bytes32 _root) internal pure returns (bool) {
