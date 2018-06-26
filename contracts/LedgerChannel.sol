@@ -65,8 +65,6 @@ contract LedgerChannel {
         bytes32 indexed lcId, 
         bytes32 indexed vcId,
         uint256 updateSeq, 
-        address partyA, 
-        address partyB, 
         uint256 updateBalA, 
         uint256 updateBalB,
         address challenger,
@@ -217,28 +215,25 @@ contract LedgerChannel {
 
     function updateLCstate(
         bytes32 _lcID, 
-        uint256 _sequence, 
-        uint256 _numOpenVc, 
-        uint256 _balanceA, 
-        uint256 _balanceI, 
+        uint256[4] updateParams, // [sequence, numOpenVc, balanceA, balanceI]
         bytes32 _VCroot, 
         string _sigA, 
         string _sigI
     ) 
         public 
     {
-        require(Channels[_lcID].sequence < _sequence); // do same as vc sequence check
-        require(Channels[_lcID].balanceA + Channels[_lcID].balanceI >= _balanceA + _balanceI);
+        require(Channels[_lcID].sequence < updateParams[0]); // do same as vc sequence check
+        require(Channels[_lcID].balanceA + Channels[_lcID].balanceI >= updateParams[2] + updateParams[3]);
         bytes32 _state = keccak256(
             abi.encodePacked(
                 false, 
-                _sequence, 
-                _numOpenVc, 
+                updateParams[0], 
+                updateParams[1], 
                 _VCroot, 
                 Channels[_lcID].partyA, 
                 Channels[_lcID].partyI, 
-                _balanceA, 
-                _balanceI
+                updateParams[2], 
+                updateParams[3]
             )
         );
 
@@ -246,10 +241,10 @@ contract LedgerChannel {
         require(Channels[_lcID].partyI == ECTools.recoverSigner(_state, _sigI));
 
         // update LC state
-        Channels[_lcID].sequence = _sequence;
-        Channels[_lcID].numOpenVC = _numOpenVc;
-        Channels[_lcID].balanceA = _balanceA;
-        Channels[_lcID].balanceI = _balanceI;
+        Channels[_lcID].sequence = updateParams[0];
+        Channels[_lcID].numOpenVC = updateParams[1];
+        Channels[_lcID].balanceA = updateParams[2];
+        Channels[_lcID].balanceI = updateParams[3];
         Channels[_lcID].VCrootHash = _VCroot;
 
         Channels[_lcID].isUpdateLCSettling = true;
@@ -259,10 +254,10 @@ contract LedgerChannel {
 
         emit DidLCUpdateState (
             _lcID, 
-            _sequence, 
-            _numOpenVc, 
-            _balanceA, 
-            _balanceI, 
+            updateParams[0], 
+            updateParams[1], 
+            updateParams[2], 
+            updateParams[3], 
             _VCroot,
             Channels[_lcID].updateLCtimeout
         );
@@ -321,8 +316,7 @@ contract LedgerChannel {
         uint256 updateSeq, 
         address _partyA, 
         address _partyB,
-        uint256 updateBalA, 
-        uint256 updateBalB, 
+        uint256[2] updateBal, // [updateBalA, updateBalB]
         string sigA
     ) 
         public 
@@ -330,14 +324,14 @@ contract LedgerChannel {
         // sub-channel must be open
         require(!virtualChannels[_vcID].isClose, "VC is closed.");
         require(virtualChannels[_vcID].sequence < updateSeq, "VC sequence is higher than update sequence.");
-        require(virtualChannels[_vcID].balanceB < updateBalB, "State updates may only increase recipient balance.");
-        require(virtualChannels[_vcID].bond == updateBalA + updateBalB, "Incorrect balances for bonded amount");
+        require(virtualChannels[_vcID].balanceB < updateBal[1], "State updates may only increase recipient balance.");
+        require(virtualChannels[_vcID].bond == updateBal[0] + updateBal[1], "Incorrect balances for bonded amount");
         // Check time has passed on updateLCtimeout and has not passed the time to store a vc state
         //require(Channels[_lcID].updateLCtimeout < now && now < virtualChannels[_vcID].updateVCtimeout);
         require(Channels[_lcID].updateLCtimeout < now); // for testing!
 
         bytes32 _updateState = keccak256(
-            abi.encodePacked(_vcID, updateSeq, _partyA, _partyB, virtualChannels[_vcID].bond, updateBalA, updateBalB)
+            abi.encodePacked(_vcID, updateSeq, _partyA, _partyB, virtualChannels[_vcID].bond, updateBal[0], updateBal[1])
         );
 
         // Make sure Alice has signed a higher sequence new state
@@ -349,13 +343,13 @@ contract LedgerChannel {
         virtualChannels[_vcID].sequence = updateSeq;
 
         // channel state
-        virtualChannels[_vcID].balanceA = updateBalA;
-        virtualChannels[_vcID].balanceB = updateBalB;
+        virtualChannels[_vcID].balanceA = updateBal[0];
+        virtualChannels[_vcID].balanceB = updateBal[1];
 
         virtualChannels[_vcID].updateVCtimeout = now + confirmTime;
         virtualChannels[_vcID].isInSettlementState = true;
 
-        emit DidVCSettle(_lcID, _vcID, updateSeq, _partyA, _partyB, updateBalA, updateBalB, msg.sender, virtualChannels[_vcID].updateVCtimeout);
+        emit DidVCSettle(_lcID, _vcID, updateSeq, updateBal[0], updateBal[1], msg.sender, virtualChannels[_vcID].updateVCtimeout);
     }
 
     function closeVirtualChannel(bytes32 _lcID, bytes32 _vcID) public {
