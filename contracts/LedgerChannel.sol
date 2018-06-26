@@ -10,9 +10,6 @@ contract LedgerChannel {
     string public constant NAME = "Ledger Channel";
     string public constant VERSION = "0.0.1";
 
-    // timeout storage
-    uint256 public confirmTime = 0 minutes;
-
     uint256 public numChannels = 0;
 
     event DidLCOpen (
@@ -84,7 +81,7 @@ contract LedgerChannel {
         uint256 balanceA;
         uint256 balanceI;
         uint256 sequence;
-        //bytes32 stateHash;
+        uint256 confirmTime;
         bytes32 VCrootHash;
         uint256 LCopenTimeout;
         uint256 updateLCtimeout; // when update LC times out
@@ -114,7 +111,7 @@ contract LedgerChannel {
     mapping(bytes32 => VirtualChannel) public virtualChannels;
     mapping(bytes32 => Channel) public Channels;
 
-    function createChannel(bytes32 _lcID, address _partyI) public payable {
+    function createChannel(bytes32 _lcID, address _partyI, uint256 _confirmTime) public payable {
         require(Channels[_lcID].partyA == address(0), "Channel has already been created.");
         require(_partyI != 0x0, "No partyI address provided to LC creation");
         require(Channels[_lcID].isOpen == false, "Channel already open");
@@ -127,9 +124,10 @@ contract LedgerChannel {
         Channels[_lcID].partyI = _partyI;
         Channels[_lcID].balanceA = msg.value;
         Channels[_lcID].sequence = 0;
+        Channels[_lcID].confirmTime = _confirmTime;
         // is close flag, lc state sequence, number open vc, vc root hash, partyA... 
         //Channels[_lcID].stateHash = keccak256(uint256(0), uint256(0), uint256(0), bytes32(0x0), bytes32(msg.sender), bytes32(_partyI), balanceA, balanceI);
-        Channels[_lcID].LCopenTimeout = now + confirmTime;
+        Channels[_lcID].LCopenTimeout = now + _confirmTime;
 
         emit DidLCOpen(_lcID, msg.sender, _partyI, msg.value);
     }
@@ -213,6 +211,7 @@ contract LedgerChannel {
 
     // Byzantine functions
 
+    // make sure this can only be called once on an LC, prevent trolling from forced closing
     function updateLCstate(
         bytes32 _lcID, 
         uint256[4] updateParams, // [sequence, numOpenVc, balanceA, balanceI]
@@ -248,7 +247,7 @@ contract LedgerChannel {
         Channels[_lcID].VCrootHash = _VCroot;
 
         Channels[_lcID].isUpdateLCSettling = true;
-        Channels[_lcID].updateLCtimeout = now + confirmTime;
+        Channels[_lcID].updateLCtimeout = now + Channels[_lcID].confirmTime;
 
         // make settlement flag
 
@@ -284,6 +283,8 @@ contract LedgerChannel {
         require(virtualChannels[_vcID].sequence == 0, "VC sequence is not 0");
         // Check time has passed on updateLCtimeout and has not passed the time to store a vc state
         require(Channels[_lcID].updateLCtimeout < now, "LC timeout over.");
+        // prevent rentry of initializing vc state
+        require(virtualChannels[_vcID].updateVCtimeout == 0);
         // partyB is now Ingrid
         bytes32 _initState = keccak256(
             abi.encodePacked(_vcID, _sequence, _partyA, _partyB, _bond, _balanceA, _balanceB)
@@ -301,7 +302,7 @@ contract LedgerChannel {
         virtualChannels[_vcID].balanceA = _balanceA;
         virtualChannels[_vcID].balanceB = _balanceB;
         virtualChannels[_vcID].bond = _bond;
-        virtualChannels[_vcID].updateVCtimeout = now + confirmTime;
+        virtualChannels[_vcID].updateVCtimeout = now + Channels[_lcID].confirmTime;
 
         emit DidVCInit(_lcID, _vcID, _proof, _sequence, _partyA, _partyB, _balanceA, _balanceB);
     }
@@ -324,6 +325,8 @@ contract LedgerChannel {
         require(virtualChannels[_vcID].balanceB < updateBal[1], "State updates may only increase recipient balance.");
         require(virtualChannels[_vcID].bond == updateBal[0] + updateBal[1], "Incorrect balances for bonded amount");
         // Check time has passed on updateLCtimeout and has not passed the time to store a vc state
+        // virtualChannels[_vcID].updateVCtimeout should be 0 on uninitialized vc state, and this should
+        // fail if initVC() isn't called first
         //require(Channels[_lcID].updateLCtimeout < now && now < virtualChannels[_vcID].updateVCtimeout);
         require(Channels[_lcID].updateLCtimeout < now); // for testing!
 
@@ -343,7 +346,7 @@ contract LedgerChannel {
         virtualChannels[_vcID].balanceA = updateBal[0];
         virtualChannels[_vcID].balanceB = updateBal[1];
 
-        virtualChannels[_vcID].updateVCtimeout = now + confirmTime;
+        virtualChannels[_vcID].updateVCtimeout = now + Channels[_lcID].confirmTime;
         virtualChannels[_vcID].isInSettlementState = true;
 
         emit DidVCSettle(_lcID, _vcID, updateSeq, updateBal[0], updateBal[1], msg.sender, virtualChannels[_vcID].updateVCtimeout);
