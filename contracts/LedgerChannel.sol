@@ -39,11 +39,13 @@ contract LedgerChannel {
         uint256 numOpenVc, 
         uint256 balanceA, 
         uint256 balanceI, 
-        bytes32 vcRoot
+        bytes32 vcRoot,
+        uint256 updateLCtimeout
     );
 
     event DidLCClose (
         bytes32 indexed channelId,
+        uint256 sequence,
         uint256 balanceA,
         uint256 balanceI
     );
@@ -67,7 +69,8 @@ contract LedgerChannel {
         address partyB, 
         uint256 updateBalA, 
         uint256 updateBalB,
-        address challenger
+        address challenger,
+        uint256 updateVCtimeout
     );
 
     event DidVCClose(
@@ -138,9 +141,8 @@ contract LedgerChannel {
         if (now > Channels[_lcID].LCopenTimeout) {
             Channels[_lcID].partyA.transfer(Channels[_lcID].balanceA);
             // only safe to delete since no action was taken on this channel
+            emit DidLCClose(_lcID, 0, Channels[_lcID].balanceA, 0);
             delete Channels[_lcID];
-
-            emit DidLCClose(_lcID, Channels[_lcID].balanceA, 0);
         }
     }
 
@@ -208,7 +210,7 @@ contract LedgerChannel {
         Channels[_lcID].isOpen = false;
         numChannels--;
 
-        emit DidLCClose(_lcID, _balanceA, _balanceI);
+        emit DidLCClose(_lcID, _sequence, _balanceA, _balanceI);
     }
 
     // Byzantine functions
@@ -261,7 +263,8 @@ contract LedgerChannel {
             _numOpenVc, 
             _balanceA, 
             _balanceI, 
-            _VCroot
+            _VCroot,
+            Channels[_lcID].updateLCtimeout
         );
     }
 
@@ -352,7 +355,7 @@ contract LedgerChannel {
         virtualChannels[_vcID].updateVCtimeout = now + confirmTime;
         virtualChannels[_vcID].isInSettlementState = true;
 
-        emit DidVCSettle(_lcID, _vcID, updateSeq, _partyA, _partyB, updateBalA, updateBalB, msg.sender);
+        emit DidVCSettle(_lcID, _vcID, updateSeq, _partyA, _partyB, updateBalA, updateBalB, msg.sender, virtualChannels[_vcID].updateVCtimeout);
     }
 
     function closeVirtualChannel(bytes32 _lcID, bytes32 _vcID) public {
@@ -393,7 +396,7 @@ contract LedgerChannel {
         Channels[_lcID].isOpen = false;
         numChannels--;
 
-        emit DidLCClose(_lcID, balanceA, balanceI);
+        emit DidLCClose(_lcID, Channels[_lcID].sequence, balanceA, balanceI);
     }
 
     function _isContained(bytes32 _hash, bytes _proof, bytes32 _root) internal pure returns (bool) {
