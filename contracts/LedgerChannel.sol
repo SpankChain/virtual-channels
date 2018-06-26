@@ -303,9 +303,6 @@ contract LedgerChannel {
         virtualChannels[_vcID].bond = _bond;
         virtualChannels[_vcID].updateVCtimeout = now + confirmTime;
 
-        //LC is no longer settling
-        //Channels[_lcID].isUpdateLCSettling == false;
-
         emit DidVCInit(_lcID, _vcID, _proof, _sequence, _partyA, _partyB, _balanceA, _balanceB);
     }
 

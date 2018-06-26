@@ -311,7 +311,7 @@ contract('Test Disputed Ether Payments', function(accounts) {
 
   // TODO: doesnt make sense to settle on single direction payment receiver
   it("Ingrid initiates settling on-chain with byzantine Bob", async () => {
-    await lc.updateLCstate(web3latest.utils.sha3('2222', {encoding: 'hex'}), '2', '3', web3latest.utils.toWei('3'), web3latest.utils.toWei('15'), vcRootHash, BI_lcS2_sigB, BI_lcS2_sigI)
+    await lc.updateLCstate(web3latest.utils.sha3('2222', {encoding: 'hex'}), ['2', '3', web3latest.utils.toWei('3'), web3latest.utils.toWei('15')], vcRootHash, BI_lcS2_sigB, BI_lcS2_sigI)
     // let seq = await lc2.sequence()
     // let numvc = await lc2.numOpenVC()
     // let ba = await lc2.balanceA()
@@ -350,7 +350,7 @@ contract('Test Disputed Ether Payments', function(accounts) {
   })
 
   it("Igrid or a watcher supply latest known vc state vcS1", async () => {
-    await lc.settleVC(web3latest.utils.sha3('2222', {encoding: 'hex'}), web3latest.utils.sha3('1337', {encoding: 'hex'}), '1', partyA, partyB, web3latest.utils.toWei('2'), web3latest.utils.toWei('10'), AB_vcS1_sigA)
+    await lc.settleVC(web3latest.utils.sha3('2222', {encoding: 'hex'}), web3latest.utils.sha3('1337', {encoding: 'hex'}), '1', partyA, partyB, [web3latest.utils.toWei('2'), web3latest.utils.toWei('10')], AB_vcS1_sigA)
   })
 
   it("Hub may now sign Alice's lcS2 state to consensus close VC", async () => {
