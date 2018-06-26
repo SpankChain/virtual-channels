@@ -93,7 +93,7 @@ contract('Test Cooperative Ether Payments', function(accounts) {
 
 
   it("Alice initiates ledger channel with lcS0", async () => {
-    await lc.createChannel(web3latest.utils.sha3('1111', {encoding: 'hex'}), partyI, {from:partyA, value: web3latest.utils.toWei('10')})
+    await lc.createChannel(web3latest.utils.sha3('1111', {encoding: 'hex'}), partyI, '0', {from:partyA, value: web3latest.utils.toWei('10')})
     // let openTimeout = await lc.LCopenTimeout()
     // let stateHash = await lc.stateHash()
     // let pa = await lc.partyA()
@@ -131,7 +131,7 @@ contract('Test Cooperative Ether Payments', function(accounts) {
 
 
   it("Bob initiates ledger channel with lcS0", async () => {
-    await lc.createChannel(web3latest.utils.sha3('2222', {encoding: 'hex'}), partyI, {from:partyB, value: web3latest.utils.toWei('10')})
+    await lc.createChannel(web3latest.utils.sha3('2222', {encoding: 'hex'}), partyI, '0', {from:partyB, value: web3latest.utils.toWei('10')})
     // let openTimeout = await lc.LCopenTimeout()
     // let stateHash = await lc.stateHash()
     // let pa = await lc.partyA()
