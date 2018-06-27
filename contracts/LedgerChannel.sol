@@ -211,7 +211,6 @@ contract LedgerChannel {
 
     // Byzantine functions
 
-    // make sure this can only be called once on an LC, prevent trolling from forced closing
     function updateLCstate(
         bytes32 _lcID, 
         uint256[4] updateParams, // [sequence, numOpenVc, balanceA, balanceI]
@@ -221,6 +220,7 @@ contract LedgerChannel {
     ) 
         public 
     {
+        require(Channels[_lcID].isOpen);
         require(Channels[_lcID].sequence < updateParams[0]); // do same as vc sequence check
         require(Channels[_lcID].balanceA + Channels[_lcID].balanceI >= updateParams[2] + updateParams[3]);
         bytes32 _state = keccak256(
@@ -278,6 +278,7 @@ contract LedgerChannel {
     ) 
         public 
     {
+        require(Channels[_lcID].isOpen, "LC is closed.");
         // sub-channel must be open
         require(!virtualChannels[_vcID].isClose, "VC is closed.");
         require(virtualChannels[_vcID].sequence == 0, "VC sequence is not 0");
@@ -319,6 +320,7 @@ contract LedgerChannel {
     ) 
         public 
     {
+        require(Channels[_lcID].isOpen, "LC is closed.");
         // sub-channel must be open
         require(!virtualChannels[_vcID].isClose, "VC is closed.");
         require(virtualChannels[_vcID].sequence < updateSeq, "VC sequence is higher than update sequence.");
@@ -354,6 +356,7 @@ contract LedgerChannel {
 
     function closeVirtualChannel(bytes32 _lcID, bytes32 _vcID) public {
         // require(updateLCtimeout > now)
+        require(Channels[_lcID].isOpen, "LC is closed.");
         require(virtualChannels[_vcID].isInSettlementState, "VC is not in settlement state.");
         require(virtualChannels[_vcID].updateVCtimeout < now, "Update vc timeout has not elapsed.");
         // reduce the number of open virtual channels stored on LC
