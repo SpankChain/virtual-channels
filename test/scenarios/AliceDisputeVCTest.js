@@ -1,7 +1,7 @@
 'use strict'
 
-import MerkleTree from './helpers/MerkleTree'
-const Utils = require('./helpers/utils')
+import MerkleTree from '../helpers/MerkleTree'
+const Utils = require('../helpers/utils')
 const Ledger = artifacts.require('./LedgerChannel.sol')
 const EC = artifacts.require('./ECTools.sol')
 
@@ -59,7 +59,7 @@ let AB_vcS1_sigA
 let AB_vcS0_sigB
 let AB_vcS1_sigB
 
-contract('Test Disputed Ether Payments', function(accounts) {
+contract('Test Alice Disputed VC Payments', function(accounts) {
 
   before(async () => {
     partyA = accounts[0]

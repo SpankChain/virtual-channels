@@ -262,8 +262,7 @@ contract LedgerChannel {
         );
     }
 
-    //TODO: verify state transition since the hub did not agree to this state
-    // make sure the A/B balances are not beyond ingrids bonds    
+    // supply initial state of VC to "prime" the force push game  
     function initVCstate(
         bytes32 _lcID, 
         bytes32 _vcID, 
@@ -308,6 +307,8 @@ contract LedgerChannel {
         emit DidVCInit(_lcID, _vcID, _proof, _sequence, _partyA, _partyB, _balanceA, _balanceB);
     }
 
+    //TODO: verify state transition since the hub did not agree to this state
+    // make sure the A/B balances are not beyond ingrids bonds  
     // Params: vc init state, vc final balance, vcID
     function settleVC(
         bytes32 _lcID, 

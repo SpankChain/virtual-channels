@@ -1,7 +1,7 @@
 'use strict'
 
-import MerkleTree from './helpers/MerkleTree'
-const Utils = require('./helpers/utils')
+import MerkleTree from '../helpers/MerkleTree'
+const Utils = require('../helpers/utils')
 const Ledger = artifacts.require('./LedgerChannel.sol')
 const EC = artifacts.require('./ECTools.sol')
 
@@ -313,7 +313,9 @@ contract('Test Cooperative Ether Payments', function(accounts) {
     // var balB = await web3latest.eth.getBalance(partyI)
     // console.log('Balance A before close: ' + balA)
     // console.log('Balance I before close: ' + balB)
-    await lc.consensusCloseChannel(web3latest.utils.sha3('1111', {encoding: 'hex'}), '3', web3latest.utils.toWei('8'), web3latest.utils.toWei('22'), AI_lcS3_sigA, AI_lcS3_sigI)
+    let receipt = await lc.consensusCloseChannel(web3latest.utils.sha3('1111', {encoding: 'hex'}), '3', web3latest.utils.toWei('8'), web3latest.utils.toWei('22'), AI_lcS3_sigA, AI_lcS3_sigI)
+    var gasUsed = receipt.receipt.gasUsed
+    //console.log('Gas Used: ' + gasUsed)
     // balA = await web3latest.eth.getBalance(partyA)
     // balB = await web3latest.eth.getBalance(partyI)
     // console.log('Balance A after close: ' + balA)
