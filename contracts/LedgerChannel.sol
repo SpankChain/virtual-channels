@@ -114,8 +114,6 @@ contract LedgerChannel {
     function createChannel(bytes32 _lcID, address _partyI, uint256 _confirmTime) public payable {
         require(Channels[_lcID].partyA == address(0), "Channel has already been created.");
         require(_partyI != 0x0, "No partyI address provided to LC creation");
-        require(Channels[_lcID].isOpen == false, "Channel already open");
-        require(Channels[_lcID].sequence == 0, "Channel has already been used");
         // Set initial ledger channel state
         // Alice must execute this and we assume the initial state 
         // to be signed from this requirement
@@ -223,6 +221,11 @@ contract LedgerChannel {
         require(Channels[_lcID].isOpen);
         require(Channels[_lcID].sequence < updateParams[0]); // do same as vc sequence check
         require(Channels[_lcID].balanceA + Channels[_lcID].balanceI >= updateParams[2] + updateParams[3]);
+        
+        if(Channels[_lcID].isUpdateLCSettling == true) { 
+          require(Channels[_lcID].updateLCtimeout > now);
+        }
+      
         bytes32 _state = keccak256(
             abi.encodePacked(
                 false, 
@@ -245,7 +248,6 @@ contract LedgerChannel {
         Channels[_lcID].balanceA = updateParams[2];
         Channels[_lcID].balanceI = updateParams[3];
         Channels[_lcID].VCrootHash = _VCroot;
-
         Channels[_lcID].isUpdateLCSettling = true;
         Channels[_lcID].updateLCtimeout = now + Channels[_lcID].confirmTime;
 
