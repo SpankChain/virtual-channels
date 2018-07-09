@@ -179,7 +179,8 @@ contract LedgerChannel {
         public 
     {
         // assume num open vc is 0 and root hash is 0x0
-        require(Channels[_lcID].sequence < _sequence);
+        //require(Channels[_lcID].sequence < _sequence);
+        require(Channels[_lcID].isOpen == true);
         require(Channels[_lcID].balanceA + Channels[_lcID].balanceI == _balanceA + _balanceI);
 
         bytes32 _state = keccak256(
@@ -198,10 +199,11 @@ contract LedgerChannel {
         require(Channels[_lcID].partyA == ECTools.recoverSigner(_state, _sigA));
         require(Channels[_lcID].partyI == ECTools.recoverSigner(_state, _sigI));
 
+        Channels[_lcID].isOpen = false;
+
         Channels[_lcID].partyA.transfer(_balanceA);
         Channels[_lcID].partyI.transfer(_balanceI);
 
-        Channels[_lcID].isOpen = false;
         numChannels--;
 
         emit DidLCClose(_lcID, _sequence, _balanceA, _balanceI);
@@ -364,6 +366,8 @@ contract LedgerChannel {
         require(virtualChannels[_vcID].updateVCtimeout < now, "Update vc timeout has not elapsed.");
         // reduce the number of open virtual channels stored on LC
         Channels[_lcID].numOpenVC--;
+        // close vc flags
+        virtualChannels[_vcID].isClose = true;
         // re-introduce the balances back into the LC state from the settled VC
         // decide if this lc is alice or bob in the vc
         if(virtualChannels[_vcID].partyA == Channels[_lcID].partyA) {
@@ -373,8 +377,6 @@ contract LedgerChannel {
             Channels[_lcID].balanceA += virtualChannels[_vcID].balanceB;
             Channels[_lcID].balanceI += virtualChannels[_vcID].balanceA;
         }
-        // close vc flags
-        virtualChannels[_vcID].isClose = true;
 
         emit DidVCClose(_lcID, _vcID, virtualChannels[_vcID].balanceA, virtualChannels[_vcID].balanceB);
     }
@@ -384,6 +386,7 @@ contract LedgerChannel {
         // check settlement flag
         require(Channels[_lcID].isUpdateLCSettling == true);
         require(Channels[_lcID].numOpenVC == 0);
+        require(Channels[_lcID].updateLCtimeout < now, "LC timeout over.");
 
         // reentrancy
         uint256 balanceA = Channels[_lcID].balanceA;
