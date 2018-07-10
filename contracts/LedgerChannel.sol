@@ -382,6 +382,7 @@ contract LedgerChannel {
     }
 
 
+    // todo: allow ethier lc.end-user to nullify the settled LC state and return to off-chain
     function byzantineCloseChannel(bytes32 _lcID) public{
         // check settlement flag
         require(Channels[_lcID].isUpdateLCSettling == true);
