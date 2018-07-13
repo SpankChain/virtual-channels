@@ -291,6 +291,7 @@ contract('Test Bob Disputed VC Payments', function(accounts) {
     await lc.closeVirtualChannel(web3latest.utils.sha3('1111', {encoding: 'hex'}), web3latest.utils.sha3('1337', {encoding: 'hex'}))
   })
 
+  //todo: repeat for closing bob's channel
 
 
   it("Anyone calls close byzantine channel since all vc are closed", async () => {

@@ -91,13 +91,15 @@ contract('Test Alice Disputed VC Payments', function(accounts) {
 
 
   it("Alice initiates ledger channel with lcS0", async () => {
+    await lc.createChannel(web3latest.utils.sha3('0000', {encoding: 'hex'}), partyI, '0', {from:partyA, value: web3latest.utils.toWei('10')})
+  })
+
+  it("Alice can exit openChannel before hub joins", async () => {
+    await lc.LCOpenTimeout(web3latest.utils.sha3('0000', {encoding: 'hex'}))
+  })
+
+  it("Alice initiates ledger channel with same id", async () => {
     await lc.createChannel(web3latest.utils.sha3('1111', {encoding: 'hex'}), partyI, '0', {from:partyA, value: web3latest.utils.toWei('10')})
-    // let openTimeout = await lc.LCopenTimeout()
-    // let stateHash = await lc.stateHash()
-    // let pa = await lc.partyA()
-    // let pi = await lc.partyI()
-    // let ba = await lc.balanceA()
-    // let bi = await lc.balanceI()
   })
 
   it("Hub signs initial lcS0 state", async () => {
@@ -130,12 +132,6 @@ contract('Test Alice Disputed VC Payments', function(accounts) {
 
   it("Bob initiates ledger channel with lcS0", async () => {
     await lc.createChannel(web3latest.utils.sha3('2222', {encoding: 'hex'}), partyI, '0', {from:partyB, value: web3latest.utils.toWei('10')})
-    // let openTimeout = await lc.LCopenTimeout()
-    // let stateHash = await lc.stateHash()
-    // let pa = await lc.partyA()
-    // let pi = await lc.partyI()
-    // let ba = await lc.balanceA()
-    // let bi = await lc.balanceI()
   })
 
   it("Hub signs initial lcS0 state", async () => {
@@ -169,10 +165,17 @@ contract('Test Alice Disputed VC Payments', function(accounts) {
     var elems = []
     elems.push(buf)
     elems.push(Utils.hexToBuffer('0x0000000000000000000000000000000000000000000000000000000000000000'))
+    assert.equal(elems.length, 2)
 
     var merkle = new MerkleTree(elems)
 
     vcRootHash = Utils.bufferToHex(merkle.getRoot())
+    let layers = merkle.getLayers(elems)
+    console.log(layers)
+    // let _root = web3latest.utils.soliditySha3(
+    //   { type: 'bytes32', value: Utils.bufferToHex(elem)},
+    //   { type: 'bytes32', value: }
+    // )
 
     AI_lcS1 = web3latest.utils.soliditySha3(
       { type: 'bool', value: false }, // isclose
