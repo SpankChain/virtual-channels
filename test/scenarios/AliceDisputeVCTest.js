@@ -18,6 +18,7 @@ let partyI
 
 let vcRootHash
 
+let time
 // is close flag, lc state sequence, number open vc, vc root hash, partyA/B, partyI, balA/B, balI
 
 let AI_lcS0
@@ -91,10 +92,14 @@ contract('Test Alice Disputed VC Payments', function(accounts) {
 
 
   it("Alice initiates ledger channel with lcS0", async () => {
-    await lc.createChannel(web3latest.utils.sha3('0000', {encoding: 'hex'}), partyI, '0', {from:partyA, value: web3latest.utils.toWei('10')})
+    let res = await lc.createChannel(web3latest.utils.sha3('0000', {encoding: 'hex'}), partyI, Utils.duration.seconds(1), {from:partyA, value: web3latest.utils.toWei('10')})
+    time = res.logs[0].args.time
+
   })
 
   it("Alice can exit openChannel before hub joins", async () => {
+    await Utils.expectThrow(lc.LCOpenTimeout(web3latest.utils.sha3('0000', {encoding: 'hex'})))
+    //await Utils.increaseTime(time.plus(Utils.duration.seconds(1)))
     await lc.LCOpenTimeout(web3latest.utils.sha3('0000', {encoding: 'hex'}))
   })
 
@@ -170,12 +175,6 @@ contract('Test Alice Disputed VC Payments', function(accounts) {
     var merkle = new MerkleTree(elems)
 
     vcRootHash = Utils.bufferToHex(merkle.getRoot())
-    let layers = merkle.getLayers(elems)
-    console.log(layers)
-    // let _root = web3latest.utils.soliditySha3(
-    //   { type: 'bytes32', value: Utils.bufferToHex(elem)},
-    //   { type: 'bytes32', value: }
-    // )
 
     AI_lcS1 = web3latest.utils.soliditySha3(
       { type: 'bool', value: false }, // isclose

@@ -16,7 +16,8 @@ contract LedgerChannel {
         bytes32 indexed channelId,
         address indexed partyA,
         address indexed partyI,
-        uint256 balanceA
+        uint256 balanceA,
+        uint256 time
     );
 
     event DidLCJoin (
@@ -127,17 +128,16 @@ contract LedgerChannel {
         //Channels[_lcID].stateHash = keccak256(uint256(0), uint256(0), uint256(0), bytes32(0x0), bytes32(msg.sender), bytes32(_partyI), balanceA, balanceI);
         Channels[_lcID].LCopenTimeout = now + _confirmTime;
 
-        emit DidLCOpen(_lcID, msg.sender, _partyI, msg.value);
+        emit DidLCOpen(_lcID, msg.sender, _partyI, msg.value, now);
     }
 
     function LCOpenTimeout(bytes32 _lcID) public {
         require(msg.sender == Channels[_lcID].partyA && Channels[_lcID].isOpen == false);
-        if (now > Channels[_lcID].LCopenTimeout) {
-            Channels[_lcID].partyA.transfer(Channels[_lcID].balanceA);
-            // only safe to delete since no action was taken on this channel
-            emit DidLCClose(_lcID, 0, Channels[_lcID].balanceA, 0);
-            delete Channels[_lcID];
-        }
+        require(now > Channels[_lcID].LCopenTimeout);
+        Channels[_lcID].partyA.transfer(Channels[_lcID].balanceA);
+        // only safe to delete since no action was taken on this channel
+        emit DidLCClose(_lcID, 0, Channels[_lcID].balanceA, 0);
+        delete Channels[_lcID];
     }
 
     function joinChannel(bytes32 _lcID) public payable {
