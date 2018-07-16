@@ -1,7 +1,7 @@
 const Buffer = require('buffer').Buffer
 const util = require('ethereumjs-util')
 const Web3latest = require('web3')
-const web3latest = new Web3latest(new Web3latest.providers.HttpProvider("http://localhost:7545"))
+const web3latest = new Web3latest(new Web3latest.providers.HttpProvider("http://localhost:8545"))
 
 module.exports = {
   latestTime: async function latestTime() {
@@ -11,7 +11,6 @@ module.exports = {
 
   increaseTime: function increaseTime(duration) {
     const id = Date.now()
-
     return new Promise((resolve, reject) => {
       web3latest.currentProvider.send({
         jsonrpc: '2.0',
@@ -73,7 +72,7 @@ module.exports = {
   },
 
   duration: {
-    seconds: function(val) { return val},
+    seconds: function(val) { return val * 1000},
     minutes: function(val) { return val * this.seconds(60) },
     hours:   function(val) { return val * this.minutes(60) },
     days:    function(val) { return val * this.hours(24) },

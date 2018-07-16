@@ -6,7 +6,7 @@ const Ledger = artifacts.require('./LedgerChannel.sol')
 const EC = artifacts.require('./ECTools.sol')
 
 const Web3latest = require('web3')
-const web3latest = new Web3latest(new Web3latest.providers.HttpProvider("http://localhost:7545")) //ganache port
+const web3latest = new Web3latest(new Web3latest.providers.HttpProvider("http://localhost:8545")) //ganache port
 
 let lc
 
@@ -92,14 +92,14 @@ contract('Test Alice Disputed VC Payments', function(accounts) {
 
 
   it("Alice initiates ledger channel with lcS0", async () => {
-    let res = await lc.createChannel(web3latest.utils.sha3('0000', {encoding: 'hex'}), partyI, Utils.duration.seconds(1), {from:partyA, value: web3latest.utils.toWei('10')})
+    let res = await lc.createChannel(web3latest.utils.sha3('0000', {encoding: 'hex'}), partyI, Utils.duration.seconds(10), {from:partyA, value: web3latest.utils.toWei('10')})
     time = res.logs[0].args.time
 
   })
 
   it("Alice can exit openChannel before hub joins", async () => {
     await Utils.expectThrow(lc.LCOpenTimeout(web3latest.utils.sha3('0000', {encoding: 'hex'})))
-    //await Utils.increaseTime(time.plus(Utils.duration.seconds(1)))
+    await Utils.increaseTime(Utils.duration.seconds(10))
     await lc.LCOpenTimeout(web3latest.utils.sha3('0000', {encoding: 'hex'}))
   })
 
