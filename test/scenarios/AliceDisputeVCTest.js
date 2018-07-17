@@ -18,7 +18,6 @@ let partyI
 
 let vcRootHash
 
-let time
 // is close flag, lc state sequence, number open vc, vc root hash, partyA/B, partyI, balA/B, balI
 
 let AI_lcS0
@@ -93,7 +92,7 @@ contract('Test Alice Disputed VC Payments', function(accounts) {
 
   it("Alice initiates ledger channel with lcS0", async () => {
     let res = await lc.createChannel(web3latest.utils.sha3('0000', {encoding: 'hex'}), partyI, Utils.duration.seconds(10), {from:partyA, value: web3latest.utils.toWei('10')})
-    time = res.logs[0].args.time
+    //time = res.logs[0].args.time
 
   })
 
