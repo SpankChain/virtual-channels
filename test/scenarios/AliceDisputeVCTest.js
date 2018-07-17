@@ -100,7 +100,8 @@ contract('Test Alice Disputed VC Payments', function(accounts) {
   it("Alice can exit openChannel before hub joins", async () => {
     await Utils.expectThrow(lc.LCOpenTimeout(web3latest.utils.sha3('0000', {encoding: 'hex'})))
     await Utils.increaseTime(Utils.duration.seconds(10))
-    await lc.LCOpenTimeout(web3latest.utils.sha3('0000', {encoding: 'hex'}))
+    let res = await lc.LCOpenTimeout(web3latest.utils.sha3('0000', {encoding: 'hex'}))
+    console.log(res.logs[0].args)
   })
 
   it("Alice initiates ledger channel with same id", async () => {

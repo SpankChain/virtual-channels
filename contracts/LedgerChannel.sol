@@ -81,6 +81,9 @@ contract LedgerChannel {
         address partyI;
         uint256 balanceA;
         uint256 balanceI;
+        uint256 depositedA;
+        uint256 depositedI;
+        uint256 initialDeposit;
         uint256 sequence;
         uint256 confirmTime;
         bytes32 VCrootHash;
@@ -127,6 +130,7 @@ contract LedgerChannel {
         // is close flag, lc state sequence, number open vc, vc root hash, partyA... 
         //Channels[_lcID].stateHash = keccak256(uint256(0), uint256(0), uint256(0), bytes32(0x0), bytes32(msg.sender), bytes32(_partyI), balanceA, balanceI);
         Channels[_lcID].LCopenTimeout = now + _confirmTime;
+        Channels[_lcID].initialDeposit = msg.value;
 
         emit DidLCOpen(_lcID, msg.sender, _partyI, msg.value, now);
     }
@@ -147,7 +151,7 @@ contract LedgerChannel {
         // Initial state
         //address recover = ECTools.recoverSigner(Channels[_lcID].stateHash, _sigI);
         Channels[_lcID].balanceI = msg.value;
-
+        Channels[_lcID].initialDeposit+=msg.value;
         // no longer allow joining functions to be called
         Channels[_lcID].isOpen = true;
         numChannels++;
@@ -161,8 +165,8 @@ contract LedgerChannel {
         require(Channels[_lcID].isOpen == true, "Tried adding funds to a closed channel");
         require(recipient == Channels[_lcID].partyA || recipient == Channels[_lcID].partyI);
 
-        if (Channels[_lcID].partyA == recipient) { Channels[_lcID].balanceA += msg.value; }
-        if (Channels[_lcID].partyI == recipient) { Channels[_lcID].balanceI += msg.value; }
+        if (Channels[_lcID].partyA == recipient) { Channels[_lcID].depositedA += msg.value; }
+        if (Channels[_lcID].partyI == recipient) { Channels[_lcID].depositedI += msg.value; }
         
         emit DidLCDeposit(_lcID, recipient, msg.value);
     }
@@ -181,7 +185,8 @@ contract LedgerChannel {
         // assume num open vc is 0 and root hash is 0x0
         //require(Channels[_lcID].sequence < _sequence);
         require(Channels[_lcID].isOpen == true);
-        require(Channels[_lcID].balanceA + Channels[_lcID].balanceI == _balanceA + _balanceI);
+        uint256 totalDeposit = Channels[_lcID].initialDeposit + Channels[_lcID].depositedA + Channels[_lcID].depositedI;
+        require(totalDeposit == _balanceA + _balanceI);
 
         bytes32 _state = keccak256(
             abi.encodePacked(
@@ -388,6 +393,18 @@ contract LedgerChannel {
         require(Channels[_lcID].isUpdateLCSettling == true);
         require(Channels[_lcID].numOpenVC == 0);
         require(Channels[_lcID].updateLCtimeout < now, "LC timeout over.");
+
+        // if off chain state update didnt reblance deposits, just return to deposit owner
+        uint256 totalDeposit = Channels[_lcID].initialDeposit + Channels[_lcID].depositedA + Channels[_lcID].depositedI;
+
+        uint256 possibleTotalBeforeDeposit = Channels[_lcID].balanceA + Channels[_lcID].balanceI;
+
+        if(possibleTotalBeforeDeposit < totalDeposit) {
+            Channels[_lcID].balanceA+=Channels[_lcID].depositedA;
+            Channels[_lcID].balanceI+=Channels[_lcID].depositedI;
+        } else {
+            require(possibleTotalBeforeDeposit == totalDeposit);
+        }
 
         // reentrancy
         uint256 balanceA = Channels[_lcID].balanceA;
