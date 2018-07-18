@@ -94,7 +94,9 @@ contract('Test Cooperative Ether Payments', function(accounts) {
 
   it("Alice initiates ledger channel with lcS0", async () => {
     let lc_id = web3latest.utils.sha3('1111', {encoding: 'hex'})
-    await lc.createChannel(lc_id, partyI, '0', {from:partyA, value: web3latest.utils.toWei('10')})
+    let res = await lc.createChannel(lc_id, partyI, '0', {from:partyA, value: web3latest.utils.toWei('10')})
+    var gasUsed = res.receipt.gasUsed
+    //console.log('createChan: '+ gasUsed)
     let openChans = await lc.numChannels()
     let chan = await lc.Channels(lc_id)
     assert.equal(openChans.toString(), '0')
@@ -117,7 +119,9 @@ contract('Test Cooperative Ether Payments', function(accounts) {
 
   it("Ingrid joins ledger channel", async () => {
     let lc_id = web3latest.utils.sha3('1111', {encoding: 'hex'})
-    await lc.joinChannel(lc_id, {from: partyI, value: web3latest.utils.toWei('20')})
+    let res = await lc.joinChannel(lc_id, {from: partyI, value: web3latest.utils.toWei('20')})
+    var gasUsed = res.receipt.gasUsed
+    //console.log('joinChan: '+ gasUsed)
     let openChans = await lc.numChannels()
     let chan = await lc.Channels(lc_id)
     assert.equal(openChans.toString(), '1')
@@ -361,7 +365,7 @@ contract('Test Cooperative Ether Payments', function(accounts) {
     var balB1 = await web3latest.eth.getBalance(partyI)
     let receipt = await lc.consensusCloseChannel(web3latest.utils.sha3('1111', {encoding: 'hex'}), '3', web3latest.utils.toWei('8'), web3latest.utils.toWei('22'), AI_lcS3_sigA, AI_lcS3_sigI)
     var gasUsed = receipt.receipt.gasUsed
-    //console.log('Gas Used: ' + gasUsed)
+    //console.log('Close Channel: ' + gasUsed)
     var balA2 = await web3latest.eth.getBalance(partyA)
     var balB2 = await web3latest.eth.getBalance(partyI)
     // TODO calculate gas, this may very based on testrpc
