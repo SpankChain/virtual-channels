@@ -16,7 +16,8 @@ contract LedgerChannel {
         bytes32 indexed channelId,
         address indexed partyA,
         address indexed partyI,
-        uint256 balanceA
+        uint256 balanceA,
+        uint256 LCopenTimeout
     );
 
     event DidLCJoin (
@@ -130,7 +131,7 @@ contract LedgerChannel {
         Channels[_lcID].LCopenTimeout = now + _confirmTime;
         Channels[_lcID].initialDeposit = msg.value;
 
-        emit DidLCOpen(_lcID, msg.sender, _partyI, msg.value);
+        emit DidLCOpen(_lcID, msg.sender, _partyI, msg.value, Channels[_lcID].LCopenTimeout);
     }
 
     function LCOpenTimeout(bytes32 _lcID) public {
