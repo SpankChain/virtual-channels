@@ -1,12 +1,12 @@
 'use strict'
 
-import MerkleTree from './helpers/MerkleTree'
-const Utils = require('./helpers/utils')
+import MerkleTree from '../helpers/MerkleTree'
+const Utils = require('../helpers/utils')
 const Ledger = artifacts.require('./LedgerChannel.sol')
 const EC = artifacts.require('./ECTools.sol')
 
 const Web3latest = require('web3')
-const web3latest = new Web3latest(new Web3latest.providers.HttpProvider("http://localhost:7545")) //ganache port
+const web3latest = new Web3latest(new Web3latest.providers.HttpProvider("http://localhost:8545")) //ganache port
 
 
 let lc
@@ -93,13 +93,24 @@ contract('Test Cooperative Ether Payments', function(accounts) {
 
 
   it("Alice initiates ledger channel with lcS0", async () => {
-    await lc.createChannel(web3latest.utils.sha3('1111', {encoding: 'hex'}), partyI, '0', {from:partyA, value: web3latest.utils.toWei('10')})
-    // let openTimeout = await lc.LCopenTimeout()
-    // let stateHash = await lc.stateHash()
-    // let pa = await lc.partyA()
-    // let pi = await lc.partyI()
-    // let ba = await lc.balanceA()
-    // let bi = await lc.balanceI()
+    let lc_id = web3latest.utils.sha3('1111', {encoding: 'hex'})
+    let res = await lc.createChannel(lc_id, partyI, '0', {from:partyA, value: web3latest.utils.toWei('10')})
+    var gasUsed = res.receipt.gasUsed
+    //console.log('createChan: '+ gasUsed)
+    let openChans = await lc.numChannels()
+    let chan = await lc.Channels(lc_id)
+    assert.equal(openChans.toString(), '0')
+    assert.equal(chan[0], partyA)
+    assert.equal(chan[1], partyI)
+    assert.equal(chan[2].toString(), web3latest.utils.toWei('10'))
+    assert.equal(chan[3].toString(), '0')
+    assert.equal(chan[5].toString(), '0')
+    assert.equal(chan[6].toString(), '0')
+    assert.equal(chan[7], '0x0000000000000000000000000000000000000000000000000000000000000000')
+    assert.equal(chan[9].toString(), '0')
+    assert.equal(chan[10], false)
+    assert.equal(chan[11], false)
+    assert.equal(chan[12].toString(), '0')
   })
 
   it("Hub signs initial lcS0 state", async () => {
@@ -107,7 +118,24 @@ contract('Test Cooperative Ether Payments', function(accounts) {
   })
 
   it("Ingrid joins ledger channel", async () => {
-    await lc.joinChannel(web3latest.utils.sha3('1111', {encoding: 'hex'}), {from: partyI, value: web3latest.utils.toWei('20')})
+    let lc_id = web3latest.utils.sha3('1111', {encoding: 'hex'})
+    let res = await lc.joinChannel(lc_id, {from: partyI, value: web3latest.utils.toWei('20')})
+    var gasUsed = res.receipt.gasUsed
+    //console.log('joinChan: '+ gasUsed)
+    let openChans = await lc.numChannels()
+    let chan = await lc.Channels(lc_id)
+    assert.equal(openChans.toString(), '1')
+    assert.equal(chan[0], partyA)
+    assert.equal(chan[1], partyI)
+    assert.equal(chan[2].toString(), web3latest.utils.toWei('10'))
+    assert.equal(chan[3].toString(), web3latest.utils.toWei('20'))
+    assert.equal(chan[5].toString(), '0')
+    assert.equal(chan[6].toString(), '0')
+    assert.equal(chan[7], '0x0000000000000000000000000000000000000000000000000000000000000000')
+    assert.equal(chan[9].toString(), '0')
+    assert.equal(chan[10], true)
+    assert.equal(chan[11], false)
+    assert.equal(chan[12].toString(), '0')
   })
 
   // Bob creates ledger channel
@@ -131,13 +159,22 @@ contract('Test Cooperative Ether Payments', function(accounts) {
 
 
   it("Bob initiates ledger channel with lcS0", async () => {
-    await lc.createChannel(web3latest.utils.sha3('2222', {encoding: 'hex'}), partyI, '0', {from:partyB, value: web3latest.utils.toWei('10')})
-    // let openTimeout = await lc.LCopenTimeout()
-    // let stateHash = await lc.stateHash()
-    // let pa = await lc.partyA()
-    // let pi = await lc.partyI()
-    // let ba = await lc.balanceA()
-    // let bi = await lc.balanceI()
+    let lc_id = web3latest.utils.sha3('2222', {encoding: 'hex'})
+    await lc.createChannel(lc_id, partyI, '0', {from:partyB, value: web3latest.utils.toWei('10')})
+    let openChans = await lc.numChannels()
+    let chan = await lc.Channels(lc_id)
+    assert.equal(openChans.toString(), '1')
+    assert.equal(chan[0], partyB)
+    assert.equal(chan[1], partyI)
+    assert.equal(chan[2].toString(), web3latest.utils.toWei('10'))
+    assert.equal(chan[3].toString(), '0')
+    assert.equal(chan[5].toString(), '0')
+    assert.equal(chan[6].toString(), '0')
+    assert.equal(chan[7], '0x0000000000000000000000000000000000000000000000000000000000000000')
+    assert.equal(chan[9].toString(), '0')
+    assert.equal(chan[10], false)
+    assert.equal(chan[11], false)
+    assert.equal(chan[12].toString(), '0')
   })
 
   it("Hub signs initial lcS0 state", async () => {
@@ -145,7 +182,22 @@ contract('Test Cooperative Ether Payments', function(accounts) {
   })
 
   it("Ingrid joins ledger channel", async () => {
-    await lc.joinChannel(web3latest.utils.sha3('2222', {encoding: 'hex'}), {from: partyI, value: web3latest.utils.toWei('20')})
+    let lc_id = web3latest.utils.sha3('2222', {encoding: 'hex'})
+    await lc.joinChannel(lc_id, {from: partyI, value: web3latest.utils.toWei('20')})
+    let openChans = await lc.numChannels()
+    let chan = await lc.Channels(lc_id)
+    assert.equal(openChans.toString(), '2')
+    assert.equal(chan[0], partyB)
+    assert.equal(chan[1], partyI)
+    assert.equal(chan[2].toString(), web3latest.utils.toWei('10'))
+    assert.equal(chan[3].toString(), web3latest.utils.toWei('20'))
+    assert.equal(chan[5].toString(), '0')
+    assert.equal(chan[6].toString(), '0')
+    assert.equal(chan[7], '0x0000000000000000000000000000000000000000000000000000000000000000')
+    assert.equal(chan[9].toString(), '0')
+    assert.equal(chan[10], true)
+    assert.equal(chan[11], false)
+    assert.equal(chan[12].toString(), '0')
   })
 
 
@@ -286,7 +338,7 @@ contract('Test Cooperative Ether Payments', function(accounts) {
     BI_lcS2_sigI = await web3latest.eth.sign(BI_lcS2, partyI)
   })
 
-  it("Alice creates lc update to close lc", async () => {
+  it("Alice creates lc update to close vc", async () => {
     AI_lcS3 = web3latest.utils.soliditySha3(
       { type: 'bool', value: true }, // isclose
       //{ type: 'bytes32', value: web3.sha3('lc2', {encoding: 'hex'}) }, // lcid
@@ -308,16 +360,45 @@ contract('Test Cooperative Ether Payments', function(accounts) {
     AI_lcS3_sigI = await web3latest.eth.sign(AI_lcS3, partyI)
   })
 
-  it("Close ledger channel", async () => {
-    // var balA = await web3latest.eth.getBalance(partyA)
-    // var balB = await web3latest.eth.getBalance(partyI)
-    // console.log('Balance A before close: ' + balA)
-    // console.log('Balance I before close: ' + balB)
-    await lc.consensusCloseChannel(web3latest.utils.sha3('1111', {encoding: 'hex'}), '3', web3latest.utils.toWei('8'), web3latest.utils.toWei('22'), AI_lcS3_sigA, AI_lcS3_sigI)
-    // balA = await web3latest.eth.getBalance(partyA)
-    // balB = await web3latest.eth.getBalance(partyI)
-    // console.log('Balance A after close: ' + balA)
-    // console.log('Balance I after close: ' + balB)
+  it("Close Alice ledger channel", async () => {
+    var balA1 = await web3latest.eth.getBalance(partyA)
+    var balB1 = await web3latest.eth.getBalance(partyI)
+    let receipt = await lc.consensusCloseChannel(web3latest.utils.sha3('1111', {encoding: 'hex'}), '3', web3latest.utils.toWei('8'), web3latest.utils.toWei('22'), AI_lcS3_sigA, AI_lcS3_sigI)
+    var gasUsed = receipt.receipt.gasUsed
+    //console.log('Close Channel: ' + gasUsed)
+    var balA2 = await web3latest.eth.getBalance(partyA)
+    var balB2 = await web3latest.eth.getBalance(partyI)
+    // TODO calculate gas, this may very based on testrpc
+    //assert.equal(balB2 - balB1, '22000000000493355000')
+    //assert.equal(balA2 - balA1, '7926719900000010000')
+  })
+
+  it("Hub deposits into Bob's lc", async () => {
+    await lc.deposit(web3latest.utils.sha3('2222', {encoding: 'hex'}), partyI, {from:partyI, value:web3latest.utils.toWei('10')})
+    let chan = await lc.Channels(web3latest.utils.sha3('2222', {encoding: 'hex'}))
+  })
+
+  it("Hub creates lc state lcS2 containing new deposit", async () => {
+    var hash = web3latest.utils.sha3(AB_vcS0, {encoding: 'hex'})
+    var buf = Utils.hexToBuffer(hash)
+    var elems = []
+    elems.push(buf)
+    elems.push(Utils.hexToBuffer('0x0000000000000000000000000000000000000000000000000000000000000000'))
+    var merkle = new MerkleTree(elems)
+
+    vcRootHash = Utils.bufferToHex(merkle.getRoot())
+
+    BI_lcS1 = web3latest.utils.soliditySha3(
+      { type: 'bool', value: false }, // isclose
+      //{ type: 'bytes32', value: web3.sha3('lc4', {encoding: 'hex'}) }, // lcid
+      { type: 'uint256', value: 2 }, // sequence
+      { type: 'uint256', value: 1 }, // open VCs
+      { type: 'string', value: vcRootHash }, // VC root hash
+      { type: 'address', value: partyB }, // partyA
+      { type: 'address', value: partyI }, // hub
+      { type: 'uint256', value: web3latest.utils.toWei('3') },
+      { type: 'uint256', value: web3latest.utils.toWei('25') }
+    ) 
   })
 
 })

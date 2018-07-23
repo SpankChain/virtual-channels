@@ -1,12 +1,12 @@
 'use strict'
 
-import MerkleTree from './helpers/MerkleTree'
-const Utils = require('./helpers/utils')
+import MerkleTree from '../helpers/MerkleTree'
+const Utils = require('../helpers/utils')
 const Ledger = artifacts.require('./LedgerChannel.sol')
 const EC = artifacts.require('./ECTools.sol')
 
 const Web3latest = require('web3')
-const web3latest = new Web3latest(new Web3latest.providers.HttpProvider("http://localhost:7545")) //ganache port
+const web3latest = new Web3latest(new Web3latest.providers.HttpProvider("http://localhost:8545")) //ganache port
 
 let lc
 
@@ -59,7 +59,7 @@ let AB_vcS1_sigA
 let AB_vcS0_sigB
 let AB_vcS1_sigB
 
-contract('Test Disputed Ether Payments', function(accounts) {
+contract('Test Alice Disputed VC Payments', function(accounts) {
 
   before(async () => {
     partyA = accounts[0]
@@ -91,13 +91,20 @@ contract('Test Disputed Ether Payments', function(accounts) {
 
 
   it("Alice initiates ledger channel with lcS0", async () => {
+    let res = await lc.createChannel(web3latest.utils.sha3('0000', {encoding: 'hex'}), partyI, Utils.duration.seconds(10), {from:partyA, value: web3latest.utils.toWei('10')})
+    //time = res.logs[0].args.time
+
+  })
+
+  it("Alice can exit openChannel before hub joins", async () => {
+    await Utils.expectThrow(lc.LCOpenTimeout(web3latest.utils.sha3('0000', {encoding: 'hex'})))
+    await Utils.increaseTime(Utils.duration.seconds(10))
+    let res = await lc.LCOpenTimeout(web3latest.utils.sha3('0000', {encoding: 'hex'}))
+    console.log(res.logs[0].args)
+  })
+
+  it("Alice initiates ledger channel with same id", async () => {
     await lc.createChannel(web3latest.utils.sha3('1111', {encoding: 'hex'}), partyI, '0', {from:partyA, value: web3latest.utils.toWei('10')})
-    // let openTimeout = await lc.LCopenTimeout()
-    // let stateHash = await lc.stateHash()
-    // let pa = await lc.partyA()
-    // let pi = await lc.partyI()
-    // let ba = await lc.balanceA()
-    // let bi = await lc.balanceI()
   })
 
   it("Hub signs initial lcS0 state", async () => {
@@ -130,12 +137,6 @@ contract('Test Disputed Ether Payments', function(accounts) {
 
   it("Bob initiates ledger channel with lcS0", async () => {
     await lc.createChannel(web3latest.utils.sha3('2222', {encoding: 'hex'}), partyI, '0', {from:partyB, value: web3latest.utils.toWei('10')})
-    // let openTimeout = await lc.LCopenTimeout()
-    // let stateHash = await lc.stateHash()
-    // let pa = await lc.partyA()
-    // let pi = await lc.partyI()
-    // let ba = await lc.balanceA()
-    // let bi = await lc.balanceI()
   })
 
   it("Hub signs initial lcS0 state", async () => {
@@ -169,6 +170,7 @@ contract('Test Disputed Ether Payments', function(accounts) {
     var elems = []
     elems.push(buf)
     elems.push(Utils.hexToBuffer('0x0000000000000000000000000000000000000000000000000000000000000000'))
+    assert.equal(elems.length, 2)
 
     var merkle = new MerkleTree(elems)
 
@@ -311,7 +313,9 @@ contract('Test Disputed Ether Payments', function(accounts) {
 
   // TODO: doesnt make sense to settle on single direction payment receiver
   it("Ingrid initiates settling on-chain with byzantine Bob", async () => {
-    await lc.updateLCstate(web3latest.utils.sha3('2222', {encoding: 'hex'}), ['2', '3', web3latest.utils.toWei('3'), web3latest.utils.toWei('15')], vcRootHash, BI_lcS2_sigB, BI_lcS2_sigI)
+    let res = await lc.updateLCstate(web3latest.utils.sha3('2222', {encoding: 'hex'}), ['2', '3', web3latest.utils.toWei('3'), web3latest.utils.toWei('15')], vcRootHash, BI_lcS2_sigB, BI_lcS2_sigI)
+    var gasUsed = res.receipt.gasUsed
+    //console.log('updateChan: '+ gasUsed)    
     // let seq = await lc2.sequence()
     // let numvc = await lc2.numOpenVC()
     // let ba = await lc2.balanceA()
@@ -346,11 +350,15 @@ contract('Test Disputed Ether Payments', function(accounts) {
     proof = Utils.marshallState(proof)
 
     // todo: generate vcID before vc creation and perhaps store in state
-    await lc.initVCstate(web3latest.utils.sha3('2222', {encoding: 'hex'}), web3latest.utils.sha3('1337', {encoding: 'hex'}), proof, '0', partyA, partyB, web3latest.utils.toWei('12'), web3latest.utils.toWei('3'), web3latest.utils.toWei('9'), AB_vcS0_sigA)
+    let res = await lc.initVCstate(web3latest.utils.sha3('2222', {encoding: 'hex'}), web3latest.utils.sha3('1337', {encoding: 'hex'}), proof, '0', partyA, partyB, web3latest.utils.toWei('12'), web3latest.utils.toWei('3'), web3latest.utils.toWei('9'), AB_vcS0_sigA)
+    var gasUsed = res.receipt.gasUsed
+    //console.log('initialize VC: '+ gasUsed)
   })
 
   it("Igrid or a watcher supply latest known vc state vcS1", async () => {
-    await lc.settleVC(web3latest.utils.sha3('2222', {encoding: 'hex'}), web3latest.utils.sha3('1337', {encoding: 'hex'}), '1', partyA, partyB, [web3latest.utils.toWei('2'), web3latest.utils.toWei('10')], AB_vcS1_sigA)
+    let res = await lc.settleVC(web3latest.utils.sha3('2222', {encoding: 'hex'}), web3latest.utils.sha3('1337', {encoding: 'hex'}), '1', partyA, partyB, [web3latest.utils.toWei('2'), web3latest.utils.toWei('10')], AB_vcS1_sigA)
+    var gasUsed = res.receipt.gasUsed
+    //console.log('settle VC: '+ gasUsed)
   })
 
   it("Hub may now sign Alice's lcS2 state to consensus close VC", async () => {
@@ -358,7 +366,38 @@ contract('Test Disputed Ether Payments', function(accounts) {
   })
 
   it("Anyone calls the wakeup function to settle vc state into lc state", async () => {
-    await lc.closeVirtualChannel(web3latest.utils.sha3('2222', {encoding: 'hex'}), web3latest.utils.sha3('1337', {encoding: 'hex'}))
+    let res = await lc.closeVirtualChannel(web3latest.utils.sha3('2222', {encoding: 'hex'}), web3latest.utils.sha3('1337', {encoding: 'hex'}))
+    var gasUsed = res.receipt.gasUsed
+    //console.log('close VC: '+ gasUsed)
+  })
+
+  it("Ingrid initiates settling remaining open vc", async () => {
+    // var buf = Utils.hexToBuffer(AB_vc1)
+    // var buf1 = Utils.hexToBuffer(AB_vc2)
+    // var buf2 = Utils.hexToBuffer(AB_vcS0)
+    // var elems = []
+    // elems.push(buf)
+    // elems.push(buf1)
+    // elems.push(buf2)
+    // elems.push(Utils.hexToBuffer('0x0000000000000000000000000000000000000000000000000000000000000000'))
+
+    // var merkle = new MerkleTree(elems)
+
+    // let mproof = merkle.proof(buf1)
+
+    // let proof = []
+    // for(var i=0; i<mproof.length; i++){
+    //   proof.push(Utils.bufferToHex(mproof[i]))
+    // }
+
+    // proof.unshift(AB_vc2)
+
+    // proof = Utils.marshallState(proof)
+
+    // // todo: generate vcID before vc creation and perhaps store in state
+    // let res = await lc.initVCstate(web3latest.utils.sha3('2222', {encoding: 'hex'}), web3latest.utils.sha3('1337', {encoding: 'hex'}), proof, '0', partyA, partyB, web3latest.utils.toWei('4'), web3latest.utils.toWei('5'), web3latest.utils.toWei('6'), AB_vcS1_sigA)
+    // var gasUsed = res.receipt.gasUsed
+    // console.log('initialize VC: '+ gasUsed)
   })
 
   it("Anyone calls close byzantine channel since all vc are closed", async () => {
@@ -366,7 +405,9 @@ contract('Test Disputed Ether Payments', function(accounts) {
     // var balB = await web3latest.eth.getBalance(partyI)
     // console.log('Balance A before close: ' + balA)
     // console.log('Balance I before close: ' + balB)
-    //await lc.byzantineCloseChannel(web3latest.utils.sha3('2222', {encoding: 'hex'}))
+    // let res = await lc.byzantineCloseChannel(web3latest.utils.sha3('2222', {encoding: 'hex'}))
+    // var gasUsed = res.receipt.gasUsed
+    // console.log('bclose LC: '+ gasUsed)
     // balA = await web3latest.eth.getBalance(partyA)
     // balB = await web3latest.eth.getBalance(partyI)
     // console.log('Balance A after close: ' + balA)

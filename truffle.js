@@ -47,7 +47,7 @@ module.exports = {
     },
     ganache: {
       host: "127.0.0.1",
-      port: 8545,
+      port: 7545,
       network_id: "4447",
       gas: 4700000
     },
@@ -56,6 +56,11 @@ module.exports = {
       port: 9545,
       network_id: "4447",
       gas: 4700000
+    },
+    development: {
+      host: "localhost",
+      port: 8545,
+      network_id: "*"
     }
   },
   solc: {
