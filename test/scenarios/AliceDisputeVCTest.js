@@ -350,7 +350,7 @@ contract('Test Alice Disputed VC Payments', function(accounts) {
     proof = Utils.marshallState(proof)
 
     // todo: generate vcID before vc creation and perhaps store in state
-    let res = await lc.initVCstate(web3latest.utils.sha3('2222', {encoding: 'hex'}), web3latest.utils.sha3('1337', {encoding: 'hex'}), proof, '0', partyA, partyB, web3latest.utils.toWei('12'), web3latest.utils.toWei('3'), web3latest.utils.toWei('9'), AB_vcS0_sigA)
+    let res = await lc.initVCstate(web3latest.utils.sha3('2222', {encoding: 'hex'}), web3latest.utils.sha3('1337', {encoding: 'hex'}), proof, partyA, partyB, web3latest.utils.toWei('12'), web3latest.utils.toWei('3'), web3latest.utils.toWei('9'), AB_vcS0_sigA)
     var gasUsed = res.receipt.gasUsed
     //console.log('initialize VC: '+ gasUsed)
   })
