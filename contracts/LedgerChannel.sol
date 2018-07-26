@@ -275,7 +275,6 @@ contract LedgerChannel {
         bytes32 _lcID, 
         bytes32 _vcID, 
         bytes _proof, 
-        uint256 _sequence, 
         address _partyA, 
         address _partyB, 
         uint256 _bond,
@@ -288,14 +287,13 @@ contract LedgerChannel {
         require(Channels[_lcID].isOpen, "LC is closed.");
         // sub-channel must be open
         require(!virtualChannels[_vcID].isClose, "VC is closed.");
-        require(virtualChannels[_vcID].sequence == 0, "VC sequence is not 0");
         // Check time has passed on updateLCtimeout and has not passed the time to store a vc state
         require(Channels[_lcID].updateLCtimeout < now, "LC timeout over.");
         // prevent rentry of initializing vc state
         require(virtualChannels[_vcID].updateVCtimeout == 0);
         // partyB is now Ingrid
         bytes32 _initState = keccak256(
-            abi.encodePacked(_vcID, _sequence, _partyA, _partyB, _bond, _balanceA, _balanceB)
+            abi.encodePacked(_vcID, uint256(0), _partyA, _partyB, _bond, _balanceA, _balanceB)
         );
 
         // Make sure Alice has signed initial vc state (A/B in oldState)
@@ -306,13 +304,13 @@ contract LedgerChannel {
 
         virtualChannels[_vcID].partyA = _partyA; // VC participant A
         virtualChannels[_vcID].partyB = _partyB; // VC participant B
-        virtualChannels[_vcID].sequence = _sequence;
+        virtualChannels[_vcID].sequence = uint256(0);
         virtualChannels[_vcID].balanceA = _balanceA;
         virtualChannels[_vcID].balanceB = _balanceB;
         virtualChannels[_vcID].bond = _bond;
         virtualChannels[_vcID].updateVCtimeout = now + Channels[_lcID].confirmTime;
 
-        emit DidVCInit(_lcID, _vcID, _proof, _sequence, _partyA, _partyB, _balanceA, _balanceB);
+        emit DidVCInit(_lcID, _vcID, _proof, uint256(0), _partyA, _partyB, _balanceA, _balanceB);
     }
 
     //TODO: verify state transition since the hub did not agree to this state
