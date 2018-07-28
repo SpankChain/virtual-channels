@@ -107,7 +107,7 @@ contract LedgerChannel {
         uint256[2] ethBalances;
         uint256[2] erc20Balances;
         uint256 bond;
-        //uint256 balanceI;
+        address tokenAddress;
     }
 
     mapping(bytes32 => VirtualChannel) public virtualChannels;
