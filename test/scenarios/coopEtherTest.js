@@ -211,7 +211,9 @@ contract('Test Cooperative Ether Payments', function(accounts) {
       { type: 'address', value: partyB }, // hub,
       { type: 'uint256', value: web3latest.utils.toWei('12') }, // hub bond
       { type: 'uint256', value: web3latest.utils.toWei('5') },
-      { type: 'uint256', value: web3latest.utils.toWei('7') }
+      { type: 'uint256', value: web3latest.utils.toWei('7') },
+      { type: 'uint256', value: web3latest.utils.toWei('0') }, // token
+      { type: 'uint256', value: web3latest.utils.toWei('0') }  // token
     )
 
   })
@@ -292,7 +294,9 @@ contract('Test Cooperative Ether Payments', function(accounts) {
       { type: 'address', value: partyB }, // hub
       { type: 'uint256', value: web3latest.utils.toWei('12') }, // hub bond
       { type: 'uint256', value: web3latest.utils.toWei('5') },
-      { type: 'uint256', value: web3latest.utils.toWei('7') }
+      { type: 'uint256', value: web3latest.utils.toWei('7') },
+      { type: 'uint256', value: web3latest.utils.toWei('0') }, // token
+      { type: 'uint256', value: web3latest.utils.toWei('0') }  // token
     )
 
   })

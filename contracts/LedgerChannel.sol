@@ -224,7 +224,7 @@ contract LedgerChannel {
         //require(Channels[_lcID].sequence < _sequence);
         require(Channels[_lcID].isOpen == true);
         uint256 totalEthDeposit = Channels[_lcID].ethBalances[2] + Channels[_lcID].ethBalances[3];
-        uint256 totalTokenDeposit = Channels[_lcID].ethBalances[2] + Channels[_lcID].ethBalances[3];
+        uint256 totalTokenDeposit = Channels[_lcID].erc20Balances[2] + Channels[_lcID].erc20Balances[3];
         uint256 totalDeposit = Channels[_lcID].initialDeposit + totalEthDeposit + totalTokenDeposit;
         require(totalDeposit == _balances[0] + _balances[1] + _balances[2] + _balances[3]);
 
@@ -248,12 +248,12 @@ contract LedgerChannel {
 
         Channels[_lcID].isOpen = false;
 
-        if(_balances[0] != 0 && _balances[1] != 0) {
+        if(_balances[0] != 0 || _balances[1] != 0) {
             Channels[_lcID].partyAdresses[0].transfer(_balances[0]);
             Channels[_lcID].partyAdresses[1].transfer(_balances[1]);
         }
 
-        if(_balances[2] != 0 && _balances[3] != 0) {
+        if(_balances[2] != 0 || _balances[3] != 0) {
             require(Channels[_lcID].token.transfer(Channels[_lcID].partyAdresses[0], _balances[2]),"happyCloseChannel: token transfer failure");
             require(Channels[_lcID].token.transfer(Channels[_lcID].partyAdresses[1], _balances[3]),"happyCloseChannel: token transfer failure");          
         }
@@ -267,7 +267,7 @@ contract LedgerChannel {
 
     function updateLCstate(
         bytes32 _lcID, 
-        uint256[4] updateParams, // [sequence, numOpenVc, balanceA, balanceI]
+        uint256[6] updateParams, // [sequence, numOpenVc, ethbalanceA, ethbalanceI, tokenbalanceA, tokenbalanceI]
         bytes32 _VCroot, 
         string _sigA, 
         string _sigI
@@ -276,8 +276,9 @@ contract LedgerChannel {
     {
         require(Channels[_lcID].isOpen);
         require(Channels[_lcID].sequence < updateParams[0]); // do same as vc sequence check
-        require(Channels[_lcID].erc20Balances[0] + Channels[_lcID].erc20Balances[1] >= updateParams[2] + updateParams[3]);
-        
+        require(Channels[_lcID].ethBalances[0] + Channels[_lcID].ethBalances[1] >= updateParams[2] + updateParams[3]);
+        require(Channels[_lcID].erc20Balances[0] + Channels[_lcID].erc20Balances[1] >= updateParams[4] + updateParams[5]);
+
         if(Channels[_lcID].isUpdateLCSettling == true) { 
           require(Channels[_lcID].updateLCtimeout > now);
         }
@@ -291,7 +292,9 @@ contract LedgerChannel {
                 Channels[_lcID].partyAdresses[0], 
                 Channels[_lcID].partyAdresses[1], 
                 updateParams[2], 
-                updateParams[3]
+                updateParams[3],
+                updateParams[4], 
+                updateParams[5]
             )
         );
 
@@ -301,8 +304,10 @@ contract LedgerChannel {
         // update LC state
         Channels[_lcID].sequence = updateParams[0];
         Channels[_lcID].numOpenVC = updateParams[1];
-        Channels[_lcID].erc20Balances[0] = updateParams[2];
-        Channels[_lcID].erc20Balances[1] = updateParams[3];
+        Channels[_lcID].ethBalances[0] = updateParams[2];
+        Channels[_lcID].ethBalances[1] = updateParams[3];
+        Channels[_lcID].erc20Balances[0] = updateParams[4];
+        Channels[_lcID].erc20Balances[1] = updateParams[5];
         Channels[_lcID].VCrootHash = _VCroot;
         Channels[_lcID].isUpdateLCSettling = true;
         Channels[_lcID].updateLCtimeout = now + Channels[_lcID].confirmTime;
@@ -328,8 +333,7 @@ contract LedgerChannel {
         address _partyA, 
         address _partyB, 
         uint256 _bond,
-        uint256 _balanceA,
-        uint256 _balanceB,
+        uint256[4] _balances, // 0: ethBalanceA 1:ethBalanceI 2:tokenBalanceA 3:tokenBalanceI
         string sigA
     ) 
         public 
@@ -343,7 +347,7 @@ contract LedgerChannel {
         require(virtualChannels[_vcID].updateVCtimeout == 0);
         // partyB is now Ingrid
         bytes32 _initState = keccak256(
-            abi.encodePacked(_vcID, uint256(0), _partyA, _partyB, _bond, _balanceA, _balanceB)
+            abi.encodePacked(_vcID, uint256(0), _partyA, _partyB, _bond, _balances[0], _balances[1], _balances[2], _balances[3])
         );
 
         // Make sure Alice has signed initial vc state (A/B in oldState)
@@ -355,12 +359,14 @@ contract LedgerChannel {
         virtualChannels[_vcID].partyA = _partyA; // VC participant A
         virtualChannels[_vcID].partyB = _partyB; // VC participant B
         virtualChannels[_vcID].sequence = uint256(0);
-        virtualChannels[_vcID].ethBalances[0] = _balanceA;
-        virtualChannels[_vcID].ethBalances[1] = _balanceB;
+        virtualChannels[_vcID].ethBalances[0] = _balances[0];
+        virtualChannels[_vcID].ethBalances[1] = _balances[1];
+        virtualChannels[_vcID].erc20Balances[0] = _balances[2];
+        virtualChannels[_vcID].erc20Balances[1] = _balances[3];
         virtualChannels[_vcID].bond = _bond;
         virtualChannels[_vcID].updateVCtimeout = now + Channels[_lcID].confirmTime;
 
-        emit DidVCInit(_lcID, _vcID, _proof, uint256(0), _partyA, _partyB, _balanceA, _balanceB);
+        emit DidVCInit(_lcID, _vcID, _proof, uint256(0), _partyA, _partyB, _balances[0], _balances[1]);
     }
 
     //TODO: verify state transition since the hub did not agree to this state
@@ -372,7 +378,7 @@ contract LedgerChannel {
         uint256 updateSeq, 
         address _partyA, 
         address _partyB,
-        uint256[2] updateBal, // [updateBalA, updateBalB]
+        uint256[4] updateBal, // [ethupdateBalA, ethupdateBalB, tokenupdateBalA, tokenupdateBalB]
         string sigA
     ) 
         public 
@@ -381,8 +387,9 @@ contract LedgerChannel {
         // sub-channel must be open
         require(!virtualChannels[_vcID].isClose, "VC is closed.");
         require(virtualChannels[_vcID].sequence < updateSeq, "VC sequence is higher than update sequence.");
-        require(virtualChannels[_vcID].ethBalances[1] < updateBal[1], "State updates may only increase recipient balance.");
-        require(virtualChannels[_vcID].bond == updateBal[0] + updateBal[1], "Incorrect balances for bonded amount");
+        require(virtualChannels[_vcID].ethBalances[1] < updateBal[1] || 
+                virtualChannels[_vcID].erc20Balances[1] < updateBal[3], "State updates may only increase recipient balance.");
+        require(virtualChannels[_vcID].bond == updateBal[0] + updateBal[1] + updateBal[2] + updateBal[3], "Incorrect balances for bonded amount");
         // Check time has passed on updateLCtimeout and has not passed the time to store a vc state
         // virtualChannels[_vcID].updateVCtimeout should be 0 on uninitialized vc state, and this should
         // fail if initVC() isn't called first
@@ -390,7 +397,7 @@ contract LedgerChannel {
         require(Channels[_lcID].updateLCtimeout < now); // for testing!
 
         bytes32 _updateState = keccak256(
-            abi.encodePacked(_vcID, updateSeq, _partyA, _partyB, virtualChannels[_vcID].bond, updateBal[0], updateBal[1])
+            abi.encodePacked(_vcID, updateSeq, _partyA, _partyB, virtualChannels[_vcID].bond, updateBal[0], updateBal[1], updateBal[2], updateBal[3])
         );
 
         // Make sure Alice has signed a higher sequence new state
@@ -404,6 +411,8 @@ contract LedgerChannel {
         // channel state
         virtualChannels[_vcID].ethBalances[0] = updateBal[0];
         virtualChannels[_vcID].ethBalances[1] = updateBal[1];
+        virtualChannels[_vcID].erc20Balances[0] = updateBal[2];
+        virtualChannels[_vcID].erc20Balances[1] = updateBal[3];
 
         virtualChannels[_vcID].updateVCtimeout = now + Channels[_lcID].confirmTime;
         virtualChannels[_vcID].isInSettlementState = true;
@@ -423,11 +432,17 @@ contract LedgerChannel {
         // re-introduce the balances back into the LC state from the settled VC
         // decide if this lc is alice or bob in the vc
         if(virtualChannels[_vcID].partyA == Channels[_lcID].partyAdresses[0]) {
-            Channels[_lcID].erc20Balances[0] += virtualChannels[_vcID].ethBalances[0];
-            Channels[_lcID].erc20Balances[1] += virtualChannels[_vcID].ethBalances[1];
+            Channels[_lcID].ethBalances[0] += virtualChannels[_vcID].ethBalances[0];
+            Channels[_lcID].ethBalances[1] += virtualChannels[_vcID].ethBalances[1];
+
+            Channels[_lcID].erc20Balances[0] += virtualChannels[_vcID].erc20Balances[0];
+            Channels[_lcID].erc20Balances[1] += virtualChannels[_vcID].erc20Balances[1];
         } else if (virtualChannels[_vcID].partyB == Channels[_lcID].partyAdresses[0]) {
-            Channels[_lcID].erc20Balances[0] += virtualChannels[_vcID].ethBalances[1];
-            Channels[_lcID].erc20Balances[1] += virtualChannels[_vcID].ethBalances[0];
+            Channels[_lcID].ethBalances[0] += virtualChannels[_vcID].ethBalances[1];
+            Channels[_lcID].ethBalances[1] += virtualChannels[_vcID].ethBalances[0];
+
+            Channels[_lcID].erc20Balances[0] += virtualChannels[_vcID].erc20Balances[1];
+            Channels[_lcID].erc20Balances[1] += virtualChannels[_vcID].erc20Balances[0];
         }
 
         emit DidVCClose(_lcID, _vcID, virtualChannels[_vcID].erc20Balances[0], virtualChannels[_vcID].erc20Balances[1]);
@@ -442,29 +457,47 @@ contract LedgerChannel {
         require(Channels[_lcID].updateLCtimeout < now, "LC timeout over.");
 
         // if off chain state update didnt reblance deposits, just return to deposit owner
-        uint256 totalDeposit = Channels[_lcID].initialDeposit + Channels[_lcID].ethBalances[2] + Channels[_lcID].ethBalances[3];
+        uint256 totalEthDeposit = Channels[_lcID].ethBalances[2] + Channels[_lcID].ethBalances[3];
+        uint256 totalTokenDeposit = Channels[_lcID].erc20Balances[2] + Channels[_lcID].erc20Balances[3];
+        uint256 totalDeposit = Channels[_lcID].initialDeposit + totalEthDeposit + totalTokenDeposit;
 
-        uint256 possibleTotalBeforeDeposit = Channels[_lcID].ethBalances[0] + Channels[_lcID].ethBalances[1];
+        uint256 possibleTotalBeforeDeposit = Channels[_lcID].ethBalances[0] + Channels[_lcID].ethBalances[1] + Channels[_lcID].erc20Balances[0] + Channels[_lcID].erc20Balances[1];
 
         if(possibleTotalBeforeDeposit < totalDeposit) {
             Channels[_lcID].ethBalances[0]+=Channels[_lcID].ethBalances[2];
             Channels[_lcID].ethBalances[1]+=Channels[_lcID].ethBalances[3];
+
+            Channels[_lcID].erc20Balances[0]+=Channels[_lcID].erc20Balances[2];
+            Channels[_lcID].erc20Balances[1]+=Channels[_lcID].erc20Balances[3];
         } else {
             require(possibleTotalBeforeDeposit == totalDeposit);
         }
 
         // reentrancy
-        uint256 balanceA = Channels[_lcID].ethBalances[0];
-        uint256 balanceI = Channels[_lcID].ethBalances[1];
+        uint256 ethbalanceA = Channels[_lcID].ethBalances[0];
+        uint256 ethbalanceI = Channels[_lcID].ethBalances[1];
+        uint256 tokenbalanceA = Channels[_lcID].erc20Balances[0];
+        uint256 tokenbalanceI = Channels[_lcID].erc20Balances[1];
+
         Channels[_lcID].ethBalances[0] = 0;
         Channels[_lcID].ethBalances[1] = 0;
+        Channels[_lcID].erc20Balances[0] = 0;
+        Channels[_lcID].erc20Balances[1] = 0;
 
-        Channels[_lcID].partyAdresses[0].transfer(balanceA);
-        Channels[_lcID].partyAdresses[1].transfer(balanceI);
+        if(ethbalanceA != 0 || ethbalanceI != 0) {
+            Channels[_lcID].partyAdresses[0].transfer(ethbalanceA);
+            Channels[_lcID].partyAdresses[1].transfer(ethbalanceI);
+        }
+
+        if(tokenbalanceA != 0 || tokenbalanceI != 0) {
+            require(Channels[_lcID].token.transfer(Channels[_lcID].partyAdresses[0], tokenbalanceA),"happyCloseChannel: token transfer failure");
+            require(Channels[_lcID].token.transfer(Channels[_lcID].partyAdresses[1], tokenbalanceI),"happyCloseChannel: token transfer failure");          
+        }
+
         Channels[_lcID].isOpen = false;
         numChannels--;
 
-        emit DidLCClose(_lcID, Channels[_lcID].sequence, balanceA, balanceI);
+        emit DidLCClose(_lcID, Channels[_lcID].sequence, ethbalanceA, ethbalanceI);
     }
 
     function _isContained(bytes32 _hash, bytes _proof, bytes32 _root) internal pure returns (bool) {
