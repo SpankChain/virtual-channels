@@ -372,7 +372,7 @@ contract('Test Cooperative Ether Payments', function(accounts) {
   })
 
   it("Hub deposits into Bob's lc", async () => {
-    await lc.deposit(web3latest.utils.sha3('2222', {encoding: 'hex'}), partyI, {from:partyI, value:web3latest.utils.toWei('10')})
+    await lc.deposit(web3latest.utils.sha3('2222', {encoding: 'hex'}), partyI, web3latest.utils.toWei('10'), false, {from:partyI, value:web3latest.utils.toWei('10')})
     let chan = await lc.Channels(web3latest.utils.sha3('2222', {encoding: 'hex'}))
   })
 

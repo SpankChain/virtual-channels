@@ -79,10 +79,9 @@ contract LedgerChannel {
 
     struct Channel {
         address[2] partyAdresses; // 0: partyA 1: partyI
-        uint256[2] ethBalances; // 0: balanceA 1:balanceI
-        uint256[2] erc20Balances; // 0: balanceA 1:balanceI
-        uint256[2] deposited;
-        uint256 initialDeposit;
+        uint256[4] ethBalances; // 0: balanceA 1:balanceI 2:depositedA 3:depositedI
+        uint256[4] erc20Balances; // 0: balanceA 1:balanceI 2:depositedA 3:depositedI
+        uint256 initialDeposit; // represents either ether or erc20
         uint256 sequence;
         uint256 confirmTime;
         bytes32 VCrootHash;
@@ -108,7 +107,7 @@ contract LedgerChannel {
         uint256[2] ethBalances;
         uint256[2] erc20Balances;
         uint256 bond;
-        address tokenAddress;
+        HumanStandardToken token;
     }
 
     mapping(bytes32 => VirtualChannel) public virtualChannels;
@@ -138,7 +137,7 @@ contract LedgerChannel {
         // is close flag, lc state sequence, number open vc, vc root hash, partyA... 
         //Channels[_lcID].stateHash = keccak256(uint256(0), uint256(0), uint256(0), bytes32(0x0), bytes32(msg.sender), bytes32(_partyI), balanceA, balanceI);
         Channels[_lcID].LCopenTimeout = now + _confirmTime;
-        Channels[_lcID].initialDeposit = msg.value;
+        Channels[_lcID].initialDeposit = _balance;
 
         emit DidLCOpen(_lcID, msg.sender, _partyI, msg.value, Channels[_lcID].LCopenTimeout);
     }
@@ -168,11 +167,11 @@ contract LedgerChannel {
             require(msg.value == _balance, "state balance does not match sent value");
             Channels[_lcID].ethBalances[1] = msg.value;
         } else {
-            require(Channels[_lcID].token.transferFrom(msg.sender, this, _balance),"CreateChannel: token transfer failure");
+            require(Channels[_lcID].token.transferFrom(msg.sender, this, _balance),"joinChannel: token transfer failure");
             Channels[_lcID].erc20Balances[0] = _balance;          
         }
 
-        Channels[_lcID].initialDeposit+=msg.value;
+        Channels[_lcID].initialDeposit+=_balance;
         // no longer allow joining functions to be called
         Channels[_lcID].isOpen = true;
         numChannels++;
@@ -182,12 +181,31 @@ contract LedgerChannel {
 
 
     // additive updates of monetary state
-    function deposit(bytes32 _lcID, address recipient) public payable {
+    function deposit(bytes32 _lcID, address recipient, uint256 _balance, bool isToken) public payable {
         require(Channels[_lcID].isOpen == true, "Tried adding funds to a closed channel");
         require(recipient == Channels[_lcID].partyAdresses[0] || recipient == Channels[_lcID].partyAdresses[1]);
 
-        if (Channels[_lcID].partyAdresses[0] == recipient) { Channels[_lcID].deposited[0] += msg.value; }
-        if (Channels[_lcID].partyAdresses[1] == recipient) { Channels[_lcID].deposited[1] += msg.value; }
+        //if(Channels[_lcID].token)
+
+        if (Channels[_lcID].partyAdresses[0] == recipient) {
+            if(isToken) {
+                require(Channels[_lcID].token.transferFrom(msg.sender, this, _balance),"deposit: token transfer failure");
+                Channels[_lcID].erc20Balances[2] += _balance;
+            } else {
+                require(msg.value == _balance, "state balance does not match sent value");
+                Channels[_lcID].ethBalances[2] += msg.value;
+            }
+        }
+
+        if (Channels[_lcID].partyAdresses[1] == recipient) {
+            if(isToken) {
+                require(Channels[_lcID].token.transferFrom(msg.sender, this, _balance),"deposit: token transfer failure");
+                Channels[_lcID].erc20Balances[3] += _balance;
+            } else {
+                require(msg.value == _balance, "state balance does not match sent value");
+                Channels[_lcID].ethBalances[3] += msg.value; 
+            }
+        }
         
         emit DidLCDeposit(_lcID, recipient, msg.value);
     }
@@ -206,7 +224,7 @@ contract LedgerChannel {
         // assume num open vc is 0 and root hash is 0x0
         //require(Channels[_lcID].sequence < _sequence);
         require(Channels[_lcID].isOpen == true);
-        uint256 totalDeposit = Channels[_lcID].initialDeposit + Channels[_lcID].deposited[0] + Channels[_lcID].deposited[1];
+        uint256 totalDeposit = Channels[_lcID].initialDeposit + Channels[_lcID].ethBalances[2] + Channels[_lcID].ethBalances[3];
         require(totalDeposit == _balanceA + _balanceI);
 
         bytes32 _state = keccak256(
@@ -414,22 +432,22 @@ contract LedgerChannel {
         require(Channels[_lcID].updateLCtimeout < now, "LC timeout over.");
 
         // if off chain state update didnt reblance deposits, just return to deposit owner
-        uint256 totalDeposit = Channels[_lcID].initialDeposit + Channels[_lcID].deposited[0] + Channels[_lcID].deposited[1];
+        uint256 totalDeposit = Channels[_lcID].initialDeposit + Channels[_lcID].ethBalances[2] + Channels[_lcID].ethBalances[3];
 
-        uint256 possibleTotalBeforeDeposit = Channels[_lcID].erc20Balances[0] + Channels[_lcID].erc20Balances[1];
+        uint256 possibleTotalBeforeDeposit = Channels[_lcID].ethBalances[0] + Channels[_lcID].ethBalances[1];
 
         if(possibleTotalBeforeDeposit < totalDeposit) {
-            Channels[_lcID].erc20Balances[0]+=Channels[_lcID].deposited[0];
-            Channels[_lcID].erc20Balances[1]+=Channels[_lcID].deposited[1];
+            Channels[_lcID].ethBalances[0]+=Channels[_lcID].ethBalances[2];
+            Channels[_lcID].ethBalances[1]+=Channels[_lcID].ethBalances[3];
         } else {
             require(possibleTotalBeforeDeposit == totalDeposit);
         }
 
         // reentrancy
-        uint256 balanceA = Channels[_lcID].erc20Balances[0];
-        uint256 balanceI = Channels[_lcID].erc20Balances[1];
-        Channels[_lcID].erc20Balances[0] = 0;
-        Channels[_lcID].erc20Balances[1] = 0;
+        uint256 balanceA = Channels[_lcID].ethBalances[0];
+        uint256 balanceI = Channels[_lcID].ethBalances[1];
+        Channels[_lcID].ethBalances[0] = 0;
+        Channels[_lcID].ethBalances[1] = 0;
 
         Channels[_lcID].partyAdresses[0].transfer(balanceA);
         Channels[_lcID].partyAdresses[1].transfer(balanceI);
