@@ -214,8 +214,7 @@ contract LedgerChannel {
     function consensusCloseChannel(
         bytes32 _lcID, 
         uint256 _sequence, 
-        uint256 _balanceA, 
-        uint256 _balanceI, 
+        uint256[4] _balances, // 0: ethBalanceA 1:ethBalanceI 2:tokenBalanceA 3:tokenBalanceI
         string _sigA, 
         string _sigI
     ) 
@@ -224,8 +223,10 @@ contract LedgerChannel {
         // assume num open vc is 0 and root hash is 0x0
         //require(Channels[_lcID].sequence < _sequence);
         require(Channels[_lcID].isOpen == true);
-        uint256 totalDeposit = Channels[_lcID].initialDeposit + Channels[_lcID].ethBalances[2] + Channels[_lcID].ethBalances[3];
-        require(totalDeposit == _balanceA + _balanceI);
+        uint256 totalEthDeposit = Channels[_lcID].ethBalances[2] + Channels[_lcID].ethBalances[3];
+        uint256 totalTokenDeposit = Channels[_lcID].ethBalances[2] + Channels[_lcID].ethBalances[3];
+        uint256 totalDeposit = Channels[_lcID].initialDeposit + totalEthDeposit + totalTokenDeposit;
+        require(totalDeposit == _balances[0] + _balances[1] + _balances[2] + _balances[3]);
 
         bytes32 _state = keccak256(
             abi.encodePacked(
@@ -235,8 +236,10 @@ contract LedgerChannel {
                 bytes32(0x0),
                 Channels[_lcID].partyAdresses[0], 
                 Channels[_lcID].partyAdresses[1], 
-                _balanceA, 
-                _balanceI
+                _balances[0], 
+                _balances[1],
+                _balances[2],
+                _balances[3]
             )
         );
 
@@ -245,12 +248,19 @@ contract LedgerChannel {
 
         Channels[_lcID].isOpen = false;
 
-        Channels[_lcID].partyAdresses[0].transfer(_balanceA);
-        Channels[_lcID].partyAdresses[1].transfer(_balanceI);
+        if(_balances[0] != 0 && _balances[1] != 0) {
+            Channels[_lcID].partyAdresses[0].transfer(_balances[0]);
+            Channels[_lcID].partyAdresses[1].transfer(_balances[1]);
+        }
+
+        if(_balances[2] != 0 && _balances[3] != 0) {
+            require(Channels[_lcID].token.transfer(Channels[_lcID].partyAdresses[0], _balances[2]),"happyCloseChannel: token transfer failure");
+            require(Channels[_lcID].token.transfer(Channels[_lcID].partyAdresses[1], _balances[3]),"happyCloseChannel: token transfer failure");          
+        }
 
         numChannels--;
 
-        emit DidLCClose(_lcID, _sequence, _balanceA, _balanceI);
+        emit DidLCClose(_lcID, _sequence, _balances[0], _balances[1]);
     }
 
     // Byzantine functions

@@ -82,8 +82,10 @@ contract('Test Cooperative Ether Payments', function(accounts) {
       { type: 'string', value: '0x0' }, // VC root hash
       { type: 'address', value: partyA }, // partyA
       { type: 'address', value: partyI }, // hub
-      { type: 'uint256', value: web3latest.utils.toWei('10') },
-      { type: 'uint256', value: web3latest.utils.toWei('20') }
+      { type: 'uint256', value: web3latest.utils.toWei('10') }, // eth
+      { type: 'uint256', value: web3latest.utils.toWei('20') }, // eth
+      { type: 'uint256', value: web3latest.utils.toWei('0') }, // token
+      { type: 'uint256', value: web3latest.utils.toWei('0') }  // token
     ) 
   })
 
@@ -155,7 +157,9 @@ contract('Test Cooperative Ether Payments', function(accounts) {
       { type: 'address', value: partyB }, // partyA
       { type: 'address', value: partyI }, // hub
       { type: 'uint256', value: web3latest.utils.toWei('10') },
-      { type: 'uint256', value: web3latest.utils.toWei('20') }
+      { type: 'uint256', value: web3latest.utils.toWei('20') },
+      { type: 'uint256', value: web3latest.utils.toWei('0') }, // token
+      { type: 'uint256', value: web3latest.utils.toWei('0') }  // token
     ) 
   })
 
@@ -236,7 +240,9 @@ contract('Test Cooperative Ether Payments', function(accounts) {
       { type: 'address', value: partyA }, // partyA
       { type: 'address', value: partyI }, // hub
       { type: 'uint256', value: web3latest.utils.toWei('5') },
-      { type: 'uint256', value: web3latest.utils.toWei('13') }
+      { type: 'uint256', value: web3latest.utils.toWei('13') },
+      { type: 'uint256', value: web3latest.utils.toWei('0') }, // token
+      { type: 'uint256', value: web3latest.utils.toWei('0') }  // token
     ) 
   })
 
@@ -263,7 +269,9 @@ contract('Test Cooperative Ether Payments', function(accounts) {
       { type: 'address', value: partyB }, // partyA
       { type: 'address', value: partyI }, // hub
       { type: 'uint256', value: web3latest.utils.toWei('3') },
-      { type: 'uint256', value: web3latest.utils.toWei('15') }
+      { type: 'uint256', value: web3latest.utils.toWei('15') },
+      { type: 'uint256', value: web3latest.utils.toWei('0') }, // token
+      { type: 'uint256', value: web3latest.utils.toWei('0') }  // token
     ) 
   })
 
@@ -304,7 +312,9 @@ contract('Test Cooperative Ether Payments', function(accounts) {
       { type: 'address', value: partyA }, // partyA
       { type: 'address', value: partyI }, // hub
       { type: 'uint256', value: web3latest.utils.toWei('8') },
-      { type: 'uint256', value: web3latest.utils.toWei('22') }
+      { type: 'uint256', value: web3latest.utils.toWei('22') },
+      { type: 'uint256', value: web3latest.utils.toWei('0') }, // token
+      { type: 'uint256', value: web3latest.utils.toWei('0') }  // token
     ) 
 
   })
@@ -319,7 +329,9 @@ contract('Test Cooperative Ether Payments', function(accounts) {
       { type: 'address', value: partyB }, // partyA
       { type: 'address', value: partyI }, // hub
       { type: 'uint256', value: web3latest.utils.toWei('12') },
-      { type: 'uint256', value: web3latest.utils.toWei('18') }
+      { type: 'uint256', value: web3latest.utils.toWei('18') },
+      { type: 'uint256', value: web3latest.utils.toWei('0') }, // token
+      { type: 'uint256', value: web3latest.utils.toWei('0') }  // token
     )   
   })
 
@@ -346,7 +358,9 @@ contract('Test Cooperative Ether Payments', function(accounts) {
       { type: 'address', value: partyA }, // partyA
       { type: 'address', value: partyI }, // hub
       { type: 'uint256', value: web3latest.utils.toWei('8') },
-      { type: 'uint256', value: web3latest.utils.toWei('22') }
+      { type: 'uint256', value: web3latest.utils.toWei('22') },
+      { type: 'uint256', value: web3latest.utils.toWei('0') }, // token
+      { type: 'uint256', value: web3latest.utils.toWei('0') }  // token
     ) 
   })
 
@@ -361,7 +375,7 @@ contract('Test Cooperative Ether Payments', function(accounts) {
   it("Close Alice ledger channel", async () => {
     var balA1 = await web3latest.eth.getBalance(partyA)
     var balB1 = await web3latest.eth.getBalance(partyI)
-    let receipt = await lc.consensusCloseChannel(web3latest.utils.sha3('1111', {encoding: 'hex'}), '3', web3latest.utils.toWei('8'), web3latest.utils.toWei('22'), AI_lcS3_sigA, AI_lcS3_sigI)
+    let receipt = await lc.consensusCloseChannel(web3latest.utils.sha3('1111', {encoding: 'hex'}), '3', [web3latest.utils.toWei('8'), web3latest.utils.toWei('22'), 0, 0], AI_lcS3_sigA, AI_lcS3_sigI)
     var gasUsed = receipt.receipt.gasUsed
     //console.log('Close Channel: ' + gasUsed)
     var balA2 = await web3latest.eth.getBalance(partyA)
@@ -395,7 +409,9 @@ contract('Test Cooperative Ether Payments', function(accounts) {
       { type: 'address', value: partyB }, // partyA
       { type: 'address', value: partyI }, // hub
       { type: 'uint256', value: web3latest.utils.toWei('3') },
-      { type: 'uint256', value: web3latest.utils.toWei('25') }
+      { type: 'uint256', value: web3latest.utils.toWei('25') },
+      { type: 'uint256', value: web3latest.utils.toWei('0') }, // token
+      { type: 'uint256', value: web3latest.utils.toWei('0') }  // token
     ) 
   })
 
