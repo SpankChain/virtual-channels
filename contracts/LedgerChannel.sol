@@ -1,6 +1,7 @@
 pragma solidity ^0.4.23;
 
 import "./lib/ECTools.sol";
+import "./lib/token/HumanStandardToken.sol";
 
 /// @title Set Virtual Channels - A layer2 hub and spoke payment network 
 /// @author Nathan Ginnever
@@ -90,7 +91,7 @@ contract LedgerChannel {
         bool isOpen; // true when both parties have joined
         bool isUpdateLCSettling;
         uint256 numOpenVC;
-        //address closingParty;
+        HumanStandardToken token;
     }
 
     // virtual-channel state
@@ -113,7 +114,7 @@ contract LedgerChannel {
     mapping(bytes32 => VirtualChannel) public virtualChannels;
     mapping(bytes32 => Channel) public Channels;
 
-    function createChannel(bytes32 _lcID, address _partyI, uint256 _confirmTime) public payable {
+    function createChannel(bytes32 _lcID, address _partyI, uint256 _confirmTime, address _token, uint256 _balance) public payable {
         require(Channels[_lcID].partyAdresses[0] == address(0), "Channel has already been created.");
         require(_partyI != 0x0, "No partyI address provided to LC creation");
         // Set initial ledger channel state
@@ -122,7 +123,16 @@ contract LedgerChannel {
         // Alternative is to check a sig as in joinChannel
         Channels[_lcID].partyAdresses[0] = msg.sender;
         Channels[_lcID].partyAdresses[1] = _partyI;
-        Channels[_lcID].erc20Balances[0] = msg.value;
+
+        if(_token == address(0x0)) {
+            require(msg.value == _balance, "state balance does not match sent value");
+            Channels[_lcID].ethBalances[0] = msg.value;
+        } else {
+            Channels[_lcID].token = HumanStandardToken(_token);
+            require(Channels[_lcID].token.transferFrom(msg.sender, this, _balance),"CreateChannel: token transfer failure");
+            Channels[_lcID].erc20Balances[0] = _balance;
+        }
+
         Channels[_lcID].sequence = 0;
         Channels[_lcID].confirmTime = _confirmTime;
         // is close flag, lc state sequence, number open vc, vc root hash, partyA... 
@@ -136,19 +146,32 @@ contract LedgerChannel {
     function LCOpenTimeout(bytes32 _lcID) public {
         require(msg.sender == Channels[_lcID].partyAdresses[0] && Channels[_lcID].isOpen == false);
         require(now > Channels[_lcID].LCopenTimeout);
-        Channels[_lcID].partyAdresses[0].transfer(Channels[_lcID].erc20Balances[0]);
+
+        if(Channels[_lcID].token == address(0x0)) {
+            Channels[_lcID].partyAdresses[0].transfer(Channels[_lcID].ethBalances[0]);
+            emit DidLCClose(_lcID, 0, Channels[_lcID].ethBalances[0], 0);
+        } else {
+            require(Channels[_lcID].token.transfer(Channels[_lcID].partyAdresses[0], Channels[_lcID].erc20Balances[0]),"CreateChannel: token transfer failure");
+            emit DidLCClose(_lcID, 0, Channels[_lcID].erc20Balances[0], 0);
+        }
+
         // only safe to delete since no action was taken on this channel
-        emit DidLCClose(_lcID, 0, Channels[_lcID].erc20Balances[0], 0);
         delete Channels[_lcID];
     }
 
-    function joinChannel(bytes32 _lcID) public payable {
+    function joinChannel(bytes32 _lcID, uint256 _balance) public payable {
         // require the channel is not open yet
         require(Channels[_lcID].isOpen == false);
         require(msg.sender == Channels[_lcID].partyAdresses[1]);
-        // Initial state
-        //address recover = ECTools.recoverSigner(Channels[_lcID].stateHash, _sigI);
-        Channels[_lcID].erc20Balances[1] = msg.value;
+
+        if(Channels[_lcID].token == address(0x0)) {
+            require(msg.value == _balance, "state balance does not match sent value");
+            Channels[_lcID].ethBalances[1] = msg.value;
+        } else {
+            require(Channels[_lcID].token.transferFrom(msg.sender, this, _balance),"CreateChannel: token transfer failure");
+            Channels[_lcID].erc20Balances[0] = _balance;          
+        }
+
         Channels[_lcID].initialDeposit+=msg.value;
         // no longer allow joining functions to be called
         Channels[_lcID].isOpen = true;
