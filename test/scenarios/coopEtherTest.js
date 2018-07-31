@@ -223,8 +223,8 @@ contract('Test Cooperative Ether Payments', function(accounts) {
     AB_vcS0 = web3latest.utils.soliditySha3(
       { type: 'bytes32', value: web3latest.utils.sha3('1337', {encoding: 'hex'}) }, // vc id
       { type: 'uint256', value: 0 }, // sequence
-      { type: 'address', value: partyB }, // partyA
-      { type: 'address', value: partyB }, // hub,
+      { type: 'address', value: partyA }, // partyA
+      { type: 'address', value: partyB }, // partyB,
       { type: 'uint256', value: web3latest.utils.toWei('12') }, // hub bond
       { type: 'uint256', value: web3latest.utils.toWei('5') },
       { type: 'uint256', value: web3latest.utils.toWei('7') },
@@ -257,8 +257,8 @@ contract('Test Cooperative Ether Payments', function(accounts) {
       { type: 'string', value: vcRootHash }, // VC root hash
       { type: 'address', value: partyA }, // partyA
       { type: 'address', value: partyI }, // hub
-      { type: 'uint256', value: web3latest.utils.toWei('5') },
-      { type: 'uint256', value: web3latest.utils.toWei('13') },
+      { type: 'uint256', value: web3latest.utils.toWei('5') }, //eth
+      { type: 'uint256', value: web3latest.utils.toWei('13') }, //eth
       { type: 'uint256', value: web3latest.utils.toWei('0') }, // token
       { type: 'uint256', value: web3latest.utils.toWei('0') }  // token
     ) 
@@ -284,10 +284,10 @@ contract('Test Cooperative Ether Payments', function(accounts) {
       { type: 'uint256', value: 1 }, // sequence
       { type: 'uint256', value: 1 }, // open VCs
       { type: 'string', value: vcRootHash }, // VC root hash
-      { type: 'address', value: partyB }, // partyA
+      { type: 'address', value: partyB }, // partyB
       { type: 'address', value: partyI }, // hub
-      { type: 'uint256', value: web3latest.utils.toWei('3') },
-      { type: 'uint256', value: web3latest.utils.toWei('15') },
+      { type: 'uint256', value: web3latest.utils.toWei('3') }, //eth
+      { type: 'uint256', value: web3latest.utils.toWei('15') }, //eth
       { type: 'uint256', value: web3latest.utils.toWei('0') }, // token
       { type: 'uint256', value: web3latest.utils.toWei('0') }  // token
     ) 
@@ -302,15 +302,15 @@ contract('Test Cooperative Ether Payments', function(accounts) {
     BI_lcS1_sigI = await web3latest.eth.sign(BI_lcS1, partyI)
   })
 
-  it("Alice generates virtual channel payment with Bob", async () => {
+  it("Alice generates virtual channel payment with Bob (vcS1)", async () => {
     AB_vcS1 = web3latest.utils.soliditySha3(
       { type: 'bytes32', value: web3latest.utils.sha3('1337', {encoding: 'hex'}) }, // vc id
-      { type: 'uint256', value: 0 }, // sequence
-      { type: 'address', value: partyB }, // partyA
-      { type: 'address', value: partyB }, // hub
+      { type: 'uint256', value: 1 }, // sequence
+      { type: 'address', value: partyA }, // partyA
+      { type: 'address', value: partyB }, // partyB
       { type: 'uint256', value: web3latest.utils.toWei('12') }, // hub bond
-      { type: 'uint256', value: web3latest.utils.toWei('5') },
-      { type: 'uint256', value: web3latest.utils.toWei('7') },
+      { type: 'uint256', value: web3latest.utils.toWei('0') },
+      { type: 'uint256', value: web3latest.utils.toWei('12') },
       { type: 'uint256', value: web3latest.utils.toWei('0') }, // token
       { type: 'uint256', value: web3latest.utils.toWei('0') }  // token
     )
@@ -331,8 +331,8 @@ contract('Test Cooperative Ether Payments', function(accounts) {
       { type: 'string', value: '0x0' }, // VC root hash
       { type: 'address', value: partyA }, // partyA
       { type: 'address', value: partyI }, // hub
-      { type: 'uint256', value: web3latest.utils.toWei('8') },
-      { type: 'uint256', value: web3latest.utils.toWei('22') },
+      { type: 'uint256', value: web3latest.utils.toWei('5') }, //eth
+      { type: 'uint256', value: web3latest.utils.toWei('25') }, //eth
       { type: 'uint256', value: web3latest.utils.toWei('0') }, // token
       { type: 'uint256', value: web3latest.utils.toWei('0') }  // token
     ) 
@@ -346,10 +346,10 @@ contract('Test Cooperative Ether Payments', function(accounts) {
       { type: 'uint256', value: 2 }, // sequence
       { type: 'uint256', value: 0 }, // open VCs
       { type: 'string', value: '0x0' }, // VC root hash
-      { type: 'address', value: partyB }, // partyA
+      { type: 'address', value: partyB }, // partyB
       { type: 'address', value: partyI }, // hub
-      { type: 'uint256', value: web3latest.utils.toWei('12') },
-      { type: 'uint256', value: web3latest.utils.toWei('18') },
+      { type: 'uint256', value: web3latest.utils.toWei('15') }, //eth
+      { type: 'uint256', value: web3latest.utils.toWei('15') }, //eth
       { type: 'uint256', value: web3latest.utils.toWei('0') }, // token
       { type: 'uint256', value: web3latest.utils.toWei('0') }  // token
     )   
@@ -363,7 +363,7 @@ contract('Test Cooperative Ether Payments', function(accounts) {
     BI_lcS2_sigB = await web3latest.eth.sign(BI_lcS2, partyB)
   })
 
-  it("Hub signs both Alice and Bob's lcS2 state to open VC", async () => {
+  it("Hub signs both Alice and Bob's lcS2 state to close VC", async () => {
     AI_lcS2_sigI = await web3latest.eth.sign(AI_lcS2, partyI)
     BI_lcS2_sigI = await web3latest.eth.sign(BI_lcS2, partyI)
   })
@@ -377,8 +377,8 @@ contract('Test Cooperative Ether Payments', function(accounts) {
       { type: 'bytes32', value: '0x0' }, // VC root hash
       { type: 'address', value: partyA }, // partyA
       { type: 'address', value: partyI }, // hub
-      { type: 'uint256', value: web3latest.utils.toWei('8') },
-      { type: 'uint256', value: web3latest.utils.toWei('22') },
+      { type: 'uint256', value: web3latest.utils.toWei('5') },
+      { type: 'uint256', value: web3latest.utils.toWei('25') },
       { type: 'uint256', value: web3latest.utils.toWei('0') }, // token
       { type: 'uint256', value: web3latest.utils.toWei('0') }  // token
     ) 
@@ -395,19 +395,20 @@ contract('Test Cooperative Ether Payments', function(accounts) {
   it("Close Alice ledger channel", async () => {
     var balA1 = await web3latest.eth.getBalance(partyA)
     var balI1 = await web3latest.eth.getBalance(partyI)
-    let receipt = await lc.consensusCloseChannel(web3latest.utils.sha3('1111', {encoding: 'hex'}), '3', [web3latest.utils.toWei('8'), web3latest.utils.toWei('22'), 0, 0], AI_lcS3_sigA, AI_lcS3_sigI)
+    let receipt = await lc.consensusCloseChannel(web3latest.utils.sha3('1111', {encoding: 'hex'}), '3', [web3latest.utils.toWei('5'), web3latest.utils.toWei('25'), 0, 0], AI_lcS3_sigA, AI_lcS3_sigI)
     var gasUsed = receipt.receipt.gasUsed
     //console.log('Close Channel: ' + gasUsed)
     var balA2 = await web3latest.eth.getBalance(partyA)
     var balI2 = await web3latest.eth.getBalance(partyI)
     // TODO calculate gas, this may very based on testrpc
-    assert.equal(balI2 - balI1, '22000000000000000000')
+    assert.equal(balI2 - balI1, '25000000000000000000')
     // assert.equal(balA2 - balA1, '7926958099999998000')
   })
 
+  /******TO DO******/
   it("Hub deposits into Bob's lc", async () => {
     await lc.deposit(web3latest.utils.sha3('2222', {encoding: 'hex'}), partyI, web3latest.utils.toWei('10'), false, {from:partyI, value:web3latest.utils.toWei('10')})
-    let chan = await lc.Channels(web3latest.utils.sha3('2222', {encoding: 'hex'}))
+    let chan = await lc.getChannel(web3latest.utils.sha3('2222', {encoding: 'hex'}))
   })
 
   it("Hub creates lc state lcS2 containing new deposit", async () => {
