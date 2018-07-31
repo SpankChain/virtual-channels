@@ -114,15 +114,19 @@ contract('Test Cooperative Ether Payments', function(accounts) {
     var gasUsed = res.receipt.gasUsed
     //console.log('createChan: '+ gasUsed)
     let openChans = await lc.numChannels()
-    let chan = await lc.Channels(lc_id)
-    assert.equal(chan[0].toString(), web3latest.utils.toWei('10'))
-    assert.equal(chan[1].toString(), '0')
-    assert.equal(chan[2].toString(), '0')
-    assert.equal(chan[3], '0x0000000000000000000000000000000000000000000000000000000000000000')
-    assert.equal(chan[5].toString(), '0')
-    assert.equal(chan[6], false)
-    assert.equal(chan[7], false)
-    assert.equal(chan[8].toString(), '0')
+    let chan = await lc.getChannel(lc_id)
+    assert.equal(chan[0].toString(), [partyA,partyI]) //check partyAddresses
+    assert.equal(chan[1].toString(), [web3latest.utils.toWei('10'), '0', '0', '0']) //check ethBalances
+    assert.equal(chan[2].toString(), ['0', '0', '0', '0']) //check erc20Balances
+    assert.equal(chan[3].toString(), web3latest.utils.toWei('10')) //check initalDeposit
+    assert.equal(chan[4].toString(), '0') //check sequence
+    assert.equal(chan[5].toString(), '0') //check confirmTime
+    assert.equal(chan[6], '0x0000000000000000000000000000000000000000000000000000000000000000') //check VCrootHash
+    //check if chan[7] is equal to now + confirmtime
+    assert.equal(chan[8].toString(), '0') //check updateLCTimeout
+    assert.equal(chan[9], false) //check isOpen
+    assert.equal(chan[10], false) //check isUpdateLCSettling
+    assert.equal(chan[11], '0') //check numOpenVC
   })
 
   it("Hub signs initial lcS0 state", async () => {
@@ -135,15 +139,19 @@ contract('Test Cooperative Ether Payments', function(accounts) {
     var gasUsed = res.receipt.gasUsed
     //console.log('joinChan: '+ gasUsed)
     let openChans = await lc.numChannels()
-    let chan = await lc.Channels(lc_id)
-    assert.equal(chan[0].toString(), web3latest.utils.toWei('30'))
-    assert.equal(chan[1].toString(), '0')
-    assert.equal(chan[2].toString(), '0')
-    assert.equal(chan[3], '0x0000000000000000000000000000000000000000000000000000000000000000')
-    assert.equal(chan[5].toString(), '0')
-    assert.equal(chan[6], true)
-    assert.equal(chan[7], false)
-    assert.equal(chan[8].toString(), '0')
+    let chan = await lc.getChannel(lc_id)
+    assert.equal(chan[0].toString(), [partyA,partyI]) //check partyAddresses
+    assert.equal(chan[1].toString(), [web3latest.utils.toWei('10'), web3latest.utils.toWei('20'), '0', '0']) //check ethBalances
+    assert.equal(chan[2].toString(), ['0', '0', '0', '0']) //check erc20Balances
+    assert.equal(chan[3].toString(), web3latest.utils.toWei('30')) //check initalDeposit
+    assert.equal(chan[4].toString(), '0') //check sequence
+    assert.equal(chan[5].toString(), '0') //check confirmTime
+    assert.equal(chan[6], '0x0000000000000000000000000000000000000000000000000000000000000000') //check VCrootHash
+    //check if chan[7] is equal to now + confirmtime
+    assert.equal(chan[8].toString(), '0') //check updateLCTimeout
+    assert.equal(chan[9], true) //check isOpen
+    assert.equal(chan[10], false) //check isUpdateLCSettling
+    assert.equal(chan[11], '0') //check numOpenVC
   })
 
   // Bob creates ledger channel
@@ -172,15 +180,19 @@ contract('Test Cooperative Ether Payments', function(accounts) {
     let lc_id = web3latest.utils.sha3('2222', {encoding: 'hex'})
     await lc.createChannel(lc_id, partyI, '0', '0x0', web3latest.utils.toWei('10'), {from:partyB, value: web3latest.utils.toWei('10')})
     let openChans = await lc.numChannels()
-    let chan = await lc.Channels(lc_id)
-    assert.equal(chan[0].toString(), web3latest.utils.toWei('10'))
-    assert.equal(chan[1].toString(), '0')
-    assert.equal(chan[2].toString(), '0')
-    assert.equal(chan[3], '0x0000000000000000000000000000000000000000000000000000000000000000')
-    assert.equal(chan[5].toString(), '0')
-    assert.equal(chan[6], false)
-    assert.equal(chan[7], false)
-    assert.equal(chan[8].toString(), '0')
+    let chan = await lc.getChannel(lc_id)
+    assert.equal(chan[0].toString(), [partyB,partyI]) //check partyAddresses
+    assert.equal(chan[1].toString(), [web3latest.utils.toWei('10'), '0', '0', '0']) //check ethBalances
+    assert.equal(chan[2].toString(), ['0', '0', '0', '0']) //check erc20Balances
+    assert.equal(chan[3].toString(), web3latest.utils.toWei('10')) //check initalDeposit
+    assert.equal(chan[4].toString(), '0') //check sequence
+    assert.equal(chan[5].toString(), '0') //check confirmTime
+    assert.equal(chan[6], '0x0000000000000000000000000000000000000000000000000000000000000000') //check VCrootHash
+    //check if chan[7] is equal to now + confirmtime
+    assert.equal(chan[8].toString(), '0') //check updateLCTimeout
+    assert.equal(chan[9], false) //check isOpen
+    assert.equal(chan[10], false) //check isUpdateLCSettling
+    assert.equal(chan[11], '0') //check numOpenVC
   })
 
   it("Hub signs initial lcS0 state", async () => {
@@ -191,15 +203,19 @@ contract('Test Cooperative Ether Payments', function(accounts) {
     let lc_id = web3latest.utils.sha3('2222', {encoding: 'hex'})
     await lc.joinChannel(lc_id, web3latest.utils.toWei('20'), {from: partyI, value: web3latest.utils.toWei('20')})
     let openChans = await lc.numChannels()
-    let chan = await lc.Channels(lc_id)
-    assert.equal(chan[0].toString(), web3latest.utils.toWei('30'))
-    assert.equal(chan[1].toString(), '0')
-    assert.equal(chan[2].toString(), '0')
-    assert.equal(chan[3], '0x0000000000000000000000000000000000000000000000000000000000000000')
-    assert.equal(chan[5].toString(), '0')
-    assert.equal(chan[6], true)
-    assert.equal(chan[7], false)
-    assert.equal(chan[8].toString(), '0')
+    let chan = await lc.getChannel(lc_id)
+    assert.equal(chan[0].toString(), [partyB,partyI]) //check partyAddresses
+    assert.equal(chan[1].toString(), [web3latest.utils.toWei('10'), web3latest.utils.toWei('20'), '0', '0']) //check ethBalances
+    assert.equal(chan[2].toString(), ['0', '0', '0', '0']) //check erc20Balances
+    assert.equal(chan[3].toString(), web3latest.utils.toWei('30')) //check initalDeposit
+    assert.equal(chan[4].toString(), '0') //check sequence
+    assert.equal(chan[5].toString(), '0') //check confirmTime
+    assert.equal(chan[6], '0x0000000000000000000000000000000000000000000000000000000000000000') //check VCrootHash
+    //check if chan[7] is equal to now + confirmtime
+    assert.equal(chan[8].toString(), '0') //check updateLCTimeout
+    assert.equal(chan[9], true) //check isOpen
+    assert.equal(chan[10], false) //check isUpdateLCSettling
+    assert.equal(chan[11], '0') //check numOpenVC
   })
 
 
@@ -378,15 +394,15 @@ contract('Test Cooperative Ether Payments', function(accounts) {
 
   it("Close Alice ledger channel", async () => {
     var balA1 = await web3latest.eth.getBalance(partyA)
-    var balB1 = await web3latest.eth.getBalance(partyI)
+    var balI1 = await web3latest.eth.getBalance(partyI)
     let receipt = await lc.consensusCloseChannel(web3latest.utils.sha3('1111', {encoding: 'hex'}), '3', [web3latest.utils.toWei('8'), web3latest.utils.toWei('22'), 0, 0], AI_lcS3_sigA, AI_lcS3_sigI)
     var gasUsed = receipt.receipt.gasUsed
     //console.log('Close Channel: ' + gasUsed)
     var balA2 = await web3latest.eth.getBalance(partyA)
-    var balB2 = await web3latest.eth.getBalance(partyI)
+    var balI2 = await web3latest.eth.getBalance(partyI)
     // TODO calculate gas, this may very based on testrpc
-    //assert.equal(balB2 - balB1, '22000000000493355000')
-    //assert.equal(balA2 - balA1, '7926719900000010000')
+    assert.equal(balI2 - balI1, '22000000000000000000')
+    // assert.equal(balA2 - balA1, '7926958099999998000')
   })
 
   it("Hub deposits into Bob's lc", async () => {
