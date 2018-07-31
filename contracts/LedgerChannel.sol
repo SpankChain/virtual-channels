@@ -168,7 +168,7 @@ contract LedgerChannel {
             Channels[_lcID].ethBalances[1] = msg.value;
         } else {
             require(Channels[_lcID].token.transferFrom(msg.sender, this, _balance),"joinChannel: token transfer failure");
-            Channels[_lcID].erc20Balances[0] = _balance;          
+            Channels[_lcID].erc20Balances[1] = _balance;          
         }
 
         Channels[_lcID].initialDeposit+=_balance;
