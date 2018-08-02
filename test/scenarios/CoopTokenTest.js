@@ -117,7 +117,7 @@ contract('Test Cooperative Token Payments', function(accounts) {
   it("Alice initiates ledger channel with lcS0", async () => {
     let lc_id = web3latest.utils.sha3('1111', {encoding: 'hex'})
     let approval = await token.approve(lc.address, 10)
-    let res = await lc.createChannel(lc_id, partyI, '0', token.address, 10)
+    let res = await lc.createChannel(lc_id, partyI, '0', token.address, [0, 10])
     var gasUsed = res.receipt.gasUsed
     //console.log('createChan: '+ gasUsed)
     let openChans = await lc.numChannels()
@@ -125,7 +125,7 @@ contract('Test Cooperative Token Payments', function(accounts) {
     assert.equal(chan[0].toString(), [partyA,partyI]) //check partyAddresses
     assert.equal(chan[1].toString(), ['0', '0', '0', '0']) //check ethBalances
     assert.equal(chan[2].toString(), ['10', '0', '0', '0']) //check erc20Balances
-    assert.equal(chan[3].toString(), '10') //check initalDeposit
+    assert.equal(chan[3].toString(), [0,'10']) //check initalDeposit
     assert.equal(chan[4].toString(), '0') //check sequence
     assert.equal(chan[5].toString(), '0') //check confirmTime
     assert.equal(chan[6], '0x0000000000000000000000000000000000000000000000000000000000000000') //check VCrootHash
@@ -143,7 +143,7 @@ contract('Test Cooperative Token Payments', function(accounts) {
   it("Ingrid joins ledger channel", async () => {
     let lc_id = web3latest.utils.sha3('1111', {encoding: 'hex'})
     let approval = await token.approve(lc.address, 20, {from: partyI})
-    let res = await lc.joinChannel(lc_id, 20, {from: partyI})
+    let res = await lc.joinChannel(lc_id, [0,20], {from: partyI})
     var gasUsed = res.receipt.gasUsed
     //console.log('joinChan: '+ gasUsed)
     let openChans = await lc.numChannels()
@@ -151,7 +151,7 @@ contract('Test Cooperative Token Payments', function(accounts) {
     assert.equal(chan[0].toString(), [partyA,partyI]) //check partyAddresses
     assert.equal(chan[1].toString(), ['0', '0', '0', '0']) //check ethBalances
     assert.equal(chan[2].toString(), ['10', '20', '0', '0']) //check erc20Balances
-    assert.equal(chan[3].toString(), '30') //check initalDeposit
+    assert.equal(chan[3].toString(), [0,'30']) //check initalDeposit
     assert.equal(chan[4].toString(), '0') //check sequence
     assert.equal(chan[5].toString(), '0') //check confirmTime
     assert.equal(chan[6], '0x0000000000000000000000000000000000000000000000000000000000000000') //check VCrootHash
@@ -187,7 +187,7 @@ contract('Test Cooperative Token Payments', function(accounts) {
   it("Bob initiates ledger channel with lcS0", async () => {
     let lc_id = web3latest.utils.sha3('2222', {encoding: 'hex'})
     let approval = await token.approve(lc.address, 10, {from: partyB})
-    let res = await lc.createChannel(lc_id, partyI, '0', token.address, 10, {from: partyB})
+    let res = await lc.createChannel(lc_id, partyI, '0', token.address, [0,10], {from: partyB})
     var gasUsed = res.receipt.gasUsed
     //console.log('createChan: '+ gasUsed)
     let openChans = await lc.numChannels()
@@ -195,7 +195,7 @@ contract('Test Cooperative Token Payments', function(accounts) {
     assert.equal(chan[0].toString(), [partyB,partyI]) //check partyAddresses
     assert.equal(chan[1].toString(), ['0', '0', '0', '0']) //check ethBalances
     assert.equal(chan[2].toString(), ['10', '0', '0', '0']) //check erc20Balances
-    assert.equal(chan[3].toString(), '10') //check initalDeposit
+    assert.equal(chan[3].toString(), [0,'10']) //check initalDeposit
     assert.equal(chan[4].toString(), '0') //check sequence
     assert.equal(chan[5].toString(), '0') //check confirmTime
     assert.equal(chan[6], '0x0000000000000000000000000000000000000000000000000000000000000000') //check VCrootHash
@@ -213,7 +213,7 @@ contract('Test Cooperative Token Payments', function(accounts) {
   it("Ingrid joins ledger channel", async () => {
     let lc_id = web3latest.utils.sha3('2222', {encoding: 'hex'})
     let approval = await token.approve(lc.address, 20, {from: partyI})
-    let res = await lc.joinChannel(lc_id, 20, {from: partyI})
+    let res = await lc.joinChannel(lc_id, [0,20], {from: partyI})
     var gasUsed = res.receipt.gasUsed
     //console.log('joinChan: '+ gasUsed)
     let openChans = await lc.numChannels()
@@ -221,7 +221,7 @@ contract('Test Cooperative Token Payments', function(accounts) {
     assert.equal(chan[0].toString(), [partyB,partyI]) //check partyAddresses
     assert.equal(chan[1].toString(), ['0', '0', '0', '0']) //check ethBalances
     assert.equal(chan[2].toString(), ['10', '20', '0', '0']) //check erc20Balances
-    assert.equal(chan[3].toString(), '30') //check initalDeposit
+    assert.equal(chan[3].toString(), [0,'30']) //check initalDeposit
     assert.equal(chan[4].toString(), '0') //check sequence
     assert.equal(chan[5].toString(), '0') //check confirmTime
     assert.equal(chan[6], '0x0000000000000000000000000000000000000000000000000000000000000000') //check VCrootHash
