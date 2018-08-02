@@ -107,7 +107,7 @@ contract LedgerChannel {
         address partyI; // LC hub
         uint256[2] ethBalances;
         uint256[2] erc20Balances;
-        uint256 bond;
+        uint256[2] bond;
         HumanStandardToken token;
     }
 
@@ -339,7 +339,7 @@ contract LedgerChannel {
         bytes _proof, 
         address _partyA, 
         address _partyB, 
-        uint256 _bond,
+        uint256[2] _bond,
         uint256[4] _balances, // 0: ethBalanceA 1:ethBalanceI 2:tokenBalanceA 3:tokenBalanceI
         string sigA
     ) 
@@ -354,7 +354,7 @@ contract LedgerChannel {
         require(virtualChannels[_vcID].updateVCtimeout == 0);
         // partyB is now Ingrid
         bytes32 _initState = keccak256(
-            abi.encodePacked(_vcID, uint256(0), _partyA, _partyB, _bond, _balances[0], _balances[1], _balances[2], _balances[3])
+            abi.encodePacked(_vcID, uint256(0), _partyA, _partyB, _bond[0], _bond[1], _balances[0], _balances[1], _balances[2], _balances[3])
         );
 
         // Make sure Alice has signed initial vc state (A/B in oldState)
@@ -396,7 +396,8 @@ contract LedgerChannel {
         require(virtualChannels[_vcID].sequence < updateSeq, "VC sequence is higher than update sequence.");
         require(virtualChannels[_vcID].ethBalances[1] < updateBal[1] && 
                 virtualChannels[_vcID].erc20Balances[1] < updateBal[3], "State updates may only increase recipient balance.");
-        require(virtualChannels[_vcID].bond == updateBal[0] + updateBal[1] + updateBal[2] + updateBal[3], "Incorrect balances for bonded amount");
+        require(virtualChannels[_vcID].bond[0] == updateBal[0] + updateBal[1] &&
+                virtualChannels[_vcID].bond[1] == updateBal[2] + updateBal[3], "Incorrect balances for bonded amount");
         // Check time has passed on updateLCtimeout and has not passed the time to store a vc state
         // virtualChannels[_vcID].updateVCtimeout should be 0 on uninitialized vc state, and this should
         // fail if initVC() isn't called first
@@ -404,7 +405,7 @@ contract LedgerChannel {
         require(Channels[_lcID].updateLCtimeout < now); // for testing!
 
         bytes32 _updateState = keccak256(
-            abi.encodePacked(_vcID, updateSeq, _partyA, _partyB, virtualChannels[_vcID].bond, updateBal[0], updateBal[1], updateBal[2], updateBal[3])
+            abi.encodePacked(_vcID, updateSeq, _partyA, _partyB, virtualChannels[_vcID].bond[0], virtualChannels[_vcID].bond[1], updateBal[0], updateBal[1], updateBal[2], updateBal[3])
         );
 
         // Make sure Alice has signed a higher sequence new state
@@ -571,7 +572,7 @@ contract LedgerChannel {
         address,
         uint256[2],
         uint256[2],
-        uint256
+        uint256[2]
     ) {
         VirtualChannel memory virtualChannel = virtualChannels[id];
         return(

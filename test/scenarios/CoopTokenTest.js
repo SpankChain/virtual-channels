@@ -239,7 +239,8 @@ contract('Test Cooperative Token Payments', function(accounts) {
       { type: 'uint256', value: 0 }, // sequence
       { type: 'address', value: partyA }, // partyA
       { type: 'address', value: partyB }, // partyB,
-      { type: 'uint256', value: 12 }, // hub bond
+      { type: 'uint256', value: 0 }, //hub eth bond
+      { type: 'uint256', value: 12 }, // hub token bond
       { type: 'uint256', value: 0 },
       { type: 'uint256', value: 0 },
       { type: 'uint256', value: 5 }, // token
@@ -322,7 +323,8 @@ contract('Test Cooperative Token Payments', function(accounts) {
       { type: 'uint256', value: 1 }, // sequence
       { type: 'address', value: partyA }, // partyA
       { type: 'address', value: partyB }, // partyB
-      { type: 'uint256', value: 12 }, // hub bond
+      { type: 'uint256', value: 0 }, // hub eth bond
+      { type: 'uint256', value: 12}, //hub token bond
       { type: 'uint256', value: 0 },
       { type: 'uint256', value: 0 },
       { type: 'uint256', value: 0 }, // token

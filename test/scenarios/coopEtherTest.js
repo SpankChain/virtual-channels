@@ -225,7 +225,8 @@ contract('Test Cooperative Ether Payments', function(accounts) {
       { type: 'uint256', value: 0 }, // sequence
       { type: 'address', value: partyA }, // partyA
       { type: 'address', value: partyB }, // partyB,
-      { type: 'uint256', value: web3latest.utils.toWei('12') }, // hub bond
+      { type: 'uint256', value: web3latest.utils.toWei('12') }, // hub eth bond
+      { type: 'uint256', value: 0}, //hub token bond
       { type: 'uint256', value: web3latest.utils.toWei('5') },
       { type: 'uint256', value: web3latest.utils.toWei('7') },
       { type: 'uint256', value: web3latest.utils.toWei('0') }, // token
@@ -308,7 +309,8 @@ contract('Test Cooperative Ether Payments', function(accounts) {
       { type: 'uint256', value: 1 }, // sequence
       { type: 'address', value: partyA }, // partyA
       { type: 'address', value: partyB }, // partyB
-      { type: 'uint256', value: web3latest.utils.toWei('12') }, // hub bond
+      { type: 'uint256', value: web3latest.utils.toWei('12') }, // hub eth bond
+      { type: 'uint256', value: 0}, //hub token bond
       { type: 'uint256', value: web3latest.utils.toWei('0') },
       { type: 'uint256', value: web3latest.utils.toWei('12') },
       { type: 'uint256', value: web3latest.utils.toWei('0') }, // token
