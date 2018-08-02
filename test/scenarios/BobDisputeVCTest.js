@@ -295,7 +295,7 @@
 //     proof = Utils.marshallState(proof)
 
 //     // todo: generate vcID before vc creation and perhaps store in state
-//     await lc.initVCstate(web3latest.utils.sha3('1111', {encoding: 'hex'}), web3latest.utils.sha3('1337', {encoding: 'hex'}), proof, '0', partyA, partyB, web3latest.utils.toWei('12'), web3latest.utils.toWei('3'), web3latest.utils.toWei('9'), AB_vcS0_sigA)
+//     await lc.initVCstate(web3latest.utils.sha3('1111', {encoding: 'hex'}), web3latest.utils.sha3('1337', {encoding: 'hex'}), proof, partyA, partyB, web3latest.utils.toWei('12'), web3latest.utils.toWei('3'), web3latest.utils.toWei('9'), AB_vcS0_sigA)
 //   })
 
 //   it("Igrid or a watcher supply latest known vc state vcS1", async () => {
