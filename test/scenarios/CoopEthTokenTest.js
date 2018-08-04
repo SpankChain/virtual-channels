@@ -19,6 +19,9 @@ let partyA
 let partyB
 let partyI
 
+let lcid_AI
+let lcid_BI
+
 let vcRootHash
 
 // is close flag, lc state sequence, number open vc, vc root hash, partyA/B, partyI, balA/B, balI
@@ -80,7 +83,9 @@ contract('Test Cooperative Token and Eth Payments', function(accounts) {
   })
 
   it("Create initial ledger channel state lcS0 for AI channel", async () => {
+    lcid_AI = web3latest.utils.sha3('1111', {encoding: 'hex'})
     AI_lcS0 = web3latest.utils.soliditySha3(
+      { type: 'uint256', value: lcid_AI }, // ID
       { type: 'bool', value: false }, // isclose
       //{ type: 'bytes32', value: web3.sha3('lc2', {encoding: 'hex'}) }, // lcid
       { type: 'uint256', value: 0 }, // sequence
@@ -115,13 +120,12 @@ contract('Test Cooperative Token and Eth Payments', function(accounts) {
 
 
   it("Alice initiates ledger channel with lcS0", async () => {
-    let lc_id = web3latest.utils.sha3('1111', {encoding: 'hex'})
     let approval = await token.approve(lc.address, web3latest.utils.toWei('10'))
-    let res = await lc.createChannel(lc_id, partyI, '0', token.address, [web3latest.utils.toWei('10'), web3latest.utils.toWei('10')], {from:partyA, value: web3latest.utils.toWei('10')})
+    let res = await lc.createChannel(lcid_AI, partyI, '0', token.address, [web3latest.utils.toWei('10'), web3latest.utils.toWei('10')], {from:partyA, value: web3latest.utils.toWei('10')})
     var gasUsed = res.receipt.gasUsed
     //console.log('createChan: '+ gasUsed)
     let openChans = await lc.numChannels()
-    let chan = await lc.getChannel(lc_id)
+    let chan = await lc.getChannel(lcid_AI)
     assert.equal(chan[0].toString(), [partyA,partyI]) //check partyAddresses
     assert.equal(chan[1].toString(), [web3latest.utils.toWei('10'), '0', '0', '0']) //check ethBalances
     assert.equal(chan[2].toString(), [web3latest.utils.toWei('10'), '0', '0', '0']) //check erc20Balances
@@ -141,13 +145,12 @@ contract('Test Cooperative Token and Eth Payments', function(accounts) {
   })
 
   it("Ingrid joins ledger channel", async () => {
-    let lc_id = web3latest.utils.sha3('1111', {encoding: 'hex'})
     let approval = await token.approve(lc.address, web3latest.utils.toWei('20'), {from: partyI})
-    let res = await lc.joinChannel(lc_id, [web3latest.utils.toWei('20'), web3latest.utils.toWei('20')], {from: partyI, value: web3latest.utils.toWei('20')})
+    let res = await lc.joinChannel(lcid_AI, [web3latest.utils.toWei('20'), web3latest.utils.toWei('20')], {from: partyI, value: web3latest.utils.toWei('20')})
     var gasUsed = res.receipt.gasUsed
     //console.log('joinChan: '+ gasUsed)
     let openChans = await lc.numChannels()
-    let chan = await lc.getChannel(lc_id)
+    let chan = await lc.getChannel(lcid_AI)
     assert.equal(chan[0].toString(), [partyA,partyI]) //check partyAddresses
     assert.equal(chan[1].toString(), [web3latest.utils.toWei('10'), web3latest.utils.toWei('20'), '0', '0']) //check ethBalances
     assert.equal(chan[2].toString(), [web3latest.utils.toWei('10'), web3latest.utils.toWei('20'), '0', '0']) //check erc20Balances
@@ -164,7 +167,10 @@ contract('Test Cooperative Token and Eth Payments', function(accounts) {
 
   // Bob creates ledger channel
   it("Create Bob's ledger channel state lcS0 for BI channel", async () => {
+    lcid_BI = web3latest.utils.sha3('2222', {encoding: 'hex'})
+
     BI_lcS0 = web3latest.utils.soliditySha3(
+      { type: 'uint256', value: lcid_BI }, // ID
       { type: 'bool', value: false }, // isclose
       //{ type: 'bytes32', value: web3.sha3('lc4', {encoding: 'hex'}) }, // lcid
       { type: 'uint256', value: 0 }, // sequence
@@ -185,11 +191,10 @@ contract('Test Cooperative Token and Eth Payments', function(accounts) {
 
 
   it("Bob initiates ledger channel with lcS0", async () => {
-    let lc_id = web3latest.utils.sha3('2222', {encoding: 'hex'})
     let approval = await token.approve(lc.address, web3latest.utils.toWei('10'), {from: partyB})
-    await lc.createChannel(lc_id, partyI, '0', token.address, [web3latest.utils.toWei('10'), web3latest.utils.toWei('10')], {from:partyB, value: web3latest.utils.toWei('10')})
+    await lc.createChannel(lcid_BI, partyI, '0', token.address, [web3latest.utils.toWei('10'), web3latest.utils.toWei('10')], {from:partyB, value: web3latest.utils.toWei('10')})
     let openChans = await lc.numChannels()
-    let chan = await lc.getChannel(lc_id)
+    let chan = await lc.getChannel(lcid_BI)
     assert.equal(chan[0].toString(), [partyB,partyI]) //check partyAddresses
     assert.equal(chan[1].toString(), [web3latest.utils.toWei('10'), '0', '0', '0']) //check ethBalances
     assert.equal(chan[2].toString(), [web3latest.utils.toWei('10'), '0', '0', '0']) //check erc20Balances
@@ -209,11 +214,10 @@ contract('Test Cooperative Token and Eth Payments', function(accounts) {
   })
 
   it("Ingrid joins ledger channel", async () => {
-    let lc_id = web3latest.utils.sha3('2222', {encoding: 'hex'})
     let approval = await token.approve(lc.address, web3latest.utils.toWei('20'), {from: partyI})
-    await lc.joinChannel(lc_id, [web3latest.utils.toWei('20'), web3latest.utils.toWei('20')], {from: partyI, value: web3latest.utils.toWei('20')})
+    await lc.joinChannel(lcid_BI, [web3latest.utils.toWei('20'), web3latest.utils.toWei('20')], {from: partyI, value: web3latest.utils.toWei('20')})
     let openChans = await lc.numChannels()
-    let chan = await lc.getChannel(lc_id)
+    let chan = await lc.getChannel(lcid_BI)
     assert.equal(chan[0].toString(), [partyB,partyI]) //check partyAddresses
     assert.equal(chan[1].toString(), [web3latest.utils.toWei('10'), web3latest.utils.toWei('20'), '0', '0']) //check ethBalances
     assert.equal(chan[2].toString(), [web3latest.utils.toWei('10'), web3latest.utils.toWei('20'), '0', '0']) //check erc20Balances
@@ -261,6 +265,7 @@ contract('Test Cooperative Token and Eth Payments', function(accounts) {
     vcRootHash = Utils.bufferToHex(merkle.getRoot())
 
     AI_lcS1 = web3latest.utils.soliditySha3(
+      { type: 'uint256', value: lcid_AI },
       { type: 'bool', value: false }, // isclose
       //{ type: 'bytes32', value: web3.sha3('lc2', {encoding: 'hex'}) }, // lcid
       { type: 'uint256', value: 1 }, // sequence
@@ -290,6 +295,7 @@ contract('Test Cooperative Token and Eth Payments', function(accounts) {
     vcRootHash = Utils.bufferToHex(merkle.getRoot())
 
     BI_lcS1 = web3latest.utils.soliditySha3(
+      { type: 'uint256', value: lcid_BI },
       { type: 'bool', value: false }, // isclose
       //{ type: 'bytes32', value: web3.sha3('lc4', {encoding: 'hex'}) }, // lcid
       { type: 'uint256', value: 1 }, // sequence
@@ -336,6 +342,7 @@ contract('Test Cooperative Token and Eth Payments', function(accounts) {
 
   it("Alice generates lc state to close vc", async () => {
     AI_lcS2 = web3latest.utils.soliditySha3(
+      { type: 'uint256', value: lcid_AI },
       { type: 'bool', value: false }, // isclose
       //{ type: 'bytes32', value: web3.sha3('lc2', {encoding: 'hex'}) }, // lcid
       { type: 'uint256', value: 2 }, // sequence
@@ -353,6 +360,7 @@ contract('Test Cooperative Token and Eth Payments', function(accounts) {
 
   it("Bob generates lc state to close vc", async () => {
     BI_lcS2 = web3latest.utils.soliditySha3(
+      { type: 'uint256', value: lcid_BI },
       { type: 'bool', value: false }, // isclose
       //{ type: 'bytes32', value: web3.sha3('lc4', {encoding: 'hex'}) }, // lcid
       { type: 'uint256', value: 2 }, // sequence
@@ -382,6 +390,7 @@ contract('Test Cooperative Token and Eth Payments', function(accounts) {
 
   it("Alice creates lc update to close vc", async () => {
     AI_lcS3 = web3latest.utils.soliditySha3(
+      { type: 'uint256', value: lcid_AI },
       { type: 'bool', value: true }, // isclose
       //{ type: 'bytes32', value: web3.sha3('lc2', {encoding: 'hex'}) }, // lcid
       { type: 'uint256', value: '3' }, // sequence
@@ -409,7 +418,7 @@ contract('Test Cooperative Token and Eth Payments', function(accounts) {
     var balI1e = await web3latest.eth.getBalance(partyI)
     var balA1t = await token.balanceOf(partyA)
     var balI1t = await token.balanceOf(partyI)
-    let receipt = await lc.consensusCloseChannel(web3latest.utils.sha3('1111', {encoding: 'hex'}), '3', [web3latest.utils.toWei('5'), web3latest.utils.toWei('25'), web3latest.utils.toWei('5'), web3latest.utils.toWei('25')], AI_lcS3_sigA, AI_lcS3_sigI)
+    let receipt = await lc.consensusCloseChannel(lcid_AI, '3', [web3latest.utils.toWei('5'), web3latest.utils.toWei('25'), web3latest.utils.toWei('5'), web3latest.utils.toWei('25')], AI_lcS3_sigA, AI_lcS3_sigI)
     var gasUsed = receipt.receipt.gasUsed
     //console.log('Close Channel: ' + gasUsed)
     var balA2e = await web3latest.eth.getBalance(partyA)
@@ -424,8 +433,8 @@ contract('Test Cooperative Token and Eth Payments', function(accounts) {
 
   /******TO DO******/
   it("Hub deposits into Bob's lc", async () => {
-    await lc.deposit(web3latest.utils.sha3('2222', {encoding: 'hex'}), partyI, web3latest.utils.toWei('10'), false, {from:partyI, value:web3latest.utils.toWei('10')})
-    let chan = await lc.getChannel(web3latest.utils.sha3('2222', {encoding: 'hex'}))
+    await lc.deposit(lcid_BI, partyI, web3latest.utils.toWei('10'), false, {from:partyI, value:web3latest.utils.toWei('10')})
+    let chan = await lc.getChannel(lcid_BI)
   })
 
   it("Hub creates lc state lcS2 containing new deposit", async () => {
@@ -439,6 +448,7 @@ contract('Test Cooperative Token and Eth Payments', function(accounts) {
     vcRootHash = Utils.bufferToHex(merkle.getRoot())
 
     BI_lcS1 = web3latest.utils.soliditySha3(
+      { type: 'uint256', value: lcid_BI },
       { type: 'bool', value: false }, // isclose
       //{ type: 'bytes32', value: web3.sha3('lc4', {encoding: 'hex'}) }, // lcid
       { type: 'uint256', value: 2 }, // sequence

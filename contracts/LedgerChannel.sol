@@ -254,6 +254,7 @@ contract LedgerChannel {
 
         bytes32 _state = keccak256(
             abi.encodePacked(
+                _lcID,
                 true,
                 _sequence,
                 uint256(0),
@@ -310,6 +311,7 @@ contract LedgerChannel {
       
         bytes32 _state = keccak256(
             abi.encodePacked(
+                _lcID,
                 false, 
                 updateParams[0], 
                 updateParams[1], 
