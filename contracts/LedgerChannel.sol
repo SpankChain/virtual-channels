@@ -36,6 +36,13 @@ contract LedgerChannel {
         bool isToken
     );
 
+    event DidLCWithdraw (
+        bytes32 indexed channelId,
+        address indexed recipient,
+        uint256 amount,
+        bool isToken
+    );
+
     event DidLCUpdateState (
         bytes32 indexed channelId, 
         uint256 sequence, 
@@ -166,6 +173,9 @@ contract LedgerChannel {
         require(msg.sender == Channels[_lcID].partyAddresses[0] && Channels[_lcID].isOpen == false);
         require(now > Channels[_lcID].LCopenTimeout);
 
+        // DW: Even though `ethBalances[0]` *should* match `initialDeposit[0]`,
+        // could this be re-written so that only `ethBalances[0]` is used for
+        // added clarity?
         if(Channels[_lcID].initialDeposit[0] != 0) {
             Channels[_lcID].partyAddresses[0].transfer(Channels[_lcID].ethBalances[0]);
         } 
@@ -234,6 +244,83 @@ contract LedgerChannel {
         emit DidLCDeposit(_lcID, recipient, _balance, isToken);
     }
 
+    // Withdraw from a ledger channel without closing it.
+    // An optional signed state update can be included, which will update the
+    // channel's state before performing the withdrawal. The state update will
+    // only be applied if the update's sequence number is greater than the
+    // channel's current sequence number.
+    function withdraw(
+        bytes32 _lcID,
+        uint256 _balance,
+        bool isToken,
+        uint256[6] updateParams, // [sequence, numOpenVc, ethbalanceA, ethbalanceI, tokenbalanceA, tokenbalanceI]
+        bytes32 _VCroot,
+        string _sigA,
+        string _sigI
+    )
+        public
+    {
+        Channel storage channel = Channels[_lcID];
+        require(channel.isOpen == true, "Tried withdrawing from a closed channel");
+
+        // Only update the LC state if the provided state is later than the
+        // current state. This will allow a user to withdraw from a channel
+        // without providing a state update (for example, if they want to
+        // withdraw funds they have just deposited, or they want to withdraw
+        // tokens with one transaction, then eth with the next)
+        if (updateParams[0] > channel.sequence) {
+            // TODO: this broadcasts a DidLCUpdateState event, but I'm not
+            // certain that's either necessary or desierable. Possibly
+            // (probaby?) the `emit DidLCUpdateState(...)` should be moved to
+            // the `updateLCstate` function instead of being done here.
+            _updateLCstate(_lcID, updateParams, _VCroot, _sigA, _sigI)
+        }
+
+        uint256 senderIdx = (
+            channel.partyAddresses[0] == msg.sender ? 0 :
+            channel.partyAddresses[1] == msg.sender ? 1 :
+            require(false, "Message sender is not a channel party")
+        );
+
+        if (isToken) {
+            // DW: TODO: how should this handle deposited tokens?
+            require(channel.erc20Balances[senderIdx] >= _balance, "Insufficient token balance");
+            channel.erc20Balances[senderIdx] -= _balance;
+            channel.initialDeposit[1] -= _balance;
+            require(channel.token.transfer(msg.senderIdx, _balance), "Token transfer failed");
+        } else {
+            // DW: TODO: how should this handle deposited ETH?
+            require(channel.erc20Balances[senderIdx] >= _balance, "Insufficient token balance");
+            channel.ethBalances[senderIdx] -= _balance;
+            channel.initialDeposit[0] -= _balance;
+            msg.sender.transfer(_balance);
+        }
+
+        /*
+        DW: TODO: this means the channel will be in a bit of a weird state,
+        because it will have `channel.state = N`, but the balances in the
+        channel will not match balances shown in signed state N.
+
+        Proposal: when there's a withdrawal, assume that there's a
+        subsequent state update where the person doing the withdrawal sends
+        a state update to reflect the updated balances. This means that the
+        workflow would be:
+
+        1. Alice wants to withdraw 1 ETH
+        2. She sends state `lc-state(N+1)` to Ingrid, where the amount she
+           wants to withdraw has been deducted from the state
+        3. She calls `LedgerChannel.withdraw(...)` with `lc-state(N)`
+        4. The `LedgerChannel.withdraw(...)` method increments
+           `channel.sequence += 1` so its internal sequence number will be
+           `N + 1`, and its internal state will match `lc-state(N+1)`
+
+        This would also imply that the `deposit(...)` funciton should be
+        similarly updated.
+        */
+
+        emit DidLCWithdraw(_lcID, msg.sender, _balance, isToken);
+    }
+
     // TODO: Check there are no open virtual channels, the client should have cought this before signing a close LC state update
     function consensusCloseChannel(
         bytes32 _lcID, 
@@ -288,27 +375,24 @@ contract LedgerChannel {
         emit DidLCClose(_lcID, _sequence, _balances[0], _balances[1], _balances[2], _balances[3]);
     }
 
-    // Byzantine functions
 
-    function updateLCstate(
+    function _updateLCstate(
         bytes32 _lcID, 
         uint256[6] updateParams, // [sequence, numOpenVc, ethbalanceA, ethbalanceI, tokenbalanceA, tokenbalanceI]
         bytes32 _VCroot, 
         string _sigA, 
         string _sigI
-    ) 
-        public 
+    )
+        private
     {
         Channel storage channel = Channels[_lcID];
         require(channel.isOpen);
         require(channel.sequence < updateParams[0]); // do same as vc sequence check
+
+        // DW: TODO: this doesn't seem to consider deposited balances
         require(channel.ethBalances[0] + channel.ethBalances[1] >= updateParams[2] + updateParams[3]);
         require(channel.erc20Balances[0] + channel.erc20Balances[1] >= updateParams[4] + updateParams[5]);
 
-        if(channel.isUpdateLCSettling == true) { 
-            require(channel.updateLCtimeout > now);
-        }
-      
         bytes32 _state = keccak256(
             abi.encodePacked(
                 _lcID,
@@ -336,10 +420,6 @@ contract LedgerChannel {
         channel.erc20Balances[0] = updateParams[4];
         channel.erc20Balances[1] = updateParams[5];
         channel.VCrootHash = _VCroot;
-        channel.isUpdateLCSettling = true;
-        channel.updateLCtimeout = now + channel.confirmTime;
-
-        // make settlement flag
 
         emit DidLCUpdateState (
             _lcID, 
@@ -352,6 +432,29 @@ contract LedgerChannel {
             _VCroot,
             channel.updateLCtimeout
         );
+    }
+
+    // Byzantine functions
+
+    function updateLCstate(
+        bytes32 _lcID, 
+        uint256[6] updateParams, // [sequence, numOpenVc, ethbalanceA, ethbalanceI, tokenbalanceA, tokenbalanceI]
+        bytes32 _VCroot, 
+        string _sigA, 
+        string _sigI
+    ) 
+        public 
+    {
+        Channel storage channel = Channels[_lcID];
+
+        if(channel.isUpdateLCSettling == true) { 
+            require(channel.updateLCtimeout > now);
+        }
+      
+        channel.isUpdateLCSettling = true;
+        channel.updateLCtimeout = now + channel.confirmTime;
+
+        _updateLCstate(_lcID, updateParams, _VCroot, _sigA, _sigB)
     }
 
     // supply initial state of VC to "prime" the force push game  
