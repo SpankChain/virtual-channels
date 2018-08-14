@@ -122,6 +122,8 @@ contract LedgerChannel {
     mapping(bytes32 => VirtualChannel) public virtualChannels;
     mapping(bytes32 => Channel) public Channels;
 
+
+
     function createChannel(
         bytes32 _lcID,
         address _partyI,
@@ -183,7 +185,7 @@ contract LedgerChannel {
         delete Channels[_lcID];
     }
 
-    function joinChannel(bytes32 _lcID, uint256[3] _balances) public payable {
+    function joinChannel(bytes32 _lcID, uint256[3] _balances) public {
         // require the channel is not open yet
         require(Channels[_lcID].isOpen == false, "channel does not exist or is already open");
 
@@ -192,17 +194,10 @@ contract LedgerChannel {
 
         require(msg.sender == Channels[_lcID].partyAddresses[1], "non designated hub tried joining");
 
-        if(_balances[0] != 0) {
-            require(msg.value == _balances[0], "state balance does not match sent value");
-            Channels[_lcID].ethBalances[1] = msg.value;
-        } 
-        if(_balances[1] != 0) {
-            require(Channels[_lcID].token.transferFrom(msg.sender, this, _balances[1]),"joinChannel: token transfer failure");
-            Channels[_lcID].erc20Balances[1] = _balances[1];          
-        }
+        Channels[_lcID].initialDeposit[1] = Channels[_lcID].initialDeposit[0] * Channels[_lcID].initialDeposit[2];
+        Channels[_lcID].initialDeposit[0] = 0;
+        require(Channels[_lcID].token.transferFrom(msg.sender, this, Channels[_lcID].initialDeposit[1]),"joinChannel: token transfer failure");
 
-        Channels[_lcID].initialDeposit[0]+=_balances[0];
-        Channels[_lcID].initialDeposit[1]+=_balances[1];
         // no longer allow joining functions to be called
         Channels[_lcID].isOpen = true;
         numChannels++;
