@@ -122,9 +122,47 @@ contract LedgerChannel {
     mapping(bytes32 => VirtualChannel) public virtualChannels;
     mapping(bytes32 => Channel) public Channels;
 
-
-
     function createChannel(
+        bytes32 _lcID,
+        address _partyI,
+        uint256 _confirmTime,
+        address _token,
+        uint256[3] _balances // [eth, token, exchange rate = 0]
+    ) 
+        public
+        payable 
+    {
+        require(Channels[_lcID].partyAddresses[0] == address(0), "Channel has already been created.");
+        require(_partyI != 0x0, "No partyI address provided to LC creation");
+        require(_balances[0] >= 0 && _balances[1] >= 0, "Balances cannot be negative");
+        // Set initial ledger channel state
+        // Alice must execute this and we assume the initial state 
+        // to be signed from this requirement
+        // Alternative is to check a sig as in joinChannel
+        Channels[_lcID].partyAddresses[0] = msg.sender;
+        Channels[_lcID].partyAddresses[1] = _partyI;
+
+        if(_balances[0] != 0) {
+            require(msg.value == _balances[0], "Eth balance does not match sent value");
+            Channels[_lcID].ethBalances[0] = msg.value;
+        } 
+        if(_balances[1] != 0) {
+            Channels[_lcID].token = HumanStandardToken(_token);
+            require(Channels[_lcID].token.transferFrom(msg.sender, this, _balances[1]),"CreateChannel: token transfer failure");
+            Channels[_lcID].erc20Balances[0] = _balances[1];
+        }
+
+        Channels[_lcID].sequence = 0;
+        Channels[_lcID].confirmTime = _confirmTime;
+        // is close flag, lc state sequence, number open vc, vc root hash, partyA... 
+        //Channels[_lcID].stateHash = keccak256(uint256(0), uint256(0), uint256(0), bytes32(0x0), bytes32(msg.sender), bytes32(_partyI), balanceA, balanceI);
+        Channels[_lcID].LCopenTimeout = now + _confirmTime;
+        Channels[_lcID].initialDeposit = _balances;
+
+        emit DidLCOpen(_lcID, msg.sender, _partyI, _balances[0], _token, _balances[1], Channels[_lcID].LCopenTimeout);
+    }
+
+    function createChannelWithExchange(
         bytes32 _lcID,
         address _partyI,
         uint256 _confirmTime,
@@ -144,20 +182,7 @@ contract LedgerChannel {
         Channels[_lcID].partyAddresses[0] = msg.sender;
         Channels[_lcID].partyAddresses[1] = _partyI;
 
-        // NO LONGER NEED TO CHECK, WE ALWAYS ASSUME CHANNELS ARE OPENED WITH ETH AND CONVERTED TO BOOTY
-        // if(_balances[0] != 0) {
-        //     require(msg.value == _balances[0], "Eth balance does not match sent value");
-        //     Channels[_lcID].ethBalances[0] = msg.value;
-        // } 
-        // if(_balances[1] != 0) {
-        //     Channels[_lcID].token = HumanStandardToken(_token);
-        //     require(Channels[_lcID].token.transferFrom(msg.sender, this, _balances[1]),"CreateChannel: token transfer failure");
-        //     Channels[_lcID].erc20Balances[0] = _balances[1];
-        // }
-
-        // TODO conversion, maybe convert on hub accept
-        // _balances[1] = _balances[0] * _balances[2];
-        // _balances[0] = 0;
+        // no longer need to check if eth or token, we always assume these call are in eth and exchange to booty
 
         require(msg.value == _balances[0], "Eth balance does not match sent value");
 
