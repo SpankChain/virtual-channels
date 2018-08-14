@@ -146,3 +146,61 @@ Test case infrastructure:
 - local database
 - assertions will be made using connext-client methods
 - when test cases complete, shut down all infra
+
+======================================================================================================
+Questions
+  1) Why is LC_S0 needed before opening the channel?
+
+
+============
+Unit test full
+
+createChannel: 7 cases
+  - 1. Error: Channel with lcID has already been created
+  - 2. Error: No partyI address provided
+  - 3. Error: Token _balance is negative
+  - 4. Error: Eth balance doesn't match paid value
+  - 5. Error: Token transfer failure
+  - 6. Success
+
+LCOpenTimeout: 6 (7?) cases
+  - 1. Error: Msg.sender is not partyA of Channels[_lcID]
+  - 2. Error: Channel does not exist
+  - 3. Error: Channel is already open
+  - 4. Error: Function called before LCopenTimeout time has expired
+  - (5?) Error: What happens if Eth transfer fails?
+  - 6. Error: Token transfer failed
+  - 7. Success
+
+joinChannel:  7 cases
+  - 1. Error: Channel with that lcID has already been opened
+  - 2. Error: Msg.sender is not partyI of Channels[_lcID]
+  - 3. Error: Eth _balance is negative
+  - 4. Error: Token _balance is negative
+  - 5. Error: Eth balance does not match paid value
+  - 6. Error: Token transfer failure
+  - 7. Success
+
+deposit: 7 cases
+  - 1. Error: Tried depositing to a closed channel (what happens with payable eth here? Fallback function?)
+  - 2. Error: Recipient is not either partyA or partyI
+  - 3. Error: Token transfer failure partyA
+  - 4. Error: deposit doesn't match payable Eth partyA
+  - 5. Error: Token transfer failure partyI
+  - 6. Error: deposit doesn't match payable Eth partyI
+  - 7. Success
+
+    Questions: 
+      Why do we need separate deposit fields for parties and initial deposit?
+      How does a deposit get reflected in a new LC update? Should depositing just create an update and checkpoint the channel?
+
+consensusClose: 8 cases
+  - 1. Error: LC is not open or doesn't exist
+  - 2. Error: Total Eth deposit not equal to LC eth balance
+  - 3. Error: Total token deposit not equal to LC token balance
+  - 4. Error: Incorrect signature for party A (either wrong state update or wrong address)
+  - 5. Error: Incorrect signature for party I (either wrong state update or wrong address)
+  - 6. Error: Token transfer failure for party A (how can this fail?)
+  - 7. Error: Token transfer failure for party I (how can this fail?)
+  - 8. Success
+

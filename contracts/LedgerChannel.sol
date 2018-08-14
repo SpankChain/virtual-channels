@@ -150,6 +150,7 @@ contract LedgerChannel {
         require(now > Channels[_lcID].LCopenTimeout);
 
         if(Channels[_lcID].initialDeposit[0] != 0) {
+            //TODO: what happens if eth transfer fails?
             Channels[_lcID].partyAddresses[0].transfer(Channels[_lcID].ethBalances[0]);
             emit DidLCClose(_lcID, 0, Channels[_lcID].ethBalances[0], 0);
         } 
@@ -166,6 +167,7 @@ contract LedgerChannel {
         // require the channel is not open yet
         require(Channels[_lcID].isOpen == false);
         require(msg.sender == Channels[_lcID].partyAddresses[1]);
+        //TODO check if balances are negative?
 
         if(_balances[0] != 0) {
             require(msg.value == _balances[0], "state balance does not match sent value");
