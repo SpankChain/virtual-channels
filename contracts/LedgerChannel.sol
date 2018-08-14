@@ -1,12 +1,13 @@
 pragma solidity ^0.4.23;
 
 import "./lib/ECTools.sol";
+import "./lib/Ownable.sol"; // Limited ownership to define hub role
 import "./lib/token/HumanStandardToken.sol";
 
 /// @title Set Virtual Channels - A layer2 hub and spoke payment network 
 /// @author Nathan Ginnever
 
-contract LedgerChannel {
+contract LedgerChannel is Ownable {
 
     string public constant NAME = "Ledger Channel";
     string public constant VERSION = "0.0.1";
@@ -90,7 +91,7 @@ contract LedgerChannel {
         address[2] partyAddresses; // 0: partyA 1: partyI
         uint256[4] ethBalances; // 0: balanceA 1:balanceI 2:depositedA 3:depositedI
         uint256[4] erc20Balances; // 0: balanceA 1:balanceI 2:depositedA 3:depositedI
-        uint256[2] initialDeposit; // 0: eth 1: tokens
+        uint256[3] initialDeposit; // 0: eth 1: tokens 2: exchange rate
         uint256 sequence;
         uint256 confirmTime;
         bytes32 VCrootHash;
@@ -127,7 +128,7 @@ contract LedgerChannel {
         address _partyI,
         uint256 _confirmTime,
         address _token,
-        uint256[2] _balances // [eth, token]
+        uint256[3] _balances // [eth, token, exchange rate]
     ) 
         public
         payable 
@@ -142,15 +143,20 @@ contract LedgerChannel {
         Channels[_lcID].partyAddresses[0] = msg.sender;
         Channels[_lcID].partyAddresses[1] = _partyI;
 
-        if(_balances[0] != 0) {
-            require(msg.value == _balances[0], "Eth balance does not match sent value");
-            Channels[_lcID].ethBalances[0] = msg.value;
-        } 
-        if(_balances[1] != 0) {
-            Channels[_lcID].token = HumanStandardToken(_token);
-            require(Channels[_lcID].token.transferFrom(msg.sender, this, _balances[1]),"CreateChannel: token transfer failure");
-            Channels[_lcID].erc20Balances[0] = _balances[1];
-        }
+        // NO LONGER NEED TO CHECK, WE ALWAYS ASSUME CHANNELS ARE OPENED WITH ETH AND CONVERTED TO BOOTY
+        // if(_balances[0] != 0) {
+        //     require(msg.value == _balances[0], "Eth balance does not match sent value");
+        //     Channels[_lcID].ethBalances[0] = msg.value;
+        // } 
+        // if(_balances[1] != 0) {
+        //     Channels[_lcID].token = HumanStandardToken(_token);
+        //     require(Channels[_lcID].token.transferFrom(msg.sender, this, _balances[1]),"CreateChannel: token transfer failure");
+        //     Channels[_lcID].erc20Balances[0] = _balances[1];
+        // }
+
+        // TODO conversion, maybe convert on hub accept
+        // _balances[1] = _balances[0] * _balances[2];
+        // _balances[0] = 0;
 
         Channels[_lcID].sequence = 0;
         Channels[_lcID].confirmTime = _confirmTime;
@@ -166,12 +172,8 @@ contract LedgerChannel {
         require(msg.sender == Channels[_lcID].partyAddresses[0] && Channels[_lcID].isOpen == false);
         require(now > Channels[_lcID].LCopenTimeout);
 
-        if(Channels[_lcID].initialDeposit[0] != 0) {
-            Channels[_lcID].partyAddresses[0].transfer(Channels[_lcID].ethBalances[0]);
-        } 
-        if(Channels[_lcID].initialDeposit[1] != 0) {
-            require(Channels[_lcID].token.transfer(Channels[_lcID].partyAddresses[0], Channels[_lcID].erc20Balances[0]),"CreateChannel: token transfer failure");
-        }
+        // If hub didn't respond, just return the ether
+        Channels[_lcID].partyAddresses[0].transfer(Channels[_lcID].ethBalances[0]);
 
         emit DidLCClose(_lcID, 0, Channels[_lcID].ethBalances[0], Channels[_lcID].erc20Balances[0], 0, 0);
 
@@ -179,9 +181,14 @@ contract LedgerChannel {
         delete Channels[_lcID];
     }
 
-    function joinChannel(bytes32 _lcID, uint256[2] _balances) public payable {
+    function joinChannel(bytes32 _lcID, uint256[3] _balances) public payable {
         // require the channel is not open yet
         require(Channels[_lcID].isOpen == false);
+        // only hub can join channels
+        require(msg.sender == owner);
+        // Hub agrees to exchange rate
+        require(Channels[_lcID].initialDeposit[2] == _balances[2]);
+
         require(msg.sender == Channels[_lcID].partyAddresses[1]);
 
         if(_balances[0] != 0) {
@@ -579,7 +586,7 @@ contract LedgerChannel {
         address[2],
         uint256[4],
         uint256[4],
-        uint256[2],
+        uint256[3],
         uint256,
         uint256,
         bytes32,
