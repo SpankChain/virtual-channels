@@ -163,14 +163,13 @@ createChannel: 7 cases
   - 5. Error: Token transfer failure
   - 6. Success
 
-LCOpenTimeout: 6 (7?) cases
+LCOpenTimeout: 5 (6?) cases
   - 1. Error: Msg.sender is not partyA of Channels[_lcID]
   - 2. Error: Channel does not exist
   - 3. Error: Channel is already open
   - 4. Error: Function called before LCopenTimeout time has expired
-  - (5?) Error: What happens if Eth transfer fails?
-  - 6. Error: Token transfer failed
-  - 7. Success
+  - (5?. Error: Token transfer failed) How do we check this??
+  - 6. Success
 
 joinChannel:  7 cases
   - 1. Error: Channel with that lcID has already been opened

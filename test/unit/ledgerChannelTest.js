@@ -27,7 +27,7 @@ let vcRootHash
 
 // is close flag, lc state sequence, number open vc, vc root hash, partyA/B, partyI, balA/B, balI
 
-contract('LedgerChannel', function(accounts) {
+contract('LedgerChannel :: createChannel()', function(accounts) {
 
   before(async () => {
   	partyA = accounts[0]
@@ -45,17 +45,17 @@ contract('LedgerChannel', function(accounts) {
     await token.transfer(partyI, web3latest.utils.toWei('100'))
 
     let lc_id_fail = web3latest.utils.sha3('fail', {encoding: 'hex'})
-    await lc.createChannel(lc_id_fail, partyI, '0', token.address, [0, 0], {from:partyA, value: 0})
+    await lc.createChannel(lc_id_fail, partyI, '1000000000000000000', token.address, [0, 0], {from:partyA, value: 0})
   })
 
-	describe('createChannel() has 6 possible cases:', () => {
+	describe('Creating a channel has 6 possible cases:', () => {
 	  it("1. Fail: Channel with that ID has already been created", async () => {
 	  	let lc_id = web3latest.utils.sha3('fail', {encoding: 'hex'})
     	let sentBalance = [web3latest.utils.toWei('10'), web3latest.utils.toWei('10')]
     	let approval = await token.approve(lc.address, sentBalance[1])
     	let channel = await lc.getChannel(lc_id)
-  	    expect(channel[0]).to.not.be.equal(null) //fail
-  	    expect(partyI).to.not.be.equal('0x0000000000000000000000000000000000000000000000000000000000000000') //pass
+  	    expect(channel[0][0]).to.not.be.equal('0x0000000000000000000000000000000000000000') //fail
+  	    expect(partyI).to.not.be.equal('0x0000000000000000000000000000000000000000') //pass
   	    expect(sentBalance[0]).to.be.above(0) //pass
   	    expect(sentBalance[1]).to.be.above(0) //pass
   	    expect(sentBalance[0]).to.be.equal(web3latest.utils.toWei('10')) //pass
@@ -68,9 +68,9 @@ contract('LedgerChannel', function(accounts) {
     	let sentBalance = [web3latest.utils.toWei('10'), web3latest.utils.toWei('10')]
     	let approval = await token.approve(lc.address, sentBalance[1])
     	let channel = await lc.getChannel(lc_id)
-    	let partyI_fail = ('0x0000000000000000000000000000000000000000000000000000000000000000')
-  	    expect(channel[0]).to.not.be.equal(null) //pass
-  	    expect(partyI_fail).to.be.equal('0x0000000000000000000000000000000000000000000000000000000000000000') //fail
+    	let partyI_fail = ('0x0000000000000000000000000000000000000000')
+  	    expect(channel[0][0]).to.be.equal('0x0000000000000000000000000000000000000000') //pass
+  	    expect(partyI_fail).to.be.equal('0x0000000000000000000000000000000000000000') //fail
   	    expect(sentBalance[0]).to.be.above(0) //pass
   	    expect(sentBalance[1]).to.be.above(0) //pass
   	    expect(sentBalance[0]).to.be.equal(web3latest.utils.toWei('10')) //pass
@@ -83,8 +83,8 @@ contract('LedgerChannel', function(accounts) {
     	let sentBalance = [web3latest.utils.toWei('10'), web3latest.utils.toWei('-10')]
     	let approval = await token.approve(lc.address, sentBalance[1])
     	let channel = await lc.getChannel(lc_id)
-  	    expect(channel[0]).to.not.be.equal(null) //pass
-  	    expect(partyI).to.not.be.equal('0x0000000000000000000000000000000000000000000000000000000000000000') //pass
+  	    expect(channel[0][0]).to.be.equal('0x0000000000000000000000000000000000000000') //pass
+  	    expect(partyI).to.not.be.equal('0x0000000000000000000000000000000000000000') //pass
   	    expect(sentBalance[0]).to.be.above(0) //fail
   	    expect(sentBalance[1]).to.not.be.above(0) //pass
   	    expect(sentBalance[0]).to.be.equal(web3latest.utils.toWei('10')) //pass
@@ -97,8 +97,8 @@ contract('LedgerChannel', function(accounts) {
     	let sentBalance = [web3latest.utils.toWei('10'), web3latest.utils.toWei('10')]
     	let approval = await token.approve(lc.address, sentBalance[1])
     	let channel = await lc.getChannel(lc_id)
-  	    expect(channel[0]).to.not.be.equal(null) //pass
-  	    expect(partyI).to.not.be.equal('0x0000000000000000000000000000000000000000000000000000000000000000') //pass
+  	    expect(channel[0][0]).to.be.equal('0x0000000000000000000000000000000000000000') //pass
+  	    expect(partyI).to.not.be.equal('0x0000000000000000000000000000000000000000') //pass
   	    expect(sentBalance[0]).to.be.above(0) //pass
   	    expect(sentBalance[1]).to.be.above(0) //pass
   	    expect(sentBalance[0]).to.not.be.equal(web3latest.utils.toWei('1')) //fail
@@ -111,8 +111,8 @@ contract('LedgerChannel', function(accounts) {
     	let sentBalance = [web3latest.utils.toWei('10'), web3latest.utils.toWei('10')]
     	let approval = await token.approve(lc.address, web3latest.utils.toWei('1'))
     	let channel = await lc.getChannel(lc_id)
-  	    expect(channel[0]).to.not.be.equal(null) //pass
-  	    expect(partyI).to.not.be.equal('0x0000000000000000000000000000000000000000000000000000000000000000') //pass
+  	    expect(channel[0][0]).to.be.equal('0x0000000000000000000000000000000000000000') //pass
+  	    expect(partyI).to.not.be.equal('0x0000000000000000000000000000000000000000') //pass
   	    expect(sentBalance[0]).to.be.above(0) //pass
   	    expect(sentBalance[1]).to.be.above(0) //pass
   	    expect(sentBalance[0]).to.be.equal(web3latest.utils.toWei('10')) //pass
@@ -125,8 +125,8 @@ contract('LedgerChannel', function(accounts) {
     	let sentBalance = [web3latest.utils.toWei('10'), web3latest.utils.toWei('10')]
     	let approval = await token.approve(lc.address, web3latest.utils.toWei('10'))
     	let channel = await lc.getChannel(lc_id)
-  	    expect(channel[0]).to.not.be.equal(null) //pass
-  	    expect(partyI).to.not.be.equal('0x0000000000000000000000000000000000000000000000000000000000000000') //pass
+  	    expect(channel[0][0]).to.be.equal('0x0000000000000000000000000000000000000000') //pass
+  	    expect(partyI).to.not.be.equal('0x0000000000000000000000000000000000000000') //pass
   	    expect(sentBalance[0]).to.be.above(0) //pass
   	    expect(sentBalance[1]).to.be.above(0) //pass
   	    expect(sentBalance[0]).to.be.equal(web3latest.utils.toWei('10')) //pass
@@ -134,9 +134,96 @@ contract('LedgerChannel', function(accounts) {
 
   	    await lc.createChannel(lc_id, partyI, '0', token.address, sentBalance, {from:partyA, value: sentBalance[0]})
 	  })
-	  	
 	})
 })
+
+contract('LedgerChannel :: LCOpenTimeout()', function(accounts) {
+
+  before(async () => {
+  	partyA = accounts[0]
+	partyB = accounts[1]
+	partyI = accounts[2]
+	partyN = accounts[3]
+
+    ec = await EC.new()
+    token = await Token.new(web3latest.utils.toWei('1000'), 'Test', 1, 'TST')
+    Ledger.link('HumanStandardToken', token.address)
+    Ledger.link('ECTools', ec.address)
+    lc = await Ledger.new()
+
+    await token.transfer(partyB, web3latest.utils.toWei('100'))
+    await token.transfer(partyI, web3latest.utils.toWei('100'))
+
+	let sentBalance = [web3latest.utils.toWei('10'), web3latest.utils.toWei('10')]
+	let approval = await token.approve(lc.address, sentBalance[1])
+    let lc_id = web3latest.utils.sha3('1111', {encoding: 'hex'})
+    await lc.createChannel(lc_id, partyI, '0', token.address, sentBalance, {from:partyA, value: sentBalance[0]})
+
+    let lc_id_fail = web3latest.utils.sha3('fail', {encoding: 'hex'})
+    await lc.createChannel(lc_id_fail, partyI, '1000000000000000000', token.address, [0, 0], {from:partyA, value: 0})
+  })
+
+
+	describe('LCopenTimeout() has 5 possible cases:', () => {
+	  it("1. Fail: Sender is not PartyA of channel", async () => {
+	  	let lc_id = web3latest.utils.sha3('1111', {encoding: 'hex'})
+    	let channel = await lc.getChannel(lc_id)
+  	    expect(channel[0][0]).to.not.be.equal(partyB) //fail
+  	    expect(channel[0][0]).to.not.be.equal(null) //pass
+  	    expect(channel[9]).to.be.equal(false) //pass
+  	    expect(channel[7]).to.be.below(Date.now()) //pass
+
+  	    await lc.LCOpenTimeout(lc_id, {from:partyB}).should.be.rejectedWith(SolRevert)
+	  })
+	  it("2. Fail: Channel does not exist", async () => {
+	  	let lc_id = web3latest.utils.sha3('0000', {encoding: 'hex'})
+    	let channel = await lc.getChannel(lc_id)
+  	    expect(channel[0][0]).to.not.be.equal(partyB) //pass
+  	    expect(channel[0][0]).to.be.equal(null || '0x0000000000000000000000000000000000000000') //fail
+  	    expect(channel[9]).to.be.equal(false) //pass
+  	    expect(channel[7]).to.be.below(Date.now()) //pass
+
+  	    await lc.LCOpenTimeout(lc_id, {from:partyA}).should.be.rejectedWith(SolRevert)
+	  })
+	  it("3. Fail: Channel is already open", async () => {
+	  	let lc_id = web3latest.utils.sha3('0000', {encoding: 'hex'})
+  	    await lc.createChannel(lc_id, partyI, '0', token.address, ['0', '0'], {from:partyA})
+	  	await lc.joinChannel(lc_id, ['0', '0'], {from: partyI})
+    	let channel = await lc.getChannel(lc_id)
+  	    expect(channel[0][0]).to.be.equal(partyA) //pass
+  	    expect(channel[0][0]).to.not.be.equal(null) //pass
+  	    expect(channel[9]).to.be.equal(true) //fail
+  	    expect(channel[7]).to.be.below(Date.now()) //pass
+
+  	    await lc.LCOpenTimeout(lc_id, {from:partyA}).should.be.rejectedWith(SolRevert)
+	  })
+	  it("4. Fail: LCopenTimeout has not expired", async () => {
+	  	let lc_id = web3latest.utils.sha3('fail', {encoding: 'hex'})
+    	let channel = await lc.getChannel(lc_id)
+  	    expect(channel[0][0]).to.be.equal(partyA) //pass
+  	    expect(channel[0][0]).to.not.be.equal(null) //pass
+  	    expect(channel[9]).to.be.equal(false) //pass
+  	    expect(channel[7]).to.be.above(Date.now()) //fail
+
+  	    await lc.LCOpenTimeout(lc_id, {from:partyA}).should.be.rejectedWith(SolRevert)
+	  })	 
+	  //******
+	  //NOTE: there's one more require in the contract for a failed token transfer. Unfortunately we can't recreate that here.
+	  //******
+	  it("5. Success!", async () => {
+	  	let lc_id = web3latest.utils.sha3('1111', {encoding: 'hex'})
+    	let channel = await lc.getChannel(lc_id)
+  	    expect(channel[0][0]).to.be.equal(partyA) //pass
+  	    expect(channel[0][0]).to.not.be.equal(null) //pass
+  	    expect(channel[9]).to.be.equal(false) //pass
+  	    expect(channel[7]).to.be.below(Date.now()) //pass
+
+  	    await lc.LCOpenTimeout(lc_id, {from:partyA})
+	  })
+	})
+})
+
+
   // it("Alice signs initial lcS0 state", async () => {
   //   AI_lcS0_sigA = await web3latest.eth.sign(AI_lcS0, partyA)
   // })
