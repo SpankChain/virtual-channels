@@ -1,13 +1,12 @@
 pragma solidity ^0.4.23;
 
 import "./lib/ECTools.sol";
-import "./lib/Ownable.sol"; // Limited ownership to define hub role
 import "./lib/token/HumanStandardToken.sol";
 
 /// @title Set Virtual Channels - A layer2 hub and spoke payment network 
 /// @author Nathan Ginnever
 
-contract LedgerChannel is Ownable {
+contract LedgerChannel {
 
     string public constant NAME = "Ledger Channel";
     string public constant VERSION = "0.0.1";
@@ -158,6 +157,8 @@ contract LedgerChannel is Ownable {
         // _balances[1] = _balances[0] * _balances[2];
         // _balances[0] = 0;
 
+        require(msg.value == _balances[0], "Eth balance does not match sent value");
+
         Channels[_lcID].sequence = 0;
         Channels[_lcID].confirmTime = _confirmTime;
         // is close flag, lc state sequence, number open vc, vc root hash, partyA... 
@@ -169,8 +170,9 @@ contract LedgerChannel is Ownable {
     }
 
     function LCOpenTimeout(bytes32 _lcID) public {
-        require(msg.sender == Channels[_lcID].partyAddresses[0] && Channels[_lcID].isOpen == false);
-        require(now > Channels[_lcID].LCopenTimeout);
+        require(msg.sender == Channels[_lcID].partyAddresses[0], "non-channel member tried calling open timeout");
+        require(Channels[_lcID].isOpen == false, "channel does not exist or is already open");
+        require(now > Channels[_lcID].LCopenTimeout, "called before time to respond ends");
 
         // If hub didn't respond, just return the ether
         Channels[_lcID].partyAddresses[0].transfer(Channels[_lcID].ethBalances[0]);
@@ -183,13 +185,12 @@ contract LedgerChannel is Ownable {
 
     function joinChannel(bytes32 _lcID, uint256[3] _balances) public payable {
         // require the channel is not open yet
-        require(Channels[_lcID].isOpen == false);
-        // only hub can join channels
-        require(msg.sender == owner);
-        // Hub agrees to exchange rate
-        require(Channels[_lcID].initialDeposit[2] == _balances[2]);
+        require(Channels[_lcID].isOpen == false, "channel does not exist or is already open");
 
-        require(msg.sender == Channels[_lcID].partyAddresses[1]);
+        // Hub agrees to exchange rate
+        require(Channels[_lcID].initialDeposit[2] == _balances[2], "hub supplied incorrect conversion rate");
+
+        require(msg.sender == Channels[_lcID].partyAddresses[1], "non designated hub tried joining");
 
         if(_balances[0] != 0) {
             require(msg.value == _balances[0], "state balance does not match sent value");
