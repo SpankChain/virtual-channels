@@ -266,7 +266,7 @@ contract('LedgerChannel :: joinChannel()', function(accounts) {
 	  it("1. Fail: Channel with that ID has already been opened", async () => {
 	  	let lc_id = web3latest.utils.sha3('fail', {encoding: 'hex'})
 		let sentBalance = [web3latest.utils.toWei('10'), web3latest.utils.toWei('10')]
-		let approval = await token.approve(lc.address, sentBalance[1])
+		let approval = await token.approve(lc.address, sentBalance[1], {from: partyI})
     	let channel = await lc.getChannel(lc_id)
   	    expect(channel[9]).to.be.equal(true) //fail
   	    expect(channel[0][1]).to.be.equal(partyI) //pass
@@ -279,7 +279,7 @@ contract('LedgerChannel :: joinChannel()', function(accounts) {
 	  it("2. Fail: Msg.sender is not PartyI of this channel", async () => {
 	  	let lc_id = web3latest.utils.sha3('1111', {encoding: 'hex'})
 		let sentBalance = [web3latest.utils.toWei('10'), web3latest.utils.toWei('10')]
-		let approval = await token.approve(lc.address, sentBalance[1])
+		let approval = await token.approve(lc.address, sentBalance[1], {from: partyI})
     	let channel = await lc.getChannel(lc_id)
   	    expect(channel[9]).to.be.equal(false) //pass
   	    expect(channel[0][1]).to.not.be.equal(partyB) //fail
@@ -292,7 +292,7 @@ contract('LedgerChannel :: joinChannel()', function(accounts) {
 	  it("3. Fail: Token balance is negative", async () => {
 	  	let lc_id = web3latest.utils.sha3('1111', {encoding: 'hex'})
 		let sentBalance = [web3latest.utils.toWei('10'), web3latest.utils.toWei('-10')]
-		let approval = await token.approve(lc.address, sentBalance[1])
+		let approval = await token.approve(lc.address, sentBalance[1], {from: partyI})
     	let channel = await lc.getChannel(lc_id)
   	    expect(channel[9]).to.be.equal(false) //pass
   	    expect(channel[0][1]).to.be.equal(partyI) //pass
@@ -305,7 +305,7 @@ contract('LedgerChannel :: joinChannel()', function(accounts) {
 	  it("4. Fail: Eth balance does not match paid value", async () => {
 	  	let lc_id = web3latest.utils.sha3('1111', {encoding: 'hex'})
 		let sentBalance = [web3latest.utils.toWei('1'), web3latest.utils.toWei('10')]
-		let approval = await token.approve(lc.address, sentBalance[1])
+		let approval = await token.approve(lc.address, sentBalance[1], {from: partyI})
     	let channel = await lc.getChannel(lc_id)
   	    expect(channel[9]).to.be.equal(false) //pass
   	    expect(channel[0][1]).to.be.equal(partyI) //pass
@@ -318,7 +318,7 @@ contract('LedgerChannel :: joinChannel()', function(accounts) {
 	  it("5. Fail: Token transferFrom failed", async () => {
 	  	let lc_id = web3latest.utils.sha3('1111', {encoding: 'hex'})
 		let sentBalance = [web3latest.utils.toWei('10'), web3latest.utils.toWei('1')]
-		let approval = await token.approve(lc.address, sentBalance[1])
+		let approval = await token.approve(lc.address, sentBalance[1], {from: partyI})
     	let channel = await lc.getChannel(lc_id)
   	    expect(channel[9]).to.be.equal(false) //pass
   	    expect(channel[0][1]).to.be.equal(partyI) //pass
@@ -331,7 +331,7 @@ contract('LedgerChannel :: joinChannel()', function(accounts) {
 	  it("6. Success: LC Joined!", async () => {
 	  	let lc_id = web3latest.utils.sha3('1111', {encoding: 'hex'})
 		let sentBalance = [web3latest.utils.toWei('10'), web3latest.utils.toWei('10')]
-		let approval = await token.approve(lc.address, sentBalance[1])
+		let approval = await token.approve(lc.address, sentBalance[1], {from: partyI})
     	let channel = await lc.getChannel(lc_id)
   	    expect(channel[9]).to.be.equal(false) //pass
   	    expect(channel[0][1]).to.be.equal(partyI) //pass
@@ -339,7 +339,7 @@ contract('LedgerChannel :: joinChannel()', function(accounts) {
   	    expect(sentBalance[0]).to.be.equal(web3latest.utils.toWei('10')) //pass
   	    expect(sentBalance[1]).to.be.equal(web3latest.utils.toWei('10')) //pass
 
-  	    await lc.joinChannel(lc_id, sentBalance, {from: partyI, value: web3latest.utils.toWei('10')})
+  	    await lc.joinChannel(lc_id, sentBalance, {from: partyI, value: sentBalance[0]})
 
 	  })
 	})
