@@ -25,6 +25,12 @@ let partyN
 
 let vcRootHash
 
+let payload
+let sigA
+let sigI
+let sigB
+let fakeSig
+
 // is close flag, lc state sequence, number open vc, vc root hash, partyA/B, partyI, balA/B, balI
 
 contract('LedgerChannel :: createChannel()', function(accounts) {
@@ -341,6 +347,203 @@ contract('LedgerChannel :: joinChannel()', function(accounts) {
 
   	    await lc.joinChannel(lc_id, sentBalance, {from: partyI, value: sentBalance[0]})
 
+	  })
+	})
+})
+
+//TODO deposit unit tests
+
+contract('LedgerChannel :: consensusCloseChannel()', function(accounts) {
+
+  before(async () => {
+  	partyA = accounts[0]
+	partyB = accounts[1]
+	partyI = accounts[2]
+	partyN = accounts[3]
+
+    ec = await EC.new()
+    token = await Token.new(web3latest.utils.toWei('1000'), 'Test', 1, 'TST')
+    Ledger.link('HumanStandardToken', token.address)
+    Ledger.link('ECTools', ec.address)
+    lc = await Ledger.new()
+
+    await token.transfer(partyB, web3latest.utils.toWei('100'))
+    await token.transfer(partyI, web3latest.utils.toWei('100'))
+
+	let sentBalance = [web3latest.utils.toWei('10'), web3latest.utils.toWei('10')]
+	await token.approve(lc.address, sentBalance[1])
+	await token.approve(lc.address, sentBalance[1], {from: partyI})
+    let lc_id = web3latest.utils.sha3('1111', {encoding: 'hex'})
+    await lc.createChannel(lc_id, partyI, '0', token.address, sentBalance, {from:partyA, value: sentBalance[0]})
+    await lc.joinChannel(lc_id, sentBalance, {from: partyI, value: sentBalance[0]})
+
+    payload = web3latest.utils.soliditySha3(
+      { type: 'uint256', value: lc_id },
+      { type: 'bool', value: true }, // isclose
+      { type: 'uint256', value: '1' }, // sequence
+      { type: 'uint256', value: '0' }, // open VCs
+      { type: 'bytes32', value: '0x0' }, // VC root hash
+      { type: 'address', value: partyA }, // partyA
+      { type: 'address', value: partyI }, // hub
+      { type: 'uint256', value: web3latest.utils.toWei('5') },
+      { type: 'uint256', value: web3latest.utils.toWei('15') },
+      { type: 'uint256', value: web3latest.utils.toWei('5') }, // token
+      { type: 'uint256', value: web3latest.utils.toWei('15') }  // token
+    ) 
+
+    fakeSig = web3latest.utils.soliditySha3(
+      { type: 'uint256', value: lc_id }, // ID
+      { type: 'bool', value: true }, // isclose
+      { type: 'uint256', value: '1' }, // sequence
+      { type: 'uint256', value: '0' }, // open VCs
+      { type: 'string', value: '0x0' }, // VC root hash
+      { type: 'address', value: partyA }, // partyA
+      { type: 'address', value: partyI }, // hub
+      { type: 'uint256', value: web3latest.utils.toWei('15') }, // eth
+      { type: 'uint256', value: web3latest.utils.toWei('15') }, // eth
+      { type: 'uint256', value: web3latest.utils.toWei('15') }, // token
+      { type: 'uint256', value: web3latest.utils.toWei('15') }  // token
+    )
+
+    sigA = await web3latest.eth.sign(payload, partyA)
+    sigI = await web3latest.eth.sign(payload, partyI)
+    fakeSig = await web3latest.eth.sign(fakeSig, partyA)
+
+    let lc_id_fail = web3latest.utils.sha3('fail', {encoding: 'hex'})
+    await token.approve(lc.address, sentBalance[1])
+    await lc.createChannel(lc_id_fail, partyI, '0', token.address, sentBalance, {from:partyA, value: sentBalance[0]})
+  })
+
+
+	describe('consensusCloseChannel() has 7 possible cases:', () => {
+	  it("1. Fail: Channel with that ID does not exist", async () => {
+	  	let lc_id = web3latest.utils.sha3('2222', {encoding: 'hex'})
+		let balances = [web3latest.utils.toWei('5'), web3latest.utils.toWei('15'), web3latest.utils.toWei('5'), web3latest.utils.toWei('15')]
+    	let channel = await lc.getChannel(lc_id)
+    	let totalEthDeposit = channel[3][0].add(channel[1][2]).add(channel[1][3]).toString();
+    	let totalTokenDeposit = channel[3][1].add(channel[2][2]).add(channel[2][3]).toString();
+    	let verificationA = await web3latest.eth.sign(payload, partyA)
+    	let verificationI = await web3latest.eth.sign(payload, partyI)
+
+  	    expect(channel[0][0]).to.be.equal('0x0000000000000000000000000000000000000000') //fail
+  	    expect(channel[9]).to.not.be.equal(true) //pass
+  	    expect(totalEthDeposit).to.not.be.equal(web3latest.utils.toWei('20')) //pass
+  	    expect(totalTokenDeposit).to.not.be.equal(web3latest.utils.toWei('20')) //pass
+  	    expect(sigA).to.be.equal(verificationA) //pass
+  	    expect(sigI).to.be.equal(verificationI) //pass
+
+  	    await lc.consensusCloseChannel(lc_id, '1', balances, sigA, sigI).should.be.rejectedWith(SolRevert)
+	  })
+	  it("2. Fail: Channel with that ID is not open", async () => {
+	  	let lc_id = web3latest.utils.sha3('fail', {encoding: 'hex'})
+		let balances = [web3latest.utils.toWei('5'), web3latest.utils.toWei('15'), web3latest.utils.toWei('5'), web3latest.utils.toWei('15')]
+    	let channel = await lc.getChannel(lc_id)
+    	let totalEthDeposit = channel[3][0].add(channel[1][2]).add(channel[1][3]).toString();
+    	let totalTokenDeposit = channel[3][1].add(channel[2][2]).add(channel[2][3]).toString();
+    	let verificationA = await web3latest.eth.sign(payload, partyA)
+    	let verificationI = await web3latest.eth.sign(payload, partyI)
+
+  	    expect(channel[0][0]).to.be.equal(partyA) //pass
+  	    expect(channel[9]).to.be.equal(false) //fail
+  	    expect(totalEthDeposit).to.be.equal(web3latest.utils.toWei('10')) //pass
+  	    expect(totalTokenDeposit).to.be.equal(web3latest.utils.toWei('10')) //pass
+  	    expect(sigA).to.be.equal(verificationA) //pass
+  	    expect(sigI).to.be.equal(verificationI) //pass
+
+  	    await lc.consensusCloseChannel(lc_id, '1', balances, sigA, sigI).should.be.rejectedWith(SolRevert)
+	  })
+	  it("3. Fail: Total Eth deposit is not equal to submitted Eth balances", async () => {
+	  	let lc_id = web3latest.utils.sha3('1111', {encoding: 'hex'})
+		let balances = [web3latest.utils.toWei('5'), web3latest.utils.toWei('5'), web3latest.utils.toWei('5'), web3latest.utils.toWei('15')]
+    	let channel = await lc.getChannel(lc_id)
+    	let totalEthDeposit = channel[3][0].add(channel[1][2]).add(channel[1][3]).toString();
+    	let totalTokenDeposit = channel[3][1].add(channel[2][2]).add(channel[2][3]).toString();
+    	let verificationA = await web3latest.eth.sign(payload, partyA)
+    	let verificationI = await web3latest.eth.sign(payload, partyI)
+
+  	    expect(channel[0][0]).to.be.equal(partyA) //pass
+  	    expect(channel[9]).to.be.equal(true) //pass
+  	    expect(totalEthDeposit).to.not.be.equal(web3latest.utils.toWei('10')) //fail
+  	    expect(totalTokenDeposit).to.be.equal(web3latest.utils.toWei('20')) //pass
+  	    expect(sigA).to.be.equal(verificationA) //pass
+  	    expect(sigI).to.be.equal(verificationI) //pass
+
+  	    await lc.consensusCloseChannel(lc_id, '1', balances, sigA, sigI).should.be.rejectedWith(SolRevert)
+	  })
+	  it("4. Fail: Total token deposit is not equal to submitted token balances", async () => {
+	  	let lc_id = web3latest.utils.sha3('1111', {encoding: 'hex'})
+		let balances = [web3latest.utils.toWei('5'), web3latest.utils.toWei('15'), web3latest.utils.toWei('5'), web3latest.utils.toWei('5')]
+    	let channel = await lc.getChannel(lc_id)
+    	let totalEthDeposit = channel[3][0].add(channel[1][2]).add(channel[1][3]).toString();
+    	let totalTokenDeposit = channel[3][1].add(channel[2][2]).add(channel[2][3]).toString();
+    	let verificationA = await web3latest.eth.sign(payload, partyA)
+    	let verificationI = await web3latest.eth.sign(payload, partyI)
+
+  	    expect(channel[0][0]).to.be.equal(partyA) //pass
+  	    expect(channel[9]).to.be.equal(true) //pass
+  	    expect(totalEthDeposit).to.be.equal(web3latest.utils.toWei('20')) //pass
+  	    expect(totalTokenDeposit).to.not.be.equal(web3latest.utils.toWei('10')) //fail
+  	    expect(sigA).to.be.equal(verificationA) //pass
+  	    expect(sigI).to.be.equal(verificationI) //pass
+
+  	    await lc.consensusCloseChannel(lc_id, '1', balances, sigA, sigI).should.be.rejectedWith(SolRevert)
+	  })
+	  it("5. Fail: Incorrect sig for partyA", async () => {
+	  	let lc_id = web3latest.utils.sha3('1111', {encoding: 'hex'})
+		let balances = [web3latest.utils.toWei('5'), web3latest.utils.toWei('15'), web3latest.utils.toWei('5'), web3latest.utils.toWei('15')]
+    	let channel = await lc.getChannel(lc_id)
+    	let totalEthDeposit = channel[3][0].add(channel[1][2]).add(channel[1][3]).toString();
+    	let totalTokenDeposit = channel[3][1].add(channel[2][2]).add(channel[2][3]).toString();
+    	let verificationA = await web3latest.eth.sign(payload, partyA)
+    	let verificationI = await web3latest.eth.sign(payload, partyI)
+
+  	    expect(channel[0][0]).to.be.equal(partyA) //pass
+  	    expect(channel[9]).to.be.equal(true) //pass
+  	    expect(totalEthDeposit).to.be.equal(web3latest.utils.toWei('20')) //pass
+  	    expect(totalTokenDeposit).to.be.equal(web3latest.utils.toWei('20')) //pass
+  	    expect(fakeSig).to.not.be.equal(verificationA) //fail
+  	    expect(sigI).to.be.equal(verificationI) //pass
+
+  	    await lc.consensusCloseChannel(lc_id, '1', balances, fakeSig, sigI).should.be.rejectedWith(SolRevert)
+	  })
+	  it("6. Fail: Incorrect sig for partyI", async () => {
+	  	let lc_id = web3latest.utils.sha3('1111', {encoding: 'hex'})
+		let balances = [web3latest.utils.toWei('5'), web3latest.utils.toWei('15'), web3latest.utils.toWei('5'), web3latest.utils.toWei('15')]
+    	let channel = await lc.getChannel(lc_id)
+    	let totalEthDeposit = channel[3][0].add(channel[1][2]).add(channel[1][3]).toString();
+    	let totalTokenDeposit = channel[3][1].add(channel[2][2]).add(channel[2][3]).toString();
+    	let verificationA = await web3latest.eth.sign(payload, partyA)
+    	let verificationI = await web3latest.eth.sign(payload, partyI)
+
+  	    expect(channel[0][0]).to.be.equal(partyA) //pass
+  	    expect(channel[9]).to.be.equal(true) //pass
+  	    expect(totalEthDeposit).to.be.equal(web3latest.utils.toWei('20')) //pass
+  	    expect(totalTokenDeposit).to.be.equal(web3latest.utils.toWei('20')) //pass
+  	    expect(sigA).to.be.equal(verificationA) //pass
+  	    expect(fakeSig).to.not.be.equal(verificationI) //fail
+
+  	    await lc.consensusCloseChannel(lc_id, '1', balances, sigA, fakeSig).should.be.rejectedWith(SolRevert)
+	  })
+	  it("7. Success: Channel Closed", async () => {
+	  	let lc_id = web3latest.utils.sha3('1111', {encoding: 'hex'})
+		let balances = [web3latest.utils.toWei('5'), web3latest.utils.toWei('15'), web3latest.utils.toWei('5'), web3latest.utils.toWei('15')]
+    	let channel = await lc.getChannel(lc_id)
+    	let openChansInit = await lc.numChannels();
+    	let totalEthDeposit = channel[3][0].add(channel[1][2]).add(channel[1][3]).toString();
+    	let totalTokenDeposit = channel[3][1].add(channel[2][2]).add(channel[2][3]).toString();
+    	let verificationA = await web3latest.eth.sign(payload, partyA)
+    	let verificationI = await web3latest.eth.sign(payload, partyI)
+
+  	    expect(channel[0][0]).to.be.equal(partyA) //pass
+  	    expect(channel[9]).to.be.equal(true) //pass
+  	    expect(totalEthDeposit).to.be.equal(web3latest.utils.toWei('20')) //pass
+  	    expect(totalTokenDeposit).to.be.equal(web3latest.utils.toWei('20')) //pass
+  	    expect(sigA).to.be.equal(verificationA) //pass
+  	    expect(sigI).to.be.equal(verificationI) //pass
+
+  	    await lc.consensusCloseChannel(lc_id, '1', balances, sigA, sigI)
+  	    let openChansFinal = await lc.numChannels();
+  	    expect(openChansInit - openChansFinal).to.be.equal(1);
 	  })
 	})
 })
