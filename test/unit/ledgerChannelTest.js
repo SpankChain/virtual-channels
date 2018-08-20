@@ -925,6 +925,7 @@ contract('LedgerChannel :: updateLCstate()', function(accounts) {
 
 	//TODO test sequence and timeout (can only be done after first success case)
 })
+
   // it("Alice signs initial lcS0 state", async () => {
   //   AI_lcS0_sigA = await web3latest.eth.sign(AI_lcS0, partyA)
   // })

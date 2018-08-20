@@ -216,3 +216,47 @@ updateLC:
   - 3. Error: Channel sequence is not less than state number
   - 6. Error: updateLCtimeout has already timed out (channel is updateLCSettling but updateLCtimeout > now)
   - 10. Success 2: updateLCstate called after timer started
+
+initVCstate:
+  - 1. Error: Channel with that ID doesn't exist
+  - 2. Error: Channel with that ID is not open
+  - 3. Error: VC with that ID is closed already
+  - 4. Error: LC update timer has expired
+  - 5. Error: Update VC timer is not 0 (reentry, i.e. initVCstate was already called)
+  - 6. Error: Alice has not signed initial state or wrong state 
+  - 7. Error: Old state is not contained in root hash
+  - 8. Success (check that updateVCtimer != 0)
+
+    Questions:
+      1) Make sure bob does not need to be checked here in any way
+      2) Does hub sig need to be checked? What happens if alice submits a "fake" VC (i.e. one that was never ratified by hub)
+
+settleVC:
+  - 1. Error: Channel with that ID doesn't exist
+  - 2. Error: Channel with that ID is not open
+  - 3. Error: VC with that ID is already closed
+  - 4. Error: Onchain VC sequence is higher than submitted sequence
+  - 5. Error: State update decreases Eth balance
+  - 6. Error: State update decreases Token balance
+  - 7. Error: Eth balances do not match Eth bonded amount
+  - 8. Error: Token balances do not match token bonded amount
+  - 9. Error: InitVC was not called first
+  - 10. Error: updateLCtimeout has expired (updateLCtimeout > now)
+  - 11. Error: Incorrect partyA signature or payload
+  - 12. Error: updateVCtimeout has expired
+  - 13. Success 1: called first time (check isInSettlementState flag)
+  - 14. Success 2: called with another higher sequence update before updateVCtimeout expires (check sequence number of onchain vc state)
+
+    Questions:
+      UpdateVCTimeout doesn't seem to be checked but should be?
+
+closeVirtualChannel:
+  - 1. Error: Channel with that ID doesn't exist
+  - 2. Error: Channel with that ID is not open
+  - 3. Error: VC with that ID is already closed
+  - 4. Error: VC is not in settlement state
+  - 5. Error: updateVCtimeout has not expired
+  - 6. Success (check that correct amounts were transferred to all parties)
+
+    Questions:
+      VC with that ID is already closed doesnt seem to be checked but should be?
