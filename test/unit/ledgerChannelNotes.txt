@@ -171,14 +171,15 @@ LCOpenTimeout: 5 (6?) cases
   - (5?. Error: Token transfer failed) How do we check this??
   - 6. Success
 
-joinChannel:  7 cases
+joinChannel:  6 cases 
   - 1. Error: Channel with that lcID has already been opened
   - 2. Error: Msg.sender is not partyI of Channels[_lcID]
-  - 3. Error: Eth _balance is negative
-  - 4. Error: Token _balance is negative
-  - 5. Error: Eth balance does not match paid value
-  - 6. Error: Token transfer failure
-  - 7. Success
+  - 3. Error: Token _balance is negative
+  - 4. Error: Eth balance does not match paid value
+  - 5. Error: Token transfer failure
+  - 6. Success
+
+    Add more case: channel with that ID does not exist
 
 deposit: 7 cases
   - 1. Error: Tried depositing to a closed channel (what happens with payable eth here? Fallback function?)
@@ -193,13 +194,25 @@ deposit: 7 cases
       Why do we need separate deposit fields for parties and initial deposit?
       How does a deposit get reflected in a new LC update? Should depositing just create an update and checkpoint the channel?
 
-consensusClose: 8 cases
-  - 1. Error: LC is not open or doesn't exist
-  - 2. Error: Total Eth deposit not equal to LC eth balance
-  - 3. Error: Total token deposit not equal to LC token balance
-  - 4. Error: Incorrect signature for party A (either wrong state update or wrong address)
-  - 5. Error: Incorrect signature for party I (either wrong state update or wrong address)
-  - 6. Error: Token transfer failure for party A (how can this fail?)
-  - 7. Error: Token transfer failure for party I (how can this fail?)
-  - 8. Success
+consensusClose: 7 cases
+  - 1. Error: Channel with that ID doesn't exist
+  - 2. Error: Channel with that ID is not open
+  - 3. Error: Total Eth deposit not equal to LC eth balance
+  - 4. Error: Total token deposit not equal to LC token balance
+  - 5. Error: Incorrect signature for party A (either wrong state update or wrong address)
+  - 6. Error: Incorrect signature for party I (either wrong state update or wrong address)
+  - 7. Success
 
+    Add more case: sequence number needs to be greater than channel.sequence
+
+updateLC: 
+  - 1. Error: Channel with that ID doesn't exist
+  - 2. Error: Channel with that ID is not open
+  - 4. Error: Total Eth deposit not equal to LC eth balance
+  - 5. Error: Total token deposit not equal to LC token balance
+  - 7. Error: Incorrect signature for party A (either wrong state update or wrong address)
+  - 8. Error: Incorrect signature for party I (either wrong state update or wrong address)
+  - 9. Success 1: updateLCstate called and updateLCtimeout initiated
+  - 3. Error: Channel sequence is not less than state number
+  - 6. Error: updateLCtimeout has already timed out (channel is updateLCSettling but updateLCtimeout > now)
+  - 10. Success 2: updateLCstate called after timer started
