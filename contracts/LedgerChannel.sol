@@ -636,28 +636,4 @@ contract LedgerChannel {
             virtualChannel.bond
         );
     }
-
-    function getState(
-        bytes32 _lcID, 
-        uint256[6] updateParams, // [sequence, numOpenVc, ethbalanceA, ethbalanceI, tokenbalanceA, tokenbalanceI]
-        bytes32 _VCroot
-    ) public view returns (bytes32) {
-        Channel storage channel = Channels[_lcID];
-        bytes32 _state = keccak256(
-            abi.encodePacked(
-                _lcID,
-                false, 
-                updateParams[0], 
-                updateParams[1], 
-                _VCroot, 
-                channel.partyAddresses[0], 
-                channel.partyAddresses[1], 
-                updateParams[2], 
-                updateParams[3],
-                updateParams[4], 
-                updateParams[5]
-            )
-        );
-        return(_state);
-    }
 }
