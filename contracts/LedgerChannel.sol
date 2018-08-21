@@ -262,6 +262,44 @@ contract LedgerChannel {
         emit DidLCDeposit(_lcID, recipient, _balance, isToken);
     }
 
+    function depositWithExchange(bytes32 _lcID, address recipient, uint256 _balance, uint256 _exchangeRate, string _hubSig) public payable {
+        require(Channels[_lcID].isOpen == true, "Tried adding funds to a closed channel");
+        require(recipient == Channels[_lcID].partyAddresses[0] || recipient == Channels[_lcID].partyAddresses[1]);
+
+        bytes32 _cert = keccak256(
+            abi.encodePacked(
+                _lcID,
+                true,
+                _balance,
+                _exchangeRate
+            )
+        );
+
+        require(Channels[_lcID].partyAddresses[1] == ECTools.recoverSigner(_cert, _hubSig));
+
+
+        if (Channels[_lcID].partyAddresses[0] == recipient) {
+            if(isToken) {
+                require(Channels[_lcID].token.transferFrom(msg.sender, this, _balance),"deposit: token transfer failure");
+                Channels[_lcID].erc20Balances[2] += _balance;
+            } else {
+                require(msg.value == _balance, "state balance does not match sent value");
+                Channels[_lcID].ethBalances[2] += msg.value;
+            }
+        }
+
+        if (Channels[_lcID].partyAddresses[1] == recipient) {
+            if(isToken) {
+                require(Channels[_lcID].token.transferFrom(msg.sender, this, _balance),"deposit: token transfer failure");
+                Channels[_lcID].erc20Balances[3] += _balance;
+            } else {
+                require(msg.value == _balance, "state balance does not match sent value");
+                Channels[_lcID].ethBalances[3] += msg.value; 
+            }
+        }
+
+    }
+
     // TODO: Check there are no open virtual channels, the client should have cought this before signing a close LC state update
     function consensusCloseChannel(
         bytes32 _lcID, 
