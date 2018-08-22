@@ -221,7 +221,7 @@ initVCstate:
   - 1. Error: Channel with that ID doesn't exist
   - 2. Error: Channel with that ID is not open
   - 3. Error: VC with that ID is closed already
-  - 4. Error: LC update timer has expired
+  - 4. Error: LC update timer has not yet expired
   - 5. Error: Update VC timer is not 0 (reentry, i.e. initVCstate was already called)
   - 6. Error: Alice has not signed initial state or wrong state 
   - 7. Error: Old state is not contained in root hash
