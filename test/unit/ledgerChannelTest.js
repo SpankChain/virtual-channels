@@ -58,7 +58,7 @@ contract('LedgerChannel :: createChannel()', function(accounts) {
     await lc.createChannel(lc_id_fail, partyI, '1000000000000000000', token.address, [0, 0], {from:partyA, value: 0})
   })
 
-	describe.only('Creating a channel has 6 possible cases:', () => {
+	describe('Creating a channel has 6 possible cases:', () => {
 	  it("1. Fail: Channel with that ID has already been created", async () => {
 	  	let lc_id = web3latest.utils.sha3('fail', {encoding: 'hex'})
     	let sentBalance = [web3latest.utils.toWei('10'), web3latest.utils.toWei('10')]
@@ -210,7 +210,7 @@ contract('LedgerChannel :: LCOpenTimeout()', function(accounts) {
   })
 
 
-	describe.only('LCopenTimeout() has 5 possible cases:', () => {
+	describe('LCopenTimeout() has 5 possible cases:', () => {
 	  it("1. Fail: Sender is not PartyA of channel", async () => {
 	  	let lc_id = web3latest.utils.sha3('1111', {encoding: 'hex'})
     	let channel = await lc.getChannel(lc_id)
@@ -336,7 +336,7 @@ contract('LedgerChannel :: joinChannel()', function(accounts) {
   })
 
 
-	describe.only('joinChannel() has 6 possible cases:', () => {
+	describe('joinChannel() has 6 possible cases:', () => {
 	  it("1. Fail: Channel with that ID has already been opened", async () => {
 	  	let lc_id = web3latest.utils.sha3('fail', {encoding: 'hex'})
 		let sentBalance = [web3latest.utils.toWei('10'), web3latest.utils.toWei('10')]
@@ -520,7 +520,7 @@ contract('LedgerChannel :: consensusCloseChannel()', function(accounts) {
   })
 
 
-	describe.only('consensusCloseChannel() has 7 possible cases:', () => {
+	describe('consensusCloseChannel() has 7 possible cases:', () => {
 	  it("1. Fail: Channel with that ID does not exist", async () => {
 	  	let lc_id = web3latest.utils.sha3('2222', {encoding: 'hex'})
 		let balances = [web3latest.utils.toWei('5'), web3latest.utils.toWei('15'), web3latest.utils.toWei('5'), web3latest.utils.toWei('15')]
@@ -760,7 +760,7 @@ contract('LedgerChannel :: updateLCstate()', function(accounts) {
   })
 
 
-	describe.only('updateLCstate() has 10 possible cases:', () => {
+	describe('updateLCstate() has 10 possible cases:', () => {
 	  it("1. Fail: Channel with that ID does not exist", async () => {
 	  	let lc_id = web3latest.utils.sha3('nochannel', {encoding: 'hex'})
 	  	let sequence = '2';
@@ -1221,7 +1221,14 @@ contract('LedgerChannel :: initVCstate()', function(accounts) {
   	    expect(vcRootHash).to.be.equal(initialVCstate) //pass (this is a way of checking isContained() if there is only one VC open)
 
 
-  	    await lc.initVCstate(lc_id, lc_id, 0, partyA, partyB, bond, balances, sigA).should.be.rejectedWith(SolRevert)
+		//   await lc.initVCstate(lc_id, lc_id, 0, partyA, partyB, bond, balances, sigA).should.be.rejectedWith(SolRevert)
+		  
+		  try {
+			await lc.initVCstate(lc_id, lc_id, 0, partyA, partyB, bond, balances, sigA)
+		  } catch (e) {
+			expect(e.message).to.equal(SolRevert(e.tx))
+		  expect(e.name).to.equal('StatusError')
+	  	}
 	  })
 	  it("2. Fail: Channel with that ID is not open", async () => {
 	  	let lc_id = web3latest.utils.sha3('fail', {encoding: 'hex'})
@@ -1240,10 +1247,21 @@ contract('LedgerChannel :: initVCstate()', function(accounts) {
   	    expect(vcRootHash).to.be.equal(initialVCstate) //pass (this is a way of checking isContained() if there is only one VC open)
 
 
-  	    await lc.initVCstate(lc_id, lc_id, 0, partyA, partyB, bond, balances, sigA).should.be.rejectedWith(SolRevert)
+		//   await lc.initVCstate(lc_id, lc_id, 0, partyA, partyB, bond, balances, sigA).should.be.rejectedWith(SolRevert)
+		  
+		  try {
+			await lc.initVCstate(lc_id, lc_id, 0, partyA, partyB, bond, balances, sigA)
+		  } catch (e) {
+			expect(e.message).to.equal(SolRevert(e.tx))
+		  expect(e.name).to.equal('StatusError')
+	  	}
 	  })
 	  it("TODO:: 3. Fail: VC with that ID is closed already", async () => {
-	  	//TO DO!! This one needs logic from settleVC
+		  //TO DO!! This one needs logic from settleVC
+		  try {} catch (e) {
+			expect(e.message).to.equal(SolRevert(e.tx))
+			expect(e.name).to.equal('StatusError')
+		  }
 	  })
 	  it("4. Fail: LC update timer has not yet expired", async () => {
 		let sentBalance = [web3latest.utils.toWei('10'), web3latest.utils.toWei('10')]
@@ -1300,7 +1318,14 @@ contract('LedgerChannel :: initVCstate()', function(accounts) {
   	    expect(sigA).to.be.equal(verificationA) //pass
   	    expect(vcRootHash_temp).to.be.equal(vcRootHash_temp) //pass (this is a way of checking isContained() if there is only one VC open)
 
-  	    await lc.initVCstate(lc_id, lc_id, 0, partyA, partyB, bond, balances, sigA).should.be.rejectedWith(SolRevert)
+		//   await lc.initVCstate(lc_id, lc_id, 0, partyA, partyB, bond, balances, sigA).should.be.rejectedWith(SolRevert)
+		  
+		  try {
+			await lc.initVCstate(lc_id, lc_id, 0, partyA, partyB, bond, balances, sigA)
+		  } catch (e) {
+			expect(e.message).to.equal(SolRevert(e.tx))
+			expect(e.name).to.equal('StatusError')
+		  }
 	  })
 	  it("5. Fail: Alice has not signed initial state (or wrong state)", async () => {
 	  	let lc_id = web3latest.utils.sha3('1111', {encoding: 'hex'})
@@ -1318,7 +1343,14 @@ contract('LedgerChannel :: initVCstate()', function(accounts) {
   	    expect(fakeSig).to.not.be.equal(verificationA) //fail
   	    expect(vcRootHash).to.be.equal(initialVCstate) //pass (this is a way of checking isContained() if there is only one VC open)
 
-  	    await lc.initVCstate(lc_id, lc_id, 0, partyA, partyB, bond, balances, fakeSig).should.be.rejectedWith(SolRevert)
+		//   await lc.initVCstate(lc_id, lc_id, 0, partyA, partyB, bond, balances, fakeSig).should.be.rejectedWith(SolRevert)
+		  
+		  try {
+			await lc.initVCstate(lc_id, lc_id, 0, partyA, partyB, bond, balances, fakeSig)
+		  } catch (e) {
+			expect(e.message).to.equal(SolRevert(e.tx))
+			expect(e.name).to.equal('StatusError')
+		  }
 	  })
 	  it("6. Fail: Old state not contained in root hash", async () => {
 	  	let lc_id = web3latest.utils.sha3('1111', {encoding: 'hex'})
@@ -1350,7 +1382,14 @@ contract('LedgerChannel :: initVCstate()', function(accounts) {
   	    expect(sigA).to.be.equal(verificationA) //pass
   	    expect(vcRootHash_temp).to.not.be.equal(initialVCstate) //fail (this is a way of checking isContained() if there is only one VC open)
 
-  	    await lc.initVCstate(lc_id, lc_id, 0, partyA, partyB, bond, balances, sigA).should.be.rejectedWith(SolRevert)
+		//   await lc.initVCstate(lc_id, lc_id, 0, partyA, partyB, bond, balances, sigA).should.be.rejectedWith(SolRevert)
+		  
+		  try {
+			await lc.initVCstate(lc_id, lc_id, 0, partyA, partyB, bond, balances, sigA)
+		  } catch (e) {
+			expect(e.message).to.equal(SolRevert(e.tx))
+			expect(e.name).to.equal('StatusError')
+		  }
 	  })
 	  it("7. Success: VC inited successfully", async () => {
 	  	let lc_id = web3latest.utils.sha3('1111', {encoding: 'hex'})
@@ -1368,7 +1407,8 @@ contract('LedgerChannel :: initVCstate()', function(accounts) {
   	    expect(sigA).to.be.equal(verificationA) //pass
   	    expect(vcRootHash).to.be.equal(initialVCstate) //pass (this is a way of checking isContained() if there is only one VC open)
 
-  	    await lc.initVCstate(lc_id, lc_id, 0, partyA, partyB, bond, balances, sigA)
+		const tx = await lc.initVCstate(lc_id, lc_id, 0, partyA, partyB, bond, balances, sigA)
+		expect(tx.logs[0].event).to.equal('DidVCInit')
 	  })
 	  it("8. Fail: Update VC timer is not 0 (initVCstate has already been called before)", async () => {
 	  	let lc_id = web3latest.utils.sha3('1111', {encoding: 'hex'})
@@ -1386,7 +1426,14 @@ contract('LedgerChannel :: initVCstate()', function(accounts) {
   	    expect(sigA).to.be.equal(verificationA) //pass
   	    expect(vcRootHash).to.be.equal(initialVCstate) //pass (this is a way of checking isContained() if there is only one VC open)
 
-  	    await lc.initVCstate(lc_id, lc_id, 0, partyA, partyB, bond, balances, sigA).should.be.rejectedWith(SolRevert)
+		//   await lc.initVCstate(lc_id, lc_id, 0, partyA, partyB, bond, balances, sigA).should.be.rejectedWith(SolRevert)
+		  
+		  try {
+			await lc.initVCstate(lc_id, lc_id, 0, partyA, partyB, bond, balances, sigA)
+		  } catch (e) {
+			expect(e.message).to.equal(SolRevert(e.tx))
+			expect(e.name).to.equal('StatusError')
+		  }
 	  })
 
 	//   it("7. Fail: Initial state is not contained in root hash", async () => {
