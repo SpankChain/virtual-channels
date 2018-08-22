@@ -373,7 +373,7 @@ contract LedgerChannel {
         // sub-channel must be open
         require(!virtualChannels[_vcID].isClose, "VC is closed.");
         // Check time has passed on updateLCtimeout and has not passed the time to store a vc state
-        require(Channels[_lcID].updateLCtimeout < now, "LC timeout over.");
+        require(Channels[_lcID].updateLCtimeout < now, "LC timeout not over.");
         // prevent rentry of initializing vc state
         require(virtualChannels[_vcID].updateVCtimeout == 0);
         // partyB is now Ingrid
@@ -396,6 +396,7 @@ contract LedgerChannel {
         virtualChannels[_vcID].erc20Balances[1] = _balances[3];
         virtualChannels[_vcID].bond = _bond;
         virtualChannels[_vcID].updateVCtimeout = now + Channels[_lcID].confirmTime;
+        virtualChannels[_vcID].isInSettlementState = true;
 
         emit DidVCInit(_lcID, _vcID, _proof, uint256(0), _partyA, _partyB, _balances[0], _balances[1]);
     }
@@ -462,7 +463,6 @@ contract LedgerChannel {
         virtualChannels[_vcID].erc20Balances[1] = updateBal[3];
 
         virtualChannels[_vcID].updateVCtimeout = now + Channels[_lcID].confirmTime;
-        virtualChannels[_vcID].isInSettlementState = true;
 
         emit DidVCSettle(_lcID, _vcID, updateSeq, updateBal[0], updateBal[1], msg.sender, virtualChannels[_vcID].updateVCtimeout);
     }
@@ -472,6 +472,7 @@ contract LedgerChannel {
         require(Channels[_lcID].isOpen, "LC is closed.");
         require(virtualChannels[_vcID].isInSettlementState, "VC is not in settlement state.");
         require(virtualChannels[_vcID].updateVCtimeout < now, "Update vc timeout has not elapsed.");
+        require(!virtualChannels[_vcID].isClose, "VC is already closed");
         // reduce the number of open virtual channels stored on LC
         Channels[_lcID].numOpenVC--;
         // close vc flags

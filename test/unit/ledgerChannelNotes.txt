@@ -251,9 +251,10 @@ closeVirtualChannel:
   - 1. Error: Channel with that ID doesn't exist
   - 2. Error: Channel with that ID is not open
   - 3. Error: VC with that ID is already closed
-  - 4. Error: VC is not in settlement state
+  - 4. Error: VC is not in settlement state 
   - 5. Error: updateVCtimeout has not expired
   - 6. Success (check that correct amounts were transferred to all parties)
 
     Questions:
       VC with that ID is already closed doesnt seem to be checked but should be?
+      you can't call closeVC without first calling settleVC (which means you HAVE to prep a sequence 1 state)
