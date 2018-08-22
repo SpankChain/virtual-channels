@@ -241,14 +241,11 @@ settleVC:
   - 7. Error: Eth balances do not match Eth bonded amount
   - 8. Error: Token balances do not match token bonded amount
   - 9. Error: InitVC was not called first
-  - 10. Error: updateLCtimeout has expired (updateLCtimeout > now)
+  - 10. Error: updateLCtimeout has not yet expired (i.e. updateLCtimeout > now)
   - 11. Error: Incorrect partyA signature or payload
   - 12. Error: updateVCtimeout has expired
   - 13. Success 1: called first time (check isInSettlementState flag)
   - 14. Success 2: called with another higher sequence update before updateVCtimeout expires (check sequence number of onchain vc state)
-
-    Questions:
-      UpdateVCTimeout doesn't seem to be checked but should be?
 
 closeVirtualChannel:
   - 1. Error: Channel with that ID doesn't exist
