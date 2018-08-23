@@ -258,3 +258,13 @@ closeVirtualChannel:
     Questions:
       VC with that ID is already closed doesnt seem to be checked but should be?
       you can't call closeVC without first calling settleVC (which means you HAVE to prep a sequence 1 state)
+
+byzantineCloseChannel:
+  - 1. Error: Channel with that ID doesnt exist
+  - 2. Error: Channel with that ID is not open
+  - 3. Error: Channel is not updateSettling (i.e. not in dispute)
+  - 4. Error: VCs are still open
+  - 5. Error: LC timeout has not yet expired
+  - 6. Error: onchain Eth balances are greater than deposit (how would this happen?)
+  - 7. Error: onchain token balances are greater than deposit (how would this happen?)
+  - 8. Success: channel byzantine closed! (check numchannels)

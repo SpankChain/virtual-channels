@@ -502,6 +502,7 @@ contract LedgerChannel {
         Channel storage channel = Channels[_lcID];
 
         // check settlement flag
+        require(channel.isOpen, "Channel is not open");
         require(channel.isUpdateLCSettling == true);
         require(channel.numOpenVC == 0);
         require(channel.updateLCtimeout < now, "LC timeout over.");
