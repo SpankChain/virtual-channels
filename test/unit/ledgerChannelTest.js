@@ -1615,7 +1615,14 @@ contract('LedgerChannel :: settleVC()', function(accounts) {
   	    expect(sigA).to.be.equal(verificationA) //pass
   	    //expect(vc[4]*1000).to.be.above(Date.now()) //pass
 
- 	    await lc.settleVC(lc_id, lc_id, sequence, partyA, partyB, balances, sigA).should.be.rejectedWith(SolRevert)
+		//  await lc.settleVC(lc_id, lc_id, sequence, partyA, partyB, balances, sigA).should.be.rejectedWith(SolRevert)
+		 
+		 try {
+			await lc.settleVC(lc_id, lc_id, sequence, partyA, partyB, balances, sigA)
+		  } catch (e) {
+			expect(e.message).to.equal(SolRevert(e.tx))
+			expect(e.name).to.equal('StatusError')
+		  }
 	  })
 	  it("2. Fail: Channel with that ID is not open", async () => {
 	  	let lc_id = web3latest.utils.sha3('fail', {encoding: 'hex'})
@@ -1639,7 +1646,14 @@ contract('LedgerChannel :: settleVC()', function(accounts) {
   	    expect(sigA).to.be.equal(verificationA) //pass
   	    //expect(vc[4]*1000).to.be.above(Date.now()) //pass
 
- 	    await lc.settleVC(lc_id, lc_id, sequence, partyA, partyB, balances, sigA).should.be.rejectedWith(SolRevert)
+		//  await lc.settleVC(lc_id, lc_id, sequence, partyA, partyB, balances, sigA).should.be.rejectedWith(SolRevert)
+		 
+		 try {
+			await lc.settleVC(lc_id, lc_id, sequence, partyA, partyB, balances, sigA)
+		  } catch (e) {
+			expect(e.message).to.equal(SolRevert(e.tx))
+			expect(e.name).to.equal('StatusError')
+		  }
 	  })
 	  it("3. Fail: VC with that ID is already closed", async () => {
 	  	//Sometimes reverts on initial close, unclear why. :(
@@ -1746,7 +1760,14 @@ contract('LedgerChannel :: settleVC()', function(accounts) {
   	    expect(sigA).to.be.equal(verificationA) //pass
   	    //expect(vc[4]*1000).to.be.above(Date.now()) //pass
 
- 	    await lc.settleVC(lc_id, lc_id, sequence, partyA, partyB, balances, sigA).should.be.rejectedWith(SolRevert)
+		//  await lc.settleVC(lc_id, lc_id, sequence, partyA, partyB, balances, sigA).should.be.rejectedWith(SolRevert)
+		 
+		 try {
+			await lc.settleVC(lc_id, lc_id, sequence, partyA, partyB, balances, sigA)
+		  } catch (e) {
+			expect(e.message).to.equal(SolRevert(e.tx))
+			expect(e.name).to.equal('StatusError')
+		  }
 	  })
 	  it("5. Fail: State update decreases recipient balance", async () => {
 	  	let lc_id = web3latest.utils.sha3('1111', {encoding: 'hex'})
@@ -1784,7 +1805,14 @@ contract('LedgerChannel :: settleVC()', function(accounts) {
   	    expect(sigA).to.be.equal(verificationA) //pass
   	    //expect(vc[4]*1000).to.be.above(Date.now()) //pass
 
- 	    await lc.settleVC(lc_id, lc_id, sequence, partyA, partyB, balances, sigA).should.be.rejectedWith(SolRevert)
+		//  await lc.settleVC(lc_id, lc_id, sequence, partyA, partyB, balances, sigA).should.be.rejectedWith(SolRevert)
+		 
+		 try {
+			await lc.settleVC(lc_id, lc_id, sequence, partyA, partyB, balances, sigA)
+		  } catch (e) {
+			expect(e.message).to.equal(SolRevert(e.tx))
+			expect(e.name).to.equal('StatusError')
+		  }
 	  })
 	  it("6. Fail: State update decreases recipient balance", async () => {
 	  	let lc_id = web3latest.utils.sha3('1111', {encoding: 'hex'})
@@ -1822,7 +1850,14 @@ contract('LedgerChannel :: settleVC()', function(accounts) {
   	    expect(sigA).to.be.equal(verificationA) //pass
   	    //expect(vc[4]*1000).to.be.above(Date.now()) //pass
 
- 	    await lc.settleVC(lc_id, lc_id, sequence, partyA, partyB, balances, sigA).should.be.rejectedWith(SolRevert)
+		//  await lc.settleVC(lc_id, lc_id, sequence, partyA, partyB, balances, sigA).should.be.rejectedWith(SolRevert)
+		 
+		 try {
+			await lc.settleVC(lc_id, lc_id, sequence, partyA, partyB, balances, sigA)
+		  } catch (e) {
+			expect(e.message).to.equal(SolRevert(e.tx))
+			expect(e.name).to.equal('StatusError')
+		  }
 	  })
 	  it("7. Fail: Eth balances do not match bonded amount", async () => {
 	  	let lc_id = web3latest.utils.sha3('1111', {encoding: 'hex'})
@@ -1860,7 +1895,14 @@ contract('LedgerChannel :: settleVC()', function(accounts) {
   	    expect(sigA).to.be.equal(verificationA) //pass
   	    //expect(vc[4]*1000).to.be.above(Date.now()) //pass
 
- 	    await lc.settleVC(lc_id, lc_id, sequence, partyA, partyB, balances, sigA).should.be.rejectedWith(SolRevert)
+		//  await lc.settleVC(lc_id, lc_id, sequence, partyA, partyB, balances, sigA).should.be.rejectedWith(SolRevert)
+		 
+		 try {
+			await lc.settleVC(lc_id, lc_id, sequence, partyA, partyB, balances, sigA)
+		  } catch (e) {
+			expect(e.message).to.equal(SolRevert(e.tx))
+			expect(e.name).to.equal('StatusError')
+		  }
 	  })
 	  it("8. Fail: Eth balances do not match bonded amount", async () => {
 	  	let lc_id = web3latest.utils.sha3('1111', {encoding: 'hex'})
@@ -1898,7 +1940,14 @@ contract('LedgerChannel :: settleVC()', function(accounts) {
   	    expect(sigA).to.be.equal(verificationA) //pass
   	    //expect(vc[4]*1000).to.be.above(Date.now()) //pass
 
- 	    await lc.settleVC(lc_id, lc_id, sequence, partyA, partyB, balances, sigA).should.be.rejectedWith(SolRevert)
+		//  await lc.settleVC(lc_id, lc_id, sequence, partyA, partyB, balances, sigA).should.be.rejectedWith(SolRevert)
+		 
+		 try {
+			await lc.settleVC(lc_id, lc_id, sequence, partyA, partyB, balances, sigA)
+		  } catch (e) {
+			expect(e.message).to.equal(SolRevert(e.tx))
+			expect(e.name).to.equal('StatusError')
+		  }
 	  })
 	  it("9. Fail: InitVC was not called first", async () => {
 	  	let lc_id = web3latest.utils.sha3('2222', {encoding: 'hex'})
@@ -1963,7 +2012,14 @@ contract('LedgerChannel :: settleVC()', function(accounts) {
   	    expect(sigA).to.be.equal(verificationA) //pass
   	    //expect(vc[4]*1000).to.be.above(Date.now()) //pass
 
- 	    await lc.settleVC(lc_id, lc_id, sequence, partyA, partyB, balances, sigA).should.be.rejectedWith(SolRevert)
+		//  await lc.settleVC(lc_id, lc_id, sequence, partyA, partyB, balances, sigA).should.be.rejectedWith(SolRevert)
+		 
+		 try {
+			await lc.settleVC(lc_id, lc_id, sequence, partyA, partyB, balances, sigA)
+		  } catch (e) {
+			expect(e.message).to.equal(SolRevert(e.tx))
+			expect(e.name).to.equal('StatusError')
+		  }
 	  })
 	  it("TODO 10. Fail: updateLC timeout has not expired", async () => {
 	  		//Not sure how to test this since InitVC can only be called after timeout expires.
@@ -1991,7 +2047,14 @@ contract('LedgerChannel :: settleVC()', function(accounts) {
   	    expect(fakeSig).to.not.be.equal(verificationA) //fail
   	    //expect(vc[4]*1000).to.be.above(Date.now()) //pass
 
- 	    await lc.settleVC(lc_id, lc_id, sequence, partyA, partyB, balances, fakeSig).should.be.rejectedWith(SolRevert)
+		//  await lc.settleVC(lc_id, lc_id, sequence, partyA, partyB, balances, fakeSig).should.be.rejectedWith(SolRevert)
+		 
+		 try {
+			await lc.settleVC(lc_id, lc_id, sequence, partyA, partyB, balances, fakeSig)
+		  } catch (e) {
+			expect(e.message).to.equal(SolRevert(e.tx))
+			expect(e.name).to.equal('StatusError')
+		  }
 	  })
 	  it("TODO 12. Fail: UpdateVC timer has expired", async () => {
 	  		//also unclear how best to unit test
