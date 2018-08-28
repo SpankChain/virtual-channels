@@ -2259,7 +2259,14 @@ contract('LedgerChannel :: closeVirtualChannel()', function(accounts) {
   	    expect(vc[1]).to.not.be.equal(true) //pass (inverted for nonexistent VC)
   	    expect(vc[4]*1000).to.be.below(Date.now()) //pass
 
- 	    await lc.closeVirtualChannel(lc_id, lc_id).should.be.rejectedWith(SolRevert)
+		//  await lc.closeVirtualChannel(lc_id, lc_id).should.be.rejectedWith(SolRevert)
+		 
+		 try {
+			await lc.closeVirtualChannel(lc_id, lc_id)
+		  } catch (e) {
+			expect(e.message).to.equal(SolRevert(e.tx))
+			expect(e.name).to.equal('StatusError')
+		  }
 	  })
 	  it("2. Fail: Channel with that ID is not open", async () => {
 	  	let lc_id = web3latest.utils.sha3('fail', {encoding: 'hex'})
@@ -2272,7 +2279,14 @@ contract('LedgerChannel :: closeVirtualChannel()', function(accounts) {
   	    expect(vc[1]).to.not.be.equal(true) //pass (inverted for nonexistent VC)
   	    expect(vc[4]*1000).to.be.below(Date.now()) //pass
 
- 	    await lc.closeVirtualChannel(lc_id, lc_id).should.be.rejectedWith(SolRevert)
+		//  await lc.closeVirtualChannel(lc_id, lc_id).should.be.rejectedWith(SolRevert)
+		 
+		 try {
+			await lc.closeVirtualChannel(lc_id, lc_id)
+		  } catch (e) {
+			expect(e.message).to.equal(SolRevert(e.tx))
+			expect(e.name).to.equal('StatusError')
+		  }
 	  })
 	  it("3. Fail: VC with that ID already closed", async () => {
 	 //  	let lc_id = web3latest.utils.sha3('closed', {encoding: 'hex'})
@@ -2469,7 +2483,15 @@ contract('LedgerChannel :: byzantineCloseChannel()', function(accounts) {
   	    expect(parseInt(channel[3][0])).to.be.at.least(parseInt(channel[1][0]) + parseInt(channel[1][1])) //pass
   	    expect(parseInt(channel[3][1])).to.be.at.least(parseInt(channel[2][0]) + parseInt(channel[2][1])) //pass
 
- 	    await lc.byzantineCloseChannel(lc_id).should.be.rejectedWith(SolRevert)
+		//  await lc.byzantineCloseChannel(lc_id).should.be.rejectedWith(SolRevert)
+
+		 try {
+			await lc.byzantineCloseChannel(lc_id)
+		  } catch (e) {
+			expect(e.message).to.equal(SolRevert(e.tx))
+			expect(e.name).to.equal('StatusError')
+		  }
+		 
 	  })
 	  it("2. Fail: Channel with that ID is not open", async () => {
 	  	let lc_id = web3latest.utils.sha3('fail', {encoding: 'hex'})
@@ -2484,7 +2506,14 @@ contract('LedgerChannel :: byzantineCloseChannel()', function(accounts) {
   	    expect(parseInt(channel[3][0])).to.be.at.least(parseInt(channel[1][0]) + parseInt(channel[1][1])) //pass
   	    expect(parseInt(channel[3][1])).to.be.at.least(parseInt(channel[2][0]) + parseInt(channel[2][1])) //pass
 
- 	    await lc.byzantineCloseChannel(lc_id).should.be.rejectedWith(SolRevert)
+		//  await lc.byzantineCloseChannel(lc_id).should.be.rejectedWith(SolRevert)
+		 
+		 try {
+			await lc.byzantineCloseChannel(lc_id)
+		  } catch (e) {
+			expect(e.message).to.equal(SolRevert(e.tx))
+			expect(e.name).to.equal('StatusError')
+		  }
 	  })
 	  it("3. Fail: Channel is not in dispute", async () => {
 	  	let lc_id = web3latest.utils.sha3('fail', {encoding: 'hex'})
@@ -2504,7 +2533,14 @@ contract('LedgerChannel :: byzantineCloseChannel()', function(accounts) {
   	    expect(parseInt(channel[3][0])).to.be.at.least(parseInt(channel[1][0]) + parseInt(channel[1][1])) //pass
   	    expect(parseInt(channel[3][1])).to.be.at.least(parseInt(channel[2][0]) + parseInt(channel[2][1])) //pass
 
- 	    await lc.byzantineCloseChannel(lc_id).should.be.rejectedWith(SolRevert)
+		//  await lc.byzantineCloseChannel(lc_id).should.be.rejectedWith(SolRevert)
+		 
+		 try {
+			await lc.byzantineCloseChannel(lc_id)
+		  } catch (e) {
+			expect(e.message).to.equal(SolRevert(e.tx))
+			expect(e.name).to.equal('StatusError')
+		  }
 	  })
 	  it("4. Fail: UpdateLCTimeout has not yet expired", async () => {
 	  	let lc_id = web3latest.utils.sha3('fail', {encoding: 'hex'})
@@ -2539,7 +2575,14 @@ contract('LedgerChannel :: byzantineCloseChannel()', function(accounts) {
   	    expect(parseInt(channel[3][0])).to.be.at.least(parseInt(channel[1][0]) + parseInt(channel[1][1])) //pass
   	    expect(parseInt(channel[3][1])).to.be.at.least(parseInt(channel[2][0]) + parseInt(channel[2][1])) //pass
 
- 	    await lc.byzantineCloseChannel(lc_id).should.be.rejectedWith(SolRevert)
+		//  await lc.byzantineCloseChannel(lc_id).should.be.rejectedWith(SolRevert)
+		 
+		 try {
+			await lc.byzantineCloseChannel(lc_id)
+		  } catch (e) {
+			expect(e.message).to.equal(SolRevert(e.tx))
+			expect(e.name).to.equal('StatusError')
+		  }
 	  })
 	  it("5. Fail: VCs are still open", async () => {
 	  	let lc_id = web3latest.utils.sha3('1111', {encoding: 'hex'})
@@ -2554,7 +2597,14 @@ contract('LedgerChannel :: byzantineCloseChannel()', function(accounts) {
   	    expect(parseInt(channel[3][0])).to.be.at.least(parseInt(channel[1][0]) + parseInt(channel[1][1])) //pass
   	    expect(parseInt(channel[3][1])).to.be.at.least(parseInt(channel[2][0]) + parseInt(channel[2][1])) //pass
 
- 	    await lc.byzantineCloseChannel(lc_id).should.be.rejectedWith(SolRevert)
+		//  await lc.byzantineCloseChannel(lc_id).should.be.rejectedWith(SolRevert)
+		 
+		 try {
+			await lc.byzantineCloseChannel(lc_id)
+		  } catch (e) {
+			expect(e.message).to.equal(SolRevert(e.tx))
+			expect(e.name).to.equal('StatusError')
+		  }
 	  })
 	  it("6. Fail: Onchain Eth balances are greater than deposit", async () => {
 	  		// can't test this until deposits are complete
