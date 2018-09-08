@@ -129,7 +129,6 @@ contract LedgerChannel {
     }
 
     function getPartyByDelegateKey(address delegateKey) public view returns (address){
-        require(partyByDelegateKey[delegateKey] == address(0), "delegate key already in use");
         return partyByDelegateKey[delegateKey];
     }
 
