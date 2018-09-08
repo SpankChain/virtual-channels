@@ -121,6 +121,17 @@ contract LedgerChannel {
 
     mapping(bytes32 => VirtualChannel) public virtualChannels;
     mapping(bytes32 => Channel) public Channels;
+    mapping(address => address) public partyByDelegateKey;
+
+    function registerDelegateKey(address delegateKey) public {
+        require(partyByDelegateKey[delegateKey] == address(0), "delegate key already in use");
+        partyByDelegateKey[delegateKey] = msg.sender;
+    }
+
+    function getPartyByDelegateKey(address delegateKey) public view returns (address){
+        require(partyByDelegateKey[delegateKey] == address(0), "delegate key already in use");
+        return partyByDelegateKey[delegateKey];
+    }
 
     function createChannel(
         bytes32 _lcID,
@@ -139,7 +150,13 @@ contract LedgerChannel {
         // Alice must execute this and we assume the initial state 
         // to be signed from this requirement
         // Alternative is to check a sig as in joinChannel
-        Channels[_lcID].partyAddresses[0] = msg.sender;
+        
+        if(getPartyByDelegateKey(msg.sender) == address(0)) {
+            Channels[_lcID].partyAddresses[0] = msg.sender;
+        } else {
+            Channels[_lcID].partyAddresses[0] = getPartyByDelegateKey(msg.sender);
+        }
+        
         Channels[_lcID].partyAddresses[1] = _partyI;
 
         if(_balances[0] != 0) {
@@ -163,7 +180,12 @@ contract LedgerChannel {
     }
 
     function LCOpenTimeout(bytes32 _lcID) public {
-        require(msg.sender == Channels[_lcID].partyAddresses[0] && Channels[_lcID].isOpen == false);
+        if(getPartyByDelegateKey(msg.sender) == address(0)) {
+            require(msg.sender == Channels[_lcID].partyAddresses[0] && Channels[_lcID].isOpen == false);
+        } else {
+            require(getPartyByDelegateKey(msg.sender) == Channels[_lcID].partyAddresses[0] && Channels[_lcID].isOpen == false);
+        }
+        //require(partyA == Channels[_lcID].partyAddresses[0] && Channels[_lcID].isOpen == false);
         require(now > Channels[_lcID].LCopenTimeout);
 
         if(Channels[_lcID].initialDeposit[0] != 0) {
@@ -182,14 +204,26 @@ contract LedgerChannel {
     function joinChannel(bytes32 _lcID, uint256[2] _balances) public payable {
         // require the channel is not open yet
         require(Channels[_lcID].isOpen == false);
-        require(msg.sender == Channels[_lcID].partyAddresses[1]);
+
+        if(getPartyByDelegateKey(msg.sender) == address(0)) {
+            require(msg.sender == Channels[_lcID].partyAddresses[1]);
+        } else {
+            require(getPartyByDelegateKey(msg.sender) == Channels[_lcID].partyAddresses[1]);
+        }
+
+        //require(partyB == Channels[_lcID].partyAddresses[1]);
 
         if(_balances[0] != 0) {
             require(msg.value == _balances[0], "state balance does not match sent value");
             Channels[_lcID].ethBalances[1] = msg.value;
         } 
         if(_balances[1] != 0) {
-            require(Channels[_lcID].token.transferFrom(msg.sender, this, _balances[1]),"joinChannel: token transfer failure");
+            if(getPartyByDelegateKey(msg.sender) == address(0)) {
+                require(Channels[_lcID].token.transferFrom(msg.sender, this, _balances[1]),"joinChannel: token transfer failure");
+            } else {
+                require(Channels[_lcID].token.transferFrom(getPartyByDelegateKey(msg.sender), this, _balances[1]),"joinChannel: token transfer failure");
+            }
+            //require(Channels[_lcID].token.transferFrom(msg.sender, this, _balances[1]),"joinChannel: token transfer failure");
             Channels[_lcID].erc20Balances[1] = _balances[1];          
         }
 
@@ -213,7 +247,12 @@ contract LedgerChannel {
 
         if (Channels[_lcID].partyAddresses[0] == recipient) {
             if(isToken) {
-                require(Channels[_lcID].token.transferFrom(msg.sender, this, _balance),"deposit: token transfer failure");
+                if(getPartyByDelegateKey(msg.sender) == address(0)) {
+                    require(Channels[_lcID].token.transferFrom(msg.sender, this, _balance),"deposit: token transfer failure");
+                } else {
+                    require(Channels[_lcID].token.transferFrom(getPartyByDelegateKey(msg.sender), this, _balance),"deposit: token transfer failure");
+                }
+                // require(Channels[_lcID].token.transferFrom(msg.sender, this, _balance),"deposit: token transfer failure");
                 Channels[_lcID].erc20Balances[2] += _balance;
             } else {
                 require(msg.value == _balance, "state balance does not match sent value");
@@ -223,7 +262,12 @@ contract LedgerChannel {
 
         if (Channels[_lcID].partyAddresses[1] == recipient) {
             if(isToken) {
-                require(Channels[_lcID].token.transferFrom(msg.sender, this, _balance),"deposit: token transfer failure");
+                if(getPartyByDelegateKey(msg.sender) == address(0)) {
+                    require(Channels[_lcID].token.transferFrom(msg.sender, this, _balance),"deposit: token transfer failure");
+                } else {
+                    require(Channels[_lcID].token.transferFrom(getPartyByDelegateKey(msg.sender), this, _balance),"deposit: token transfer failure");
+                }
+                // require(Channels[_lcID].token.transferFrom(msg.sender, this, _balance),"deposit: token transfer failure");
                 Channels[_lcID].erc20Balances[3] += _balance;
             } else {
                 require(msg.value == _balance, "state balance does not match sent value");
@@ -451,7 +495,15 @@ contract LedgerChannel {
 
         // store VC data
         // we may want to record who is initiating on-chain settles
-        virtualChannels[_vcID].challenger = msg.sender;
+
+        
+        if(getPartyByDelegateKey(msg.sender) == address(0)) {
+            virtualChannels[_vcID].challenger = msg.sender;
+        } else {
+            virtualChannels[_vcID].challenger = getPartyByDelegateKey(msg.sender);
+        }
+
+        // virtualChannels[_vcID].challenger = challenger;
         virtualChannels[_vcID].sequence = updateSeq;
 
         // channel state
@@ -462,7 +514,12 @@ contract LedgerChannel {
 
         virtualChannels[_vcID].updateVCtimeout = now + Channels[_lcID].confirmTime;
 
-        emit DidVCSettle(_lcID, _vcID, updateSeq, updateBal[0], updateBal[1], msg.sender, virtualChannels[_vcID].updateVCtimeout);
+        if(getPartyByDelegateKey(msg.sender) == address(0)) {
+            emit DidVCSettle(_lcID, _vcID, updateSeq, updateBal[0], updateBal[1], msg.sender, virtualChannels[_vcID].updateVCtimeout);
+        } else {
+            emit DidVCSettle(_lcID, _vcID, updateSeq, updateBal[0], updateBal[1], getPartyByDelegateKey(msg.sender), virtualChannels[_vcID].updateVCtimeout);
+        }
+        
     }
 
     function closeVirtualChannel(bytes32 _lcID, bytes32 _vcID) public {
