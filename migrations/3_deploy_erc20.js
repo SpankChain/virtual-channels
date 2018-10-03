@@ -3,8 +3,8 @@ const HumanStandardToken = artifacts.require(
 );
 
 module.exports = async function(deployer, network, accounts) {
-  const supply = 10000000;
   if (network !== "mainnet") {
+    const supply = 696969 * 1e18;
     await deployer.deploy(HumanStandardToken, supply, "Test Token", 18, "TST");
     const hst = await HumanStandardToken.deployed();
     await Promise.all(
