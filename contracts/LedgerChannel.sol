@@ -2,6 +2,7 @@ pragma solidity ^0.4.23;
 
 import "./lib/ECTools.sol";
 import "./lib/token/HumanStandardToken.sol";
+//TODO: add safemath
 
 /// @title Set Virtual Channels - A layer2 hub and spoke payment network 
 /// @author Nathan Ginnever
@@ -86,7 +87,6 @@ contract LedgerChannel {
     );
 
     struct Channel {
-        //TODO: figure out if it's better just to split arrays by balances/deposits instead of eth/erc20
         address[2] partyAddresses; // 0: partyA 1: partyI
         uint256[4] ethBalances; // 0: balanceA 1:balanceI 2:depositedA 3:depositedI
         uint256[4] erc20Balances; // 0: balanceA 1:balanceI 2:depositedA 3:depositedI
@@ -99,7 +99,7 @@ contract LedgerChannel {
         bool isOpen; // true when both parties have joined
         bool isUpdateLCSettling;
         uint256 numOpenVC;
-        HumanStandardToken token;
+        HumanStandardToken token; // TODO add onlyowner method for whitelisting tokens
     }
 
     // virtual-channel state
@@ -124,7 +124,7 @@ contract LedgerChannel {
 
     function createChannel(
         bytes32 _lcID,
-        address _partyI,
+        address _partyI, //TODO Why pass this in?
         uint256 _confirmTime,
         address _token,
         uint256[2] _balances // [eth, token]
@@ -134,13 +134,21 @@ contract LedgerChannel {
     {
         require(Channels[_lcID].partyAddresses[0] == address(0), "Channel has already been created.");
         require(_partyI != 0x0, "No partyI address provided to LC creation");
-        require(_balances[0] >= 0 && _balances[1] >= 0, "Balances cannot be negative");
+        //TODO check to see if token is part of whitelist
+
         // Set initial ledger channel state
         // Alice must execute this and we assume the initial state 
         // to be signed from this requirement
         // Alternative is to check a sig as in joinChannel
         Channels[_lcID].partyAddresses[0] = msg.sender;
         Channels[_lcID].partyAddresses[1] = _partyI;
+
+        Channels[_lcID].sequence = 0;
+        Channels[_lcID].confirmTime = _confirmTime;
+        // is close flag, lc state sequence, number open vc, vc root hash, partyA... 
+        //Channels[_lcID].stateHash = keccak256(uint256(0), uint256(0), uint256(0), bytes32(0x0), bytes32(msg.sender), bytes32(_partyI), balanceA, balanceI);
+        Channels[_lcID].LCopenTimeout = now + _confirmTime;
+        Channels[_lcID].initialDeposit = _balances;
 
         if(_balances[0] != 0) {
             require(msg.value == _balances[0], "Eth balance does not match sent value");
@@ -152,13 +160,6 @@ contract LedgerChannel {
             Channels[_lcID].erc20Balances[0] = _balances[1];
         }
 
-        Channels[_lcID].sequence = 0;
-        Channels[_lcID].confirmTime = _confirmTime;
-        // is close flag, lc state sequence, number open vc, vc root hash, partyA... 
-        //Channels[_lcID].stateHash = keccak256(uint256(0), uint256(0), uint256(0), bytes32(0x0), bytes32(msg.sender), bytes32(_partyI), balanceA, balanceI);
-        Channels[_lcID].LCopenTimeout = now + _confirmTime;
-        Channels[_lcID].initialDeposit = _balances;
-
         emit DidLCOpen(_lcID, msg.sender, _partyI, _balances[0], _token, _balances[1], Channels[_lcID].LCopenTimeout);
     }
 
@@ -166,14 +167,21 @@ contract LedgerChannel {
         require(msg.sender == Channels[_lcID].partyAddresses[0] && Channels[_lcID].isOpen == false);
         require(now > Channels[_lcID].LCopenTimeout);
 
-        if(Channels[_lcID].initialDeposit[0] != 0) {
-            Channels[_lcID].partyAddresses[0].transfer(Channels[_lcID].ethBalances[0]);
+        //reentry
+        uint256 ethBalance = Channels[_lcID].ethBalances[0];
+        uint256 erc20Balance = Channels[_lcID].erc20Balances[0];
+
+        Channels[_lcID].ethBalances[0] = 0;
+        Channels[_lcID].erc20Balances[0] = 0;  
+
+        if(ethBalance != 0) {
+            Channels[_lcID].partyAddresses[0].transfer(ethBalance);
         } 
-        if(Channels[_lcID].initialDeposit[1] != 0) {
-            require(Channels[_lcID].token.transfer(Channels[_lcID].partyAddresses[0], Channels[_lcID].erc20Balances[0]),"CreateChannel: token transfer failure");
+        if(erc20Balance != 0) {
+            require(Channels[_lcID].token.transfer(Channels[_lcID].partyAddresses[0], erc20Balance),"CreateChannel: token transfer failure");
         }
 
-        emit DidLCClose(_lcID, 0, Channels[_lcID].ethBalances[0], Channels[_lcID].erc20Balances[0], 0, 0);
+        emit DidLCClose(_lcID, 0, ethBalance, erc20Balance, 0, 0);
 
         // only safe to delete since no action was taken on this channel
         delete Channels[_lcID];
@@ -184,6 +192,12 @@ contract LedgerChannel {
         require(Channels[_lcID].isOpen == false);
         require(msg.sender == Channels[_lcID].partyAddresses[1]);
 
+        Channels[_lcID].initialDeposit[0]+=_balances[0];
+        Channels[_lcID].initialDeposit[1]+=_balances[1];
+        // no longer allow joining functions to be called
+        Channels[_lcID].isOpen = true;
+        numChannels++;
+
         if(_balances[0] != 0) {
             require(msg.value == _balances[0], "state balance does not match sent value");
             Channels[_lcID].ethBalances[1] = msg.value;
@@ -192,12 +206,6 @@ contract LedgerChannel {
             require(Channels[_lcID].token.transferFrom(msg.sender, this, _balances[1]),"joinChannel: token transfer failure");
             Channels[_lcID].erc20Balances[1] = _balances[1];          
         }
-
-        Channels[_lcID].initialDeposit[0]+=_balances[0];
-        Channels[_lcID].initialDeposit[1]+=_balances[1];
-        // no longer allow joining functions to be called
-        Channels[_lcID].isOpen = true;
-        numChannels++;
 
         emit DidLCJoin(_lcID, _balances[0], _balances[1]);
     }
@@ -272,6 +280,7 @@ contract LedgerChannel {
         require(Channels[_lcID].partyAddresses[1] == ECTools.recoverSigner(_state, _sigI));
 
         Channels[_lcID].isOpen = false;
+        numChannels--;
 
         if(_balances[0] != 0 || _balances[1] != 0) {
             Channels[_lcID].partyAddresses[0].transfer(_balances[0]);
@@ -282,8 +291,6 @@ contract LedgerChannel {
             require(Channels[_lcID].token.transfer(Channels[_lcID].partyAddresses[0], _balances[2]),"happyCloseChannel: token transfer failure");
             require(Channels[_lcID].token.transfer(Channels[_lcID].partyAddresses[1], _balances[3]),"happyCloseChannel: token transfer failure");          
         }
-
-        numChannels--;
 
         emit DidLCClose(_lcID, _sequence, _balances[0], _balances[1], _balances[2], _balances[3]);
     }
@@ -302,7 +309,7 @@ contract LedgerChannel {
         Channel storage channel = Channels[_lcID];
         require(channel.isOpen);
         require(channel.sequence < updateParams[0]); // do same as vc sequence check
-        require(channel.ethBalances[0] + channel.ethBalances[1] >= updateParams[2] + updateParams[3]);
+        require(channel.ethBalances[0] + channel.ethBalances[1] >= updateParams[2] + updateParams[3]); //TODO should this be equal?
         require(channel.erc20Balances[0] + channel.erc20Balances[1] >= updateParams[4] + updateParams[5]);
 
         if(channel.isUpdateLCSettling == true) { 
@@ -327,6 +334,8 @@ contract LedgerChannel {
 
         require(channel.partyAddresses[0] == ECTools.recoverSigner(_state, _sigA));
         require(channel.partyAddresses[1] == ECTools.recoverSigner(_state, _sigI));
+
+        //TODO how do we check to make sure someone doesn't accidentally add a messed up vcRootHash?
 
         // update LC state
         channel.sequence = updateParams[0];
@@ -428,8 +437,8 @@ contract LedgerChannel {
         // Check time has passed on updateLCtimeout and has not passed the time to store a vc state
         // virtualChannels[_vcID].updateVCtimeout should be 0 on uninitialized vc state, and this should
         // fail if initVC() isn't called first
-        // require(Channels[_lcID].updateLCtimeout < now && now < virtualChannels[_vcID].updateVCtimeout);
-        require(Channels[_lcID].updateLCtimeout < now); // for testing!
+        require(Channels[_lcID].updateLCtimeout < now && now < virtualChannels[_vcID].updateVCtimeout);
+        // require(Channels[_lcID].updateLCtimeout < now); // for testing!
 
         bytes32 _updateState = keccak256(
             abi.encodePacked(
@@ -472,7 +481,7 @@ contract LedgerChannel {
         require(virtualChannels[_vcID].updateVCtimeout < now, "Update vc timeout has not elapsed.");
         require(!virtualChannels[_vcID].isClose, "VC is already closed");
         // reduce the number of open virtual channels stored on LC
-        Channels[_lcID].numOpenVC--;
+        Channels[_lcID].numOpenVC--; //TODO make sure no underflow
         // close vc flags
         virtualChannels[_vcID].isClose = true;
         // re-introduce the balances back into the LC state from the settled VC
