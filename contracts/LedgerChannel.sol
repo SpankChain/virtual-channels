@@ -164,15 +164,18 @@ contract LedgerChannel {
     }
 
     function LCOpenTimeout(bytes32 _lcID) public {
-        require(msg.sender == Channels[_lcID].partyAddresses[0] && Channels[_lcID].isOpen == false);
-        require(now > Channels[_lcID].LCopenTimeout);
+        require(msg.sender == Channels[_lcID].partyAddresses[0], "Request not sent by channel party A");
+        require(Channels[_lcID].isOpen == false, "Channel has been joined");
+        require(now > Channels[_lcID].LCopenTimeout, "Channel timeout has not expire");
 
-        //reentry
-        uint256 ethBalance = Channels[_lcID].ethBalances[0];
-        uint256 erc20Balance = Channels[_lcID].erc20Balances[0];
+        // reentrancy protection
+        uint256 ethbalanceA = Channels[_lcID].ethBalances[0];
+        uint256 tokenbalanceA = Channels[_lcID].erc20Balances[0];
 
         Channels[_lcID].ethBalances[0] = 0;
-        Channels[_lcID].erc20Balances[0] = 0;  
+        Channels[_lcID].ethBalances[1] = 0;
+        Channels[_lcID].erc20Balances[0] = 0;
+        Channels[_lcID].erc20Balances[1] = 0;
 
         if(ethBalance != 0) {
             Channels[_lcID].partyAddresses[0].transfer(ethBalance);
