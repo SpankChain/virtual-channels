@@ -88,8 +88,8 @@ contract("LedgerChannel :: createChannel()", function(accounts) {
       expect(partyI).to.not.be.equal(
         "0x0000000000000000000000000000000000000000"
       ); //pass
-      expect(sentBalance[0]).to.be.above(0); //pass
-      expect(sentBalance[1]).to.be.above(0); //pass
+      expect(Number(sentBalance[0])).to.be.above(0); //pass
+      expect(Number(sentBalance[1])).to.be.above(0); //pass
       expect(sentBalance[0]).to.be.equal(web3latest.utils.toWei("10")); //pass
       expect(sentBalance[1]).to.be.equal(web3latest.utils.toWei("10")); //pass
 
@@ -122,8 +122,8 @@ contract("LedgerChannel :: createChannel()", function(accounts) {
       expect(partyI_fail).to.be.equal(
         "0x0000000000000000000000000000000000000000"
       ); //fail
-      expect(sentBalance[0]).to.be.above(0); //pass
-      expect(sentBalance[1]).to.be.above(0); //pass
+      expect(Number(sentBalance[0])).to.be.above(0); //pass
+      expect(Number(sentBalance[1])).to.be.above(0); //pass
       expect(sentBalance[0]).to.be.equal(web3latest.utils.toWei("10")); //pass
       expect(sentBalance[1]).to.be.equal(web3latest.utils.toWei("10")); //pass
 
@@ -155,8 +155,8 @@ contract("LedgerChannel :: createChannel()", function(accounts) {
       expect(partyI).to.not.be.equal(
         "0x0000000000000000000000000000000000000000"
       ); //pass
-      expect(sentBalance[0]).to.be.above(0); //fail
-      expect(sentBalance[1]).to.not.be.above(0); //pass
+      expect(Number(sentBalance[0])).to.be.above(0); //fail
+      expect(Number(sentBalance[1])).to.not.be.above(0); //pass
       expect(sentBalance[0]).to.be.equal(web3latest.utils.toWei("10")); //pass
       expect(sentBalance[1]).to.be.equal(web3latest.utils.toWei("-10")); //pass
 
@@ -188,8 +188,8 @@ contract("LedgerChannel :: createChannel()", function(accounts) {
       expect(partyI).to.not.be.equal(
         "0x0000000000000000000000000000000000000000"
       ); //pass
-      expect(sentBalance[0]).to.be.above(0); //pass
-      expect(sentBalance[1]).to.be.above(0); //pass
+      expect(Number(sentBalance[0])).to.be.above(0); //pass
+      expect(Number(sentBalance[1])).to.be.above(0); //pass
       expect(sentBalance[0]).to.not.be.equal(web3latest.utils.toWei("1")); //fail
       expect(sentBalance[1]).to.be.equal(web3latest.utils.toWei("10")); //pass
 
@@ -224,8 +224,8 @@ contract("LedgerChannel :: createChannel()", function(accounts) {
       expect(partyI).to.not.be.equal(
         "0x0000000000000000000000000000000000000000"
       ); //pass
-      expect(sentBalance[0]).to.be.above(0); //pass
-      expect(sentBalance[1]).to.be.above(0); //pass
+      expect(Number(sentBalance[0])).to.be.above(0); //pass
+      expect(Number(sentBalance[1])).to.be.above(0); //pass
       expect(sentBalance[0]).to.be.equal(web3latest.utils.toWei("10")); //pass
       expect(sentBalance[1]).to.not.be.equal(web3latest.utils.toWei("1")); //fail
 
@@ -260,8 +260,8 @@ contract("LedgerChannel :: createChannel()", function(accounts) {
       expect(partyI).to.not.be.equal(
         "0x0000000000000000000000000000000000000000"
       ); //pass
-      expect(sentBalance[0]).to.be.above(0); //pass
-      expect(sentBalance[1]).to.be.above(0); //pass
+      expect(Number(sentBalance[0])).to.be.above(0); //pass
+      expect(Number(sentBalance[1])).to.be.above(0); //pass
       expect(sentBalance[0]).to.be.equal(web3latest.utils.toWei("10")); //pass
       expect(sentBalance[1]).to.be.equal(web3latest.utils.toWei("10")); //pass
 
@@ -474,7 +474,8 @@ contract("LedgerChannel :: joinChannel()", function(accounts) {
       let channel = await lc.getChannel(lc_id);
       expect(channel[9]).to.be.equal(true); //fail
       expect(channel[0][1]).to.be.equal(partyI); //pass
-      expect(sentBalance[1]).to.be.at.least(0); //pass
+      expect(Number(sentBalance[0])).to.be.at.least(0); //pass
+      expect(Number(sentBalance[1])).to.be.at.least(0); //pass
       expect(sentBalance[0]).to.be.equal(web3latest.utils.toWei("10")); //pass
       expect(sentBalance[1]).to.be.equal(web3latest.utils.toWei("10")); //pass
 
@@ -504,7 +505,8 @@ contract("LedgerChannel :: joinChannel()", function(accounts) {
       let channel = await lc.getChannel(lc_id);
       expect(channel[9]).to.be.equal(false); //pass
       expect(channel[0][1]).to.not.be.equal(partyB); //fail
-      expect(sentBalance[1]).to.be.at.least(0); //pass
+      expect(Number(sentBalance[0])).to.be.at.least(0); //pass
+      expect(Number(sentBalance[1])).to.be.at.least(0); //pass
       expect(sentBalance[0]).to.be.equal(web3latest.utils.toWei("10")); //pass
       expect(sentBalance[1]).to.be.equal(web3latest.utils.toWei("10")); //pass
 
@@ -533,7 +535,8 @@ contract("LedgerChannel :: joinChannel()", function(accounts) {
       let channel = await lc.getChannel(lc_id);
       expect(channel[9]).to.be.equal(false); //pass
       expect(channel[0][1]).to.be.equal(partyI); //pass
-      expect(sentBalance[1]).to.be.below(0); //fail
+      expect(Number(sentBalance[0])).to.be.at.least(0); //pass
+      expect(Number(sentBalance[1])).to.be.below(0); //pass
       expect(sentBalance[0]).to.be.equal(web3latest.utils.toWei("10")); //pass
       expect(sentBalance[1]).to.be.equal(web3latest.utils.toWei("-10")); //pass
 
@@ -563,7 +566,8 @@ contract("LedgerChannel :: joinChannel()", function(accounts) {
       let channel = await lc.getChannel(lc_id);
       expect(channel[9]).to.be.equal(false); //pass
       expect(channel[0][1]).to.be.equal(partyI); //pass
-      expect(sentBalance[1]).to.be.at.least(0); //pass
+      expect(Number(sentBalance[0])).to.be.at.least(0); // pass
+      expect(Number(sentBalance[1])).to.be.at.least(0); //pass
       expect(sentBalance[0]).to.not.be.equal(web3latest.utils.toWei("10")); //fail
       expect(sentBalance[1]).to.be.equal(web3latest.utils.toWei("10")); //pass
 
@@ -593,7 +597,8 @@ contract("LedgerChannel :: joinChannel()", function(accounts) {
       let channel = await lc.getChannel(lc_id);
       expect(channel[9]).to.be.equal(false); //pass
       expect(channel[0][1]).to.be.equal(partyI); //pass
-      expect(sentBalance[1]).to.be.at.least(0); //pass
+      expect(Number(sentBalance[0])).to.be.at.least(0); // pass
+      expect(Number(sentBalance[1])).to.be.at.least(0); //pass
       expect(sentBalance[0]).to.be.equal(web3latest.utils.toWei("10")); //pass
       expect(sentBalance[1]).to.not.be.equal(web3latest.utils.toWei("10")); //fail
 
@@ -623,7 +628,8 @@ contract("LedgerChannel :: joinChannel()", function(accounts) {
       let channel = await lc.getChannel(lc_id);
       expect(channel[9]).to.be.equal(false); //pass
       expect(channel[0][1]).to.be.equal(partyI); //pass
-      expect(sentBalance[1]).to.be.at.least(0); //pass
+      expect(Number(sentBalance[0])).to.be.at.least(0); // pass
+      expect(Number(sentBalance[1])).to.be.at.least(0); //pass
       expect(sentBalance[0]).to.be.equal(web3latest.utils.toWei("10")); //pass
       expect(sentBalance[1]).to.be.equal(web3latest.utils.toWei("10")); //pass
 
@@ -1030,11 +1036,13 @@ contract("LedgerChannel :: updateLCstate()", function(accounts) {
       type: "bytes32",
       value: "0x1"
     });
+    let sequence = 2;
+    let openVcs = 1;
     payload = web3latest.utils.soliditySha3(
       { type: "bytes32", value: lc_id_1 },
       { type: "bool", value: false }, // isclose
-      { type: "uint256", value: "2" }, // sequence
-      { type: "uint256", value: "1" }, // open VCs
+      { type: "uint256", value: sequence }, // sequence
+      { type: "uint256", value: openVcs }, // open VCs
       { type: "bytes32", value: vcRootHash }, // VC root hash
       { type: "address", value: partyA }, // partyA
       { type: "address", value: partyI }, // hub
@@ -1047,9 +1055,9 @@ contract("LedgerChannel :: updateLCstate()", function(accounts) {
     fakeSig = web3latest.utils.soliditySha3(
       { type: "uint256", value: lc_id_1 }, // ID
       { type: "bool", value: false }, // isclose
-      { type: "uint256", value: "2" }, // sequence
-      { type: "uint256", value: "1" }, // open VCs
-      { type: "bytes32", value: "0x1" }, // VC root hash
+      { type: "uint256", value: sequence }, // sequence
+      { type: "uint256", value: openVcs }, // open VCs
+      { type: "bytes32", value: vcRootHash }, // VC root hash
       { type: "address", value: partyA }, // partyA
       { type: "address", value: partyI }, // hub
       { type: "uint256", value: web3latest.utils.toWei("15") }, // eth
@@ -1077,14 +1085,15 @@ contract("LedgerChannel :: updateLCstate()", function(accounts) {
   describe("updateLCstate() has 10 possible cases:", () => {
     it("1. Fail: Channel with that ID does not exist", async () => {
       let lc_id = web3latest.utils.sha3("nochannel", { encoding: "hex" });
-      let sequence = "2";
+      let sequence = 2;
+      let openVcs = 1;
       let vcRootHash = web3latest.utils.soliditySha3({
         type: "bytes32",
         value: "0x1"
       });
       let updateParams = [
         sequence,
-        "1",
+        openVcs,
         web3latest.utils.toWei("5"),
         web3latest.utils.toWei("15"),
         web3latest.utils.toWei("5"),
@@ -1110,7 +1119,7 @@ contract("LedgerChannel :: updateLCstate()", function(accounts) {
       expect(totalTokenDeposit).to.not.be.equal(web3latest.utils.toWei("20")); //pass
       expect(sigA).to.be.equal(verificationA); //pass
       expect(sigI).to.be.equal(verificationI); //pass
-      expect(channel[4]).to.be.below(sequence); //pass
+      expect(Number(channel[4])).to.be.below(sequence); //pass
       if (channel[10] == true)
         expect(channel[8] * 1000).to.be.above(Date.now()); //pass
 
@@ -1127,14 +1136,15 @@ contract("LedgerChannel :: updateLCstate()", function(accounts) {
     });
     it("2. Fail: Channel with that ID is not open", async () => {
       let lc_id = web3latest.utils.sha3("fail", { encoding: "hex" });
-      let sequence = "2";
+      let sequence = 2;
+      let openVcs = 1;
       let vcRootHash = web3latest.utils.soliditySha3({
         type: "bytes32",
         value: "0x1"
       });
       let updateParams = [
         sequence,
-        "1",
+        openVcs,
         web3latest.utils.toWei("5"),
         web3latest.utils.toWei("15"),
         web3latest.utils.toWei("5"),
@@ -1158,7 +1168,7 @@ contract("LedgerChannel :: updateLCstate()", function(accounts) {
       expect(totalTokenDeposit).to.be.equal(web3latest.utils.toWei("10")); //pass
       expect(sigA).to.be.equal(verificationA); //pass
       expect(sigI).to.be.equal(verificationI); //pass
-      expect(channel[4]).to.be.below(sequence); //pass
+      expect(Number(channel[4])).to.be.below(sequence); //pass
       if (channel[10] == true)
         expect(channel[8] * 1000).to.be.above(Date.now()); //pass
 
@@ -1175,14 +1185,15 @@ contract("LedgerChannel :: updateLCstate()", function(accounts) {
     });
     it("3. Fail: Total Eth deposit is not equal to submitted Eth balances", async () => {
       let lc_id = web3latest.utils.sha3("1111", { encoding: "hex" });
-      let sequence = "2";
+      let sequence = 2;
+      let openVcs = 1;
       let vcRootHash = web3latest.utils.soliditySha3({
         type: "bytes32",
         value: "0x1"
       });
       let updateParams = [
         sequence,
-        "1",
+        openVcs,
         web3latest.utils.toWei("5"),
         web3latest.utils.toWei("5"),
         web3latest.utils.toWei("5"),
@@ -1206,7 +1217,7 @@ contract("LedgerChannel :: updateLCstate()", function(accounts) {
       expect(totalTokenDeposit).to.be.equal(web3latest.utils.toWei("20")); //pass
       expect(sigA).to.be.equal(verificationA); //pass
       expect(sigI).to.be.equal(verificationI); //pass
-      expect(channel[4]).to.be.below(sequence); //pass
+      expect(Number(channel[4])).to.be.below(sequence); //pass
       if (channel[10] == true)
         expect(channel[8] * 1000).to.be.above(Date.now()); //pass
 
@@ -1223,14 +1234,15 @@ contract("LedgerChannel :: updateLCstate()", function(accounts) {
     });
     it("4. Fail: Total token deposit is not equal to submitted Eth balances", async () => {
       let lc_id = web3latest.utils.sha3("1111", { encoding: "hex" });
-      let sequence = "2";
+      let sequence = 2;
+      let openVcs = 1;
       let vcRootHash = web3latest.utils.soliditySha3({
         type: "bytes32",
         value: "0x1"
       });
       let updateParams = [
         sequence,
-        "1",
+        openVcs,
         web3latest.utils.toWei("5"),
         web3latest.utils.toWei("15"),
         web3latest.utils.toWei("5"),
@@ -1254,7 +1266,7 @@ contract("LedgerChannel :: updateLCstate()", function(accounts) {
       expect(totalTokenDeposit).to.not.be.equal(web3latest.utils.toWei("10")); //fail
       expect(sigA).to.be.equal(verificationA); //pass
       expect(sigI).to.be.equal(verificationI); //pass
-      expect(channel[4]).to.be.below(sequence); //pass
+      expect(Number(channel[4])).to.be.below(sequence); //pass
       if (channel[10] == true)
         expect(channel[8] * 1000).to.be.above(Date.now()); //pass
 
@@ -1271,14 +1283,15 @@ contract("LedgerChannel :: updateLCstate()", function(accounts) {
     });
     it("5. Fail: Incorrect sig for partyA", async () => {
       let lc_id = web3latest.utils.sha3("1111", { encoding: "hex" });
-      let sequence = "2";
+      let sequence = 2;
+      let openVcs = 1;
       let vcRootHash = web3latest.utils.soliditySha3({
         type: "bytes32",
         value: "0x1"
       });
       let updateParams = [
         sequence,
-        "1",
+        openVcs,
         web3latest.utils.toWei("5"),
         web3latest.utils.toWei("15"),
         web3latest.utils.toWei("5"),
@@ -1302,7 +1315,7 @@ contract("LedgerChannel :: updateLCstate()", function(accounts) {
       expect(totalTokenDeposit).to.be.equal(web3latest.utils.toWei("20")); //pass
       expect(fakeSig).to.not.be.equal(verificationA); //fail
       expect(sigI).to.be.equal(verificationI); //pass
-      expect(channel[4]).to.be.below(sequence); //pass
+      expect(Number(channel[4])).to.be.below(sequence); //pass
       if (channel[10] == true)
         expect(channel[8] * 1000).to.be.above(Date.now()); //pass
 
@@ -1319,14 +1332,15 @@ contract("LedgerChannel :: updateLCstate()", function(accounts) {
     });
     it("6. Fail: Incorrect sig for partyI", async () => {
       let lc_id = web3latest.utils.sha3("1111", { encoding: "hex" });
-      let sequence = "2";
+      let sequence = 2;
+      let openVcs = 1;
       let vcRootHash = web3latest.utils.soliditySha3({
         type: "bytes32",
         value: "0x1"
       });
       let updateParams = [
         sequence,
-        "1",
+        openVcs,
         web3latest.utils.toWei("5"),
         web3latest.utils.toWei("15"),
         web3latest.utils.toWei("5"),
@@ -1350,7 +1364,7 @@ contract("LedgerChannel :: updateLCstate()", function(accounts) {
       expect(totalTokenDeposit).to.be.equal(web3latest.utils.toWei("20")); //pass
       expect(sigA).to.be.equal(verificationA); //pass
       expect(fakeSig).to.not.be.equal(verificationI); //fail
-      expect(channel[4]).to.be.below(sequence); //pass
+      expect(Number(channel[4])).to.be.below(sequence); //pass
       if (channel[10] == true)
         expect(channel[8] * 1000).to.be.above(Date.now()); //pass
 
@@ -1367,11 +1381,12 @@ contract("LedgerChannel :: updateLCstate()", function(accounts) {
     });
     it("7. Success 1: updateLCstate called first time and timeout started", async () => {
       let lc_id = web3latest.utils.sha3("1111", { encoding: "hex" });
-      let sequence = "2";
+      let sequence = 2;
+      let openVcs = 1;
       // let vcRootHash = web3latest.utils.soliditySha3({type: 'bytes32', value: '0x1'})
       let updateParams = [
         sequence,
-        "1",
+        openVcs,
         web3latest.utils.toWei("5"),
         web3latest.utils.toWei("15"),
         web3latest.utils.toWei("5"),
@@ -1395,7 +1410,7 @@ contract("LedgerChannel :: updateLCstate()", function(accounts) {
       expect(totalTokenDeposit).to.be.equal(web3latest.utils.toWei("20")); //pass
       expect(sigA).to.be.equal(verificationA); //pass
       expect(sigI).to.be.equal(verificationI); //pass
-      expect(channel[4]).to.be.below(sequence); //pass
+      expect(Number(channel[4])).to.be.below(sequence); //pass
       if (channel[10] == true)
         expect(channel[8] * 1000).to.be.above(Date.now()); //pass
 
@@ -1407,11 +1422,12 @@ contract("LedgerChannel :: updateLCstate()", function(accounts) {
 
     it("8. Error: State nonce below onchain latest sequence", async () => {
       let lc_id = web3latest.utils.sha3("1111", { encoding: "hex" });
-      let sequence = "1";
+      let sequence = 2;
+      let openVcs = 1;
       // let vcRootHash = web3latest.utils.soliditySha3({type: 'bytes32', value: '0x1'})
       let updateParams = [
         sequence,
-        "1",
+        openVcs,
         web3latest.utils.toWei("5"),
         web3latest.utils.toWei("15"),
         web3latest.utils.toWei("5"),
@@ -1453,7 +1469,7 @@ contract("LedgerChannel :: updateLCstate()", function(accounts) {
       expect(totalTokenDeposit).to.be.equal(web3latest.utils.toWei("20")); //pass
       expect(sigA).to.be.equal(verificationA); //pass
       expect(sigI).to.be.equal(verificationI); //pass
-      expect(channel[4]).to.not.be.below(sequence); //fail
+      expect(Number(channel[4])).to.not.be.below(sequence); //fail
       if (channel[10] == true)
         expect(channel[8] * 1000).to.not.be.above(Date.now()); //pass ==== Technically this is a fail right now, but sequence is checked earlier. Needs to be fixed later
 
@@ -1470,11 +1486,12 @@ contract("LedgerChannel :: updateLCstate()", function(accounts) {
     });
     it("9. Error: UpdateLC timed out", async () => {
       let lc_id = web3latest.utils.sha3("1111", { encoding: "hex" });
-      let sequence = "3";
+      let sequence = 3;
+      let openVcs = 1;
       // let vcRootHash = web3latest.utils.soliditySha3({type: 'bytes32', value: '0x1'})
       let updateParams = [
         sequence,
-        "1",
+        openVcs,
         web3latest.utils.toWei("5"),
         web3latest.utils.toWei("15"),
         web3latest.utils.toWei("5"),
@@ -1516,7 +1533,7 @@ contract("LedgerChannel :: updateLCstate()", function(accounts) {
       expect(totalTokenDeposit).to.be.equal(web3latest.utils.toWei("20")); //pass
       expect(sigA).to.be.equal(verificationA); //pass
       expect(sigI).to.be.equal(verificationI); //pass
-      expect(channel[4]).to.be.below(sequence); //pass
+      expect(Number(channel[4])).to.be.below(sequence); //pass
       if (channel[10] == true)
         expect(channel[8] * 1000).to.not.be.above(Date.now()); //fail
 
@@ -1533,11 +1550,12 @@ contract("LedgerChannel :: updateLCstate()", function(accounts) {
     });
     it("10. Success 2: new state submitted to updateLC", async () => {
       let lc_id = web3latest.utils.sha3("2222", { encoding: "hex" });
-      let sequence = "3";
+      let sequence = 3;
+      let openVcs = 1;
       // let vcRootHash = web3latest.utils.soliditySha3({type: 'bytes32', value: '0x1'})
       let updateParams = [
         sequence,
-        "1",
+        openVcs,
         web3latest.utils.toWei("5"),
         web3latest.utils.toWei("15"),
         web3latest.utils.toWei("5"),
@@ -1556,8 +1574,8 @@ contract("LedgerChannel :: updateLCstate()", function(accounts) {
       payload = web3latest.utils.soliditySha3(
         { type: "bytes32", value: lc_id },
         { type: "bool", value: false }, // isclose
-        { type: "uint256", value: "3" }, // sequence
-        { type: "uint256", value: "1" }, // open VCs
+        { type: "uint256", value: sequence }, // sequence
+        { type: "uint256", value: openVcs }, // open VCs
         { type: "bytes32", value: vcRootHash }, // VC root hash
         { type: "address", value: partyA }, // partyA
         { type: "address", value: partyI }, // hub
@@ -1579,16 +1597,17 @@ contract("LedgerChannel :: updateLCstate()", function(accounts) {
       expect(totalTokenDeposit).to.be.equal(web3latest.utils.toWei("20")); //pass
       expect(sigA).to.be.equal(verificationA); //pass
       expect(sigI).to.be.equal(verificationI); //pass
-      expect(channel[4]).to.be.below(sequence); //pass
+      expect(Number(channel[4])).to.be.below(sequence); //pass
       if (channel[10] == true)
         expect(channel[8] * 1000).to.not.be.above(Date.now()); //pass
 
       await lc.updateLCstate(lc_id, updateParams, vcRootHash, sigA, sigI);
 
-      sequence = "4";
+      sequence = 4;
+      openVcs = 1;
       updateParams = [
         sequence,
-        "1",
+        openVcs,
         web3latest.utils.toWei("10"),
         web3latest.utils.toWei("10"),
         web3latest.utils.toWei("5"),
@@ -1598,8 +1617,8 @@ contract("LedgerChannel :: updateLCstate()", function(accounts) {
       payload = web3latest.utils.soliditySha3(
         { type: "bytes32", value: lc_id },
         { type: "bool", value: false }, // isclose
-        { type: "uint256", value: "4" }, // sequence
-        { type: "uint256", value: "1" }, // open VCs
+        { type: "uint256", value: sequence }, // sequence
+        { type: "uint256", value: openVcs }, // open VCs
         { type: "bytes32", value: vcRootHash }, // VC root hash
         { type: "address", value: partyA }, // partyA
         { type: "address", value: partyI }, // hub
@@ -1615,7 +1634,7 @@ contract("LedgerChannel :: updateLCstate()", function(accounts) {
       await lc.updateLCstate(lc_id, updateParams, vcRootHash, sigA, sigI);
 
       channel = await lc.getChannel(lc_id);
-      expect(channel[4].toString()).to.be.equal(sequence); //new state updated successfully!
+      expect(Number(channel[4])).to.be.equal(sequence); //new state updated successfully!
     });
   });
 });
@@ -2181,8 +2200,8 @@ contract("LedgerChannel :: settleVC()", function(accounts) {
     payload = web3latest.utils.soliditySha3(
       { type: "uint256", value: lc_id },
       { type: "bool", value: false }, // isclose
-      { type: "uint256", value: "1" }, // sequence
-      { type: "uint256", value: "1" }, // open VCs
+      { type: "uint256", value: 1 }, // sequence
+      { type: "uint256", value: 1 }, // open VCs
       { type: "bytes32", value: initialVCstate }, // VC root hash
       { type: "address", value: partyA }, // partyA
       { type: "address", value: partyI }, // hub
@@ -2195,8 +2214,8 @@ contract("LedgerChannel :: settleVC()", function(accounts) {
     fakeSig = web3latest.utils.soliditySha3(
       { type: "uint256", value: lc_id }, // ID
       { type: "bool", value: false }, // isclose
-      { type: "uint256", value: "1" }, // sequence
-      { type: "uint256", value: "0" }, // open VCs
+      { type: "uint256", value: 1 }, // sequence
+      { type: "uint256", value: 0 }, // open VCs
       { type: "string", value: "0x0" }, // VC root hash
       { type: "address", value: partyA }, // partyA
       { type: "address", value: partyI }, // hub
@@ -2276,9 +2295,9 @@ contract("LedgerChannel :: settleVC()", function(accounts) {
       ); //fail
       expect(channel[9]).to.not.be.equal(true); //pass (inverted for nonexistent channel)
       expect(vc[0]).to.not.be.equal(true); //pass
-      expect(vc[2]).to.be.below(sequence); //pass
-      expect(vc[8][1].toString()).to.be.below(balances[1]); //pass
-      expect(vc[9][1].toString()).to.be.below(balances[3]); //pass
+      expect(Number(vc[2])).to.be.below(sequence); //pass
+      expect(Number(vc[8][1])).to.be.below(Number(balances[1])); //pass
+      expect(Number(vc[9][1])).to.be.below(Number(balances[3])); //pass
       expect(vc[10][0].toString()).to.not.be.equal(web3latest.utils.toWei("1")); //pass (inverted because vc state not inited yet)
       expect(vc[10][1].toString()).to.not.be.equal(web3latest.utils.toWei("1")); //pass (inverted because vc state not inited yet)
       expect(vc[4].toString()).to.be.equal("0"); //pass (inverted because vc state not inited yet)
@@ -2314,9 +2333,9 @@ contract("LedgerChannel :: settleVC()", function(accounts) {
       expect(channel[0][0]).to.be.equal(partyA); //pass
       expect(channel[9]).to.not.be.equal(true); //fail
       expect(vc[0]).to.not.be.equal(true); //pass
-      expect(vc[2]).to.be.below(sequence); //pass
-      expect(vc[8][1].toString()).to.be.below(balances[1]); //pass
-      expect(vc[9][1].toString()).to.be.below(balances[3]); //pass
+      expect(Number(vc[2])).to.be.below(sequence); //pass
+      expect(Number(vc[8][1])).to.be.below(Number(balances[1])); //pass
+      expect(Number(vc[9][1])).to.be.below(Number(balances[3])); //pass
       expect(vc[10][0].toString()).to.not.be.equal(web3latest.utils.toWei("1")); //pass (inverted because vc state not inited yet)
       expect(vc[10][1].toString()).to.not.be.equal(web3latest.utils.toWei("1")); //pass (inverted because vc state not inited yet)
       expect(vc[4].toString()).to.be.equal("0"); //pass (inverted because vc state not inited yet)
@@ -2335,6 +2354,7 @@ contract("LedgerChannel :: settleVC()", function(accounts) {
       // 	expect(e.name).to.equal('StatusError')
       //   }
     });
+    
     it("3. Fail: VC with that ID is already closed", async () => {
       //Sometimes reverts on initial close, unclear why. :(
 
@@ -2354,9 +2374,10 @@ contract("LedgerChannel :: settleVC()", function(accounts) {
         value: sentBalance[0]
       });
 
+      let sequence = 0;
       initialVCstate = web3latest.utils.soliditySha3(
         { type: "uint256", value: lc_id }, // VC ID
-        { type: "uint256", value: 0 }, // sequence
+        { type: "uint256", value: sequence }, // sequence
         { type: "address", value: partyA }, // partyA
         { type: "address", value: partyB }, // partyB
         { type: "uint256", value: web3latest.utils.toWei("1") }, // bond eth
@@ -2367,11 +2388,13 @@ contract("LedgerChannel :: settleVC()", function(accounts) {
         { type: "uint256", value: web3latest.utils.toWei("0") } // token
       );
 
+      sequence = 0;
+      let openVcs = 1;
       let payload_temp = web3latest.utils.soliditySha3(
         { type: "uint256", value: lc_id },
         { type: "bool", value: false }, // isclose
-        { type: "uint256", value: 1 }, // sequence
-        { type: "uint256", value: 1 }, // open VCs
+        { type: "uint256", value: sequence }, // sequence
+        { type: "uint256", value: openVcs }, // open VCs
         { type: "bytes32", value: initialVCstate }, // VC root hash
         { type: "address", value: partyA }, // partyA
         { type: "address", value: partyI }, // hub
@@ -2423,9 +2446,10 @@ contract("LedgerChannel :: settleVC()", function(accounts) {
         web3latest.utils.toWei("1")
       ];
 
+      sequence = 2;
       payload_temp = web3latest.utils.soliditySha3(
         { type: "uint256", value: lc_id }, // VC ID
-        { type: "uint256", value: 2 }, // sequence
+        { type: "uint256", value: sequence }, // sequence
         { type: "address", value: partyA }, // partyA
         { type: "address", value: partyB }, // partyB
         { type: "uint256", value: web3latest.utils.toWei("1") }, // bond eth
@@ -2441,9 +2465,9 @@ contract("LedgerChannel :: settleVC()", function(accounts) {
       expect(channel[0][0]).to.be.equal(partyA); //pass
       expect(channel[9]).to.be.equal(true); //pass
       expect(vc[0]).to.be.equal(true); //fail
-      expect(vc[2]).to.be.below(2); //pass
-      expect(vc[8][1].toString()).to.be.below(balances[1]); //pass
-      expect(vc[9][1].toString()).to.be.below(balances[3]); //pass
+      expect(Number(vc[2])).to.be.below(sequence); //pass
+      expect(Number(vc[8][1])).to.be.below(Number(balances[1])); //pass
+      expect(Number(vc[9][1])).to.be.below(Number(balances[3])); //pass
       expect(vc[10][0].toString()).to.be.equal(web3latest.utils.toWei("1")); //pass
       expect(vc[10][1].toString()).to.be.equal(web3latest.utils.toWei("1")); //pass
       expect(vc[4].toString()).to.not.be.equal("0"); //pass
@@ -2479,9 +2503,9 @@ contract("LedgerChannel :: settleVC()", function(accounts) {
       expect(channel[0][0]).to.be.equal(partyA); //pass
       expect(channel[9]).to.be.equal(true); //pass
       expect(vc[0]).to.not.be.equal(true); //pass
-      expect(vc[2]).to.not.be.below(sequence); //fail
-      expect(vc[8][1].toString()).to.be.below(balances[1]); //pass
-      expect(vc[9][1].toString()).to.be.below(balances[3]); //pass
+      expect(Number(vc[2])).to.not.be.below(sequence); //fail
+      expect(Number(vc[8][1])).to.be.below(Number(balances[1])); //pass
+      expect(Number(vc[9][1])).to.be.below(Number(balances[3])); //pass
       expect(vc[10][0].toString()).to.be.equal(web3latest.utils.toWei("1")); //pass
       expect(vc[10][1].toString()).to.be.equal(web3latest.utils.toWei("1")); //pass
       expect(vc[4].toString()).to.not.be.equal("0"); //pass
@@ -2514,7 +2538,7 @@ contract("LedgerChannel :: settleVC()", function(accounts) {
 
       let payload_temp = web3latest.utils.soliditySha3(
         { type: "uint256", value: lc_id }, // VC ID
-        { type: "uint256", value: 1 }, // sequence
+        { type: "uint256", value: sequence }, // sequence
         { type: "address", value: partyA }, // partyA
         { type: "address", value: partyB }, // partyB
         { type: "uint256", value: web3latest.utils.toWei("1") }, // bond eth
@@ -2531,9 +2555,9 @@ contract("LedgerChannel :: settleVC()", function(accounts) {
       expect(channel[0][0]).to.be.equal(partyA); //pass
       expect(channel[9]).to.be.equal(true); //pass
       expect(vc[0]).to.not.be.equal(true); //pass
-      expect(vc[2]).to.be.below(sequence); //pass
-      expect(vc[8][1].toString()).to.not.be.below(balances[1]); //fail
-      expect(vc[9][1].toString()).to.be.below(balances[3]); //pass
+      expect(Number(vc[2])).to.be.below(sequence); //pass
+      expect(Number(vc[8][1])).to.not.be.below(Number(balances[1])); //fail
+      expect(Number(vc[9][1])).to.be.below(Number(balances[3])); //pass
       expect(vc[10][0].toString()).to.be.equal(web3latest.utils.toWei("1")); //pass
       expect(vc[10][1].toString()).to.be.equal(web3latest.utils.toWei("1")); //pass
       expect(vc[4].toString()).to.not.be.equal("0"); //pass
@@ -2583,9 +2607,9 @@ contract("LedgerChannel :: settleVC()", function(accounts) {
       expect(channel[0][0]).to.be.equal(partyA); //pass
       expect(channel[9]).to.be.equal(true); //pass
       expect(vc[0]).to.not.be.equal(true); //pass
-      expect(vc[2]).to.be.below(sequence); //pass
-      expect(vc[8][1].toString()).to.be.below(balances[1]); //pass
-      expect(vc[9][1].toString()).to.not.be.below(balances[3]); //fail
+      expect(Number(vc[2])).to.be.below(sequence); //pass
+      expect(Number(vc[8][1])).to.be.below(Number(balances[1])); //pass
+      expect(Number(vc[9][1])).to.not.be.below(Number(balances[3])); //fail
       expect(vc[10][0].toString()).to.be.equal(web3latest.utils.toWei("1")); //pass
       expect(vc[10][1].toString()).to.be.equal(web3latest.utils.toWei("1")); //pass
       expect(vc[4].toString()).to.not.be.equal("0"); //pass
@@ -2618,7 +2642,7 @@ contract("LedgerChannel :: settleVC()", function(accounts) {
 
       let payload_temp = web3latest.utils.soliditySha3(
         { type: "uint256", value: lc_id }, // VC ID
-        { type: "uint256", value: 1 }, // sequence
+        { type: "uint256", value: sequence }, // sequence
         { type: "address", value: partyA }, // partyA
         { type: "address", value: partyB }, // partyB
         { type: "uint256", value: web3latest.utils.toWei("1") }, // bond eth
@@ -2635,9 +2659,9 @@ contract("LedgerChannel :: settleVC()", function(accounts) {
       expect(channel[0][0]).to.be.equal(partyA); //pass
       expect(channel[9]).to.be.equal(true); //pass
       expect(vc[0]).to.not.be.equal(true); //pass
-      expect(vc[2]).to.be.below(sequence); //pass
-      expect(vc[8][1].toString()).to.be.below(balances[1]); //pass
-      expect(vc[9][1].toString()).to.be.below(balances[3]); //pass
+      expect(Number(vc[2])).to.be.below(sequence); //pass
+      expect(Number(vc[8][1])).to.be.below(Number(balances[1])); //pass
+      expect(Number(vc[9][1])).to.be.below(Number(balances[3])); //pass
       expect(vc[10][0].toString()).to.not.be.equal(web3latest.utils.toWei("2")); //fail
       expect(vc[10][1].toString()).to.be.equal(web3latest.utils.toWei("1")); //pass
       expect(vc[4].toString()).to.not.be.equal("0"); //pass
@@ -2670,7 +2694,7 @@ contract("LedgerChannel :: settleVC()", function(accounts) {
 
       let payload_temp = web3latest.utils.soliditySha3(
         { type: "uint256", value: lc_id }, // VC ID
-        { type: "uint256", value: 1 }, // sequence
+        { type: "uint256", value: sequence }, // sequence
         { type: "address", value: partyA }, // partyA
         { type: "address", value: partyB }, // partyB
         { type: "uint256", value: web3latest.utils.toWei("1") }, // bond eth
@@ -2687,9 +2711,9 @@ contract("LedgerChannel :: settleVC()", function(accounts) {
       expect(channel[0][0]).to.be.equal(partyA); //pass
       expect(channel[9]).to.be.equal(true); //pass
       expect(vc[0]).to.not.be.equal(true); //pass
-      expect(vc[2]).to.be.below(sequence); //pass
-      expect(vc[8][1].toString()).to.be.below(balances[1]); //pass
-      expect(vc[9][1].toString()).to.be.below(balances[3]); //pass
+      expect(Number(vc[2])).to.be.below(sequence); //pass
+      expect(Number(vc[8][1])).to.be.below(Number(balances[1])); //pass
+      expect(Number(vc[9][1])).to.be.below(Number(balances[3])); //pass
       expect(vc[10][0].toString()).to.be.equal(web3latest.utils.toWei("1")); //pass
       expect(vc[10][1].toString()).to.not.be.equal(web3latest.utils.toWei("2")); //fail
       expect(vc[4].toString()).to.not.be.equal("0"); //pass
@@ -2716,11 +2740,11 @@ contract("LedgerChannel :: settleVC()", function(accounts) {
         web3latest.utils.toWei("0"),
         web3latest.utils.toWei("1")
       ];
-      let sequence = 1;
+      let sequence = 0;
 
       let initial_temp = web3latest.utils.soliditySha3(
         { type: "uint256", value: lc_id }, // VC ID
-        { type: "uint256", value: 0 }, // sequence
+        { type: "uint256", value: sequence }, // sequence
         { type: "address", value: partyA }, // partyA
         { type: "address", value: partyB }, // partyB
         { type: "uint256", value: web3latest.utils.toWei("1") }, // bond eth
@@ -2731,11 +2755,13 @@ contract("LedgerChannel :: settleVC()", function(accounts) {
         { type: "uint256", value: web3latest.utils.toWei("1") } // token
       );
 
+      sequence = 1;
+      let openVcs = 1;
       let payload_temp = web3latest.utils.soliditySha3(
         { type: "uint256", value: lc_id },
         { type: "bool", value: false }, // isclose
-        { type: "uint256", value: "1" }, // sequence
-        { type: "uint256", value: "1" }, // open VCs
+        { type: "uint256", value: sequence }, // sequence
+        { type: "uint256", value: openVcs }, // open VCs
         { type: "bytes32", value: initial_temp }, // VC root hash
         { type: "address", value: partyA }, // partyA
         { type: "address", value: partyI }, // hub
@@ -2764,8 +2790,8 @@ contract("LedgerChannel :: settleVC()", function(accounts) {
       sigI = await web3latest.eth.sign(payload_temp, partyI);
 
       let updateParams = [
-        "1",
-        "1",
+        sequence,
+        openVcs,
         web3latest.utils.toWei("5"),
         web3latest.utils.toWei("15"),
         web3latest.utils.toWei("5"),
@@ -2782,9 +2808,9 @@ contract("LedgerChannel :: settleVC()", function(accounts) {
       expect(channel[0][0]).to.be.equal(partyA); //pass
       expect(channel[9]).to.be.equal(true); //pass
       expect(vc[0]).to.not.be.equal(true); //pass
-      expect(vc[2]).to.be.below(sequence); //pass
-      expect(vc[8][1].toString()).to.be.below(balances[1]); //pass
-      expect(vc[9][1].toString()).to.be.below(balances[3]); //pass
+      expect(Number(vc[2])).to.be.below(sequence); //pass
+      expect(Number(vc[8][1])).to.be.below(Number(balances[1])); //pass
+      expect(Number(vc[9][1])).to.be.below(Number(balances[3])); //pass
       expect(vc[10][0].toString()).to.not.be.equal(web3latest.utils.toWei("1")); //pass (inverted because initVC not called)
       expect(vc[10][1].toString()).to.not.be.equal(web3latest.utils.toWei("1")); //pass (inverted because initVC not called)
       expect(vc[4].toString()).to.be.equal("0"); //fail
@@ -2824,9 +2850,9 @@ contract("LedgerChannel :: settleVC()", function(accounts) {
       expect(channel[0][0]).to.be.equal(partyA); //pass
       expect(channel[9]).to.be.equal(true); //pass
       expect(vc[0]).to.not.be.equal(true); //pass
-      expect(vc[2]).to.be.below(sequence); //pass
-      expect(vc[8][1].toString()).to.be.below(balances[1]); //pass
-      expect(vc[9][1].toString()).to.be.below(balances[3]); //pass
+      expect(Number(vc[2])).to.be.below(sequence); //pass
+      expect(Number(vc[8][1])).to.be.below(Number(balances[1])); //pass
+      expect(Number(vc[9][1])).to.be.below(Number(balances[3])); //pass
       expect(vc[10][0].toString()).to.be.equal(web3latest.utils.toWei("1")); //pass
       expect(vc[10][1].toString()).to.be.equal(web3latest.utils.toWei("1")); //pass
       expect(vc[4].toString()).to.not.be.equal("0"); //pass
@@ -2862,7 +2888,7 @@ contract("LedgerChannel :: settleVC()", function(accounts) {
 
       let payload_temp = web3latest.utils.soliditySha3(
         { type: "uint256", value: lc_id }, // VC ID
-        { type: "uint256", value: 1 }, // sequence
+        { type: "uint256", value: sequence }, // sequence
         { type: "address", value: partyA }, // partyA
         { type: "address", value: partyB }, // partyB
         { type: "uint256", value: web3latest.utils.toWei("1") }, // bond eth
@@ -2879,9 +2905,9 @@ contract("LedgerChannel :: settleVC()", function(accounts) {
       expect(channel[0][0]).to.be.equal(partyA); //pass
       expect(channel[9]).to.be.equal(true); //pass
       expect(vc[0]).to.not.be.equal(true); //pass
-      expect(vc[2]).to.be.below(sequence); //pass
-      expect(vc[8][1].toString()).to.be.below(balances[1]); //pass
-      expect(vc[9][1].toString()).to.be.below(balances[3]); //pass
+      expect(Number(vc[2])).to.be.below(sequence); //pass
+      expect(Number(vc[8][1])).to.be.below(Number(balances[1])); //pass
+      expect(Number(vc[9][1])).to.be.below(Number(balances[3])); //pass
       expect(vc[10][0].toString()).to.be.equal(web3latest.utils.toWei("1")); //pass
       expect(vc[10][1].toString()).to.be.equal(web3latest.utils.toWei("1")); //pass
       expect(vc[4].toString()).to.not.be.equal("0"); //pass
@@ -2908,7 +2934,7 @@ contract("LedgerChannel :: settleVC()", function(accounts) {
 
       let payload_temp = web3latest.utils.soliditySha3(
         { type: "uint256", value: lc_id }, // VC ID
-        { type: "uint256", value: 2 }, // sequence
+        { type: "uint256", value: sequence }, // sequence
         { type: "address", value: partyA }, // partyA
         { type: "address", value: partyB }, // partyB
         { type: "uint256", value: web3latest.utils.toWei("1") }, // bond eth
@@ -2925,9 +2951,9 @@ contract("LedgerChannel :: settleVC()", function(accounts) {
       expect(channel[0][0]).to.be.equal(partyA); //pass
       expect(channel[9]).to.be.equal(true); //pass
       expect(vc[0]).to.not.be.equal(true); //pass
-      expect(vc[2]).to.be.below(sequence); //pass
-      expect(parseInt(vc[8][1])).to.be.below(balances[1]); //pass
-      expect(parseInt(vc[9][1])).to.be.below(balances[3]); //pass
+      expect(Number(vc[2])).to.be.below(sequence); //pass
+      expect(Number(vc[8][1])).to.be.below(Number(balances[1])); //pass
+      expect(Number(vc[9][1])).to.be.below(Number(balances[3])); //pass
       expect(vc[10][0].toString()).to.be.equal(web3latest.utils.toWei("1")); //pass
       expect(vc[10][1].toString()).to.be.equal(web3latest.utils.toWei("1")); //pass
       expect(vc[4].toString()).to.not.be.equal("0"); //pass
