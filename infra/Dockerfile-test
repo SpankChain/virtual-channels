@@ -1,0 +1,9 @@
+FROM node:9
+
+WORKDIR /usr/src/virtual-channels
+ADD . $WORKDIR
+RUN npm install
+RUN npm rebuild
+RUN npm install -g truffle
+
+CMD truffle test ./test/unit/ledgerChannelTest.js
