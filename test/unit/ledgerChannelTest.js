@@ -72,7 +72,7 @@ contract("LedgerChannel :: createChannel()", function(accounts) {
 
   describe("Creating a channel has 6 possible cases:", () => {
     it("1. Fail: Channel with that ID has already been created", async () => {
-      const lc_id = web3latest.utils.sha3("fail", { encoding: "hex" });
+      const lcId = web3latest.utils.sha3("fail", { encoding: "hex" });
       const sentBalance = [
         web3latest.utils.toWei("10"),
         web3latest.utils.toWei("10")
@@ -80,11 +80,11 @@ contract("LedgerChannel :: createChannel()", function(accounts) {
       const challenge = 0;
       let approval = await token.approve(lc.address, sentBalance[1]);
       await lc
-        .createChannel(lc_id, partyI, challenge, token.address, sentBalance, {
+        .createChannel(lcId, partyI, challenge, token.address, sentBalance, {
           from: partyA,
           value: sentBalance[0]
         })
-      let channel = await lc.getChannel(lc_id);
+      let channel = await lc.getChannel(lcId);
       expect(channel[0][0]).to.not.be.equal(
         "0x0000000000000000000000000000000000000000"
       ); // channel exists on chain
@@ -92,7 +92,7 @@ contract("LedgerChannel :: createChannel()", function(accounts) {
       // approve second transfer
       approval = await token.approve(lc.address, sentBalance[1]);
       await lc
-        .createChannel(lc_id, partyI, "0", token.address, sentBalance, {
+        .createChannel(lcId, partyI, "0", token.address, sentBalance, {
           from: partyA,
           value: sentBalance[0]
         })
@@ -100,7 +100,7 @@ contract("LedgerChannel :: createChannel()", function(accounts) {
     });
 
     it("2. Fail: No Hub address was provided.", async () => {
-      const lc_id = web3latest.utils.sha3("1111", { encoding: "hex" });
+      const lcId = web3latest.utils.sha3("1111", { encoding: "hex" });
       const sentBalance = [
         web3latest.utils.toWei("10"),
         web3latest.utils.toWei("10")
@@ -110,7 +110,7 @@ contract("LedgerChannel :: createChannel()", function(accounts) {
       const nullAddress = "0x0000000000000000000000000000000000000000";
 
       await lc
-        .createChannel(lc_id, nullAddress, challenge, token.address, sentBalance, {
+        .createChannel(lcId, nullAddress, challenge, token.address, sentBalance, {
           from: partyA,
           value: sentBalance[0]
         })
@@ -118,7 +118,7 @@ contract("LedgerChannel :: createChannel()", function(accounts) {
     });
 
     it("3. Fail: Token balance input is negative.", async () => {
-      const lc_id = web3latest.utils.sha3("1111", { encoding: "hex" });
+      const lcId = web3latest.utils.sha3("1111", { encoding: "hex" });
       const sentBalance = [
         web3latest.utils.toWei("10"),
         web3latest.utils.toWei("-10")
@@ -127,7 +127,7 @@ contract("LedgerChannel :: createChannel()", function(accounts) {
       const challenge = 0;
 
       await lc
-        .createChannel(lc_id, partyI, challenge, token.address, sentBalance, {
+        .createChannel(lcId, partyI, challenge, token.address, sentBalance, {
           from: partyA,
           value: sentBalance[0]
         })
@@ -135,7 +135,7 @@ contract("LedgerChannel :: createChannel()", function(accounts) {
     });
     
     it("4. Fail: Eth balance doesn't match paid value.", async () => {
-      const lc_id = web3latest.utils.sha3("1111", { encoding: "hex" });
+      const lcId = web3latest.utils.sha3("1111", { encoding: "hex" });
       const sentBalance = [
         web3latest.utils.toWei("10"),
         web3latest.utils.toWei("10")
@@ -145,7 +145,7 @@ contract("LedgerChannel :: createChannel()", function(accounts) {
       const challenge = 0;
 
       await lc
-        .createChannel(lc_id, partyI, challenge, token.address, sentBalance, {
+        .createChannel(lcId, partyI, challenge, token.address, sentBalance, {
           from: partyA,
           value: web3latest.utils.toWei("1")
         })
@@ -153,7 +153,7 @@ contract("LedgerChannel :: createChannel()", function(accounts) {
     });
 
     it("5. Fail: Token transferFrom failed.", async () => {
-      const lc_id = web3latest.utils.sha3("1111", { encoding: "hex" });
+      const lcId = web3latest.utils.sha3("1111", { encoding: "hex" });
       const sentBalance = [
         web3latest.utils.toWei("10"),
         web3latest.utils.toWei("100000")
@@ -162,7 +162,7 @@ contract("LedgerChannel :: createChannel()", function(accounts) {
       const challenge = 0;
 
       await lc
-        .createChannel(lc_id, partyI, challenge, token.address, sentBalance, {
+        .createChannel(lcId, partyI, challenge, token.address, sentBalance, {
           from: partyA,
           value: sentBalance[0]
         })
@@ -170,7 +170,7 @@ contract("LedgerChannel :: createChannel()", function(accounts) {
     });
 
     it("6. Success: Channel created!", async () => {
-      const lc_id = web3latest.utils.sha3("1111", { encoding: "hex" });
+      const lcId = web3latest.utils.sha3("1111", { encoding: "hex" });
       const sentBalance = [
         web3latest.utils.toWei("10"),
         web3latest.utils.toWei("10")
@@ -180,7 +180,7 @@ contract("LedgerChannel :: createChannel()", function(accounts) {
       const challenge = 0;
 
       const tx = await lc.createChannel(
-        lc_id,
+        lcId,
         partyI,
         challenge,
         token.address,
@@ -190,7 +190,7 @@ contract("LedgerChannel :: createChannel()", function(accounts) {
       const nullVal = "0x0000000000000000000000000000000000000000000000000000000000000000";
       expect(tx.logs[0].event).to.equal("DidLCOpen");
       // check the on chain information stored
-      const channel = await lc.getChannel(lc_id);
+      const channel = await lc.getChannel(lcId);
       expect(channel[0][0]).to.be.equal(partyA);
       expect(channel[0][1]).to.be.equal(partyI);
       expect(channel[1][0].toString()).to.be.equal(sentBalance[0]); // ethBalanceA
@@ -216,7 +216,12 @@ contract("LedgerChannel :: createChannel()", function(accounts) {
 });
 
 contract("LedgerChannel :: LCOpenTimeout()", function(accounts) {
-  let lc_id
+  const lcId = web3latest.utils.sha3("asdfe3", { encoding: "hex" });
+  const sentBalance = [
+    web3latest.utils.toWei("10"),
+    web3latest.utils.toWei("10")
+  ];
+  const challenge = 0
   before(async () => {
     partyA = accounts[0];
     partyB = accounts[1];
@@ -232,14 +237,9 @@ contract("LedgerChannel :: LCOpenTimeout()", function(accounts) {
     await token.transfer(partyB, web3latest.utils.toWei("100"));
     await token.transfer(partyI, web3latest.utils.toWei("100"));
 
-    let sentBalance = [
-      web3latest.utils.toWei("10"),
-      web3latest.utils.toWei("10")
-    ];
-    let approval = await token.approve(lc.address, sentBalance[1]);
-    lc_id = web3latest.utils.sha3("noTimer", { encoding: "hex" });
-    let challenge = 0
-    await lc.createChannel(lc_id, partyI, challenge, token.address, sentBalance, {
+    const approval = await token.approve(lc.address, sentBalance[1]);
+    
+    await lc.createChannel(lcId, partyI, challenge, token.address, sentBalance, {
       from: partyA,
       value: sentBalance[0]
     });
@@ -247,65 +247,40 @@ contract("LedgerChannel :: LCOpenTimeout()", function(accounts) {
 
   describe("LCopenTimeout() has 5 possible cases:", () => {
     it("1. Fail: Sender is not PartyA of channel", async () => {
-      let channel = await lc.getChannel(lc_id);
-      expect(channel[0][0]).to.not.be.equal(partyB); //fail
-      expect(channel[0][0]).to.not.be.equal(null); //pass
-      expect(channel[9]).to.be.equal(false); //pass
-      expect(channel[7] * 1000).to.be.below(Date.now()); //pass
-
       await lc
-        .LCOpenTimeout(lc_id, { from: partyB })
+        .LCOpenTimeout(lcId, { from: partyB })
         .should.be.rejectedWith(SolRevert);
-
-      // try {
-      // 	await lc.LCOpenTimeout(lc_id, {from:partyB})
-      // } catch (e) {
-      // 	expect(e.message).to.equal(SolRevert(e.tx))
-      // 	expect(e.name).to.equal('StatusError')
-      //   }
     });
+
     it("2. Fail: Channel does not exist", async () => {
-      let wrong_lc_id = web3latest.utils.sha3("wrong", { encoding: "hex" });
-      let channel = await lc.getChannel(wrong_lc_id);
-      expect(channel[0][0]).to.be.equal(
-        null || "0x0000000000000000000000000000000000000000"
-      ); //fail
-      expect(channel[9]).to.be.equal(false); //pass
-      expect(channel[7] * 1000).to.be.below(Date.now()); //pass
-
+      const fakeLcId = web3latest.utils.sha3("wrong", { encoding: "hex" });
       await lc
-        .LCOpenTimeout(wrong_lc_id, { from: partyA })
+        .LCOpenTimeout(fakeLcId, { from: partyA })
         .should.be.rejectedWith(SolRevert);
-
-      // try {
-      // 	await lc.LCOpenTimeout(lc_id, {from:partyA})
-      // } catch (e) {
-      // 	expect(e.message).to.equal(SolRevert(e.tx))
-      // 	expect(e.name).to.equal('StatusError')
-      //   }
     });
+
     it("3. Fail: Channel is already open", async () => {
-      let joined_lc_id = web3latest.utils.sha3("joined", { encoding: "hex" });
-      await lc.createChannel(joined_lc_id, partyI, 0, token.address, [0, 0], {
-        from: partyA
+      // approve transfer
+      const approval = await token.approve(lc.address, sentBalance[1]);
+
+      const joinedChannelId = web3latest.utils.sha3("joined", { encoding: "hex" });
+      await lc.createChannel(joinedChannelId, partyI, challenge, token.address, sentBalance, {
+        from: partyA,
+        value: sentBalance[0]
       });
-      await lc.joinChannel(joined_lc_id, [0, 0], { from: partyI });
-      let channel = await lc.getChannel(joined_lc_id);
-      expect(channel[0][0]).to.be.equal(partyA); //pass
-      expect(channel[0][0]).to.not.be.equal(null); //pass
-      expect(channel[9]).to.be.equal(true); //fail
-      expect(channel[7] * 1000).to.be.below(Date.now()); //pass
+      await lc.joinChannel(joinedChannelId, [0, 0], { from: partyI });
 
       await lc
-        .LCOpenTimeout(joined_lc_id, { from: partyA })
+        .LCOpenTimeout(joinedChannelId, { from: partyA })
         .should.be.rejectedWith(SolRevert);
 
     });
+
     it("4. Fail: LCopenTimeout has not expired", async () => {
-      let lc_id_fail = web3latest.utils.sha3("longTimer", { encoding: "hex" });
-      let challenge = 1000000
+      const longChallenge = web3latest.utils.sha3("longTimer", { encoding: "hex" });
+      const challenge = 10000
       await lc.createChannel(
-        lc_id_fail,
+        longChallenge,
         partyI,
         challenge,
         token.address,
@@ -313,27 +288,17 @@ contract("LedgerChannel :: LCOpenTimeout()", function(accounts) {
         { from: partyA, value: 0 }
       );
 
-      let channel = await lc.getChannel(lc_id_fail);
-      expect(channel[0][0]).to.be.equal(partyA); //pass
-      expect(channel[0][0]).to.not.be.equal(null); //pass
-      expect(channel[9]).to.be.equal(false); //pass
-      expect(channel[7] * 1000).to.be.above(Date.now()); //fail
-
       await lc
-        .LCOpenTimeout(lc_id_fail, { from: partyA })
+        .LCOpenTimeout(longChallenge, { from: partyA })
         .should.be.rejectedWith(SolRevert);
-
     });
+
     //******
     // NOTE: there's one more require in the contract for a failed token transfer. Unfortunately we can't recreate that here.
     //******
 
     it("5. Success!", async () => {
-      const channel = await lc.getChannel(lc_id);
-      expect(channel[0][0]).to.be.equal(partyA); //pass
-      expect(channel[0][0]).to.not.be.equal(null); //pass
-      expect(channel[9]).to.be.equal(false); //pass
-      expect(channel[7] * 1000).to.be.below(Date.now()); //pass
+      let channel = await lc.getChannel(lcId);
 
       const oldBalanceEth = await web3latest.eth.getBalance(partyA);
       const oldBalanceToken = await token.balanceOf(partyA);
@@ -343,7 +308,7 @@ contract("LedgerChannel :: LCOpenTimeout()", function(accounts) {
 
       // explicitly wait 1s
       wait(1000)
-      await lc.LCOpenTimeout(lc_id, { from: partyA });
+      const tx = await lc.LCOpenTimeout(lcId, { from: partyA });
 
       const newBalanceEth = await web3latest.eth.getBalance(partyA);
       const newBalanceToken = await token.balanceOf(partyA);
@@ -359,8 +324,15 @@ contract("LedgerChannel :: LCOpenTimeout()", function(accounts) {
       )
       returnedEth = web3latest.utils.toBN(web3latest.utils.toWei(String(Math.ceil(returnedEth))))
 
+      // ensure transfer
       expect(returnedEth.eq(ethDeposit)).to.be.equal(true)
       expect(returnedTokens.eq(tokenDeposit)).to.be.equal(true)
+      // ensure event
+      expect(tx.logs[0].event).to.equal("DidLCClose")
+      // ensure deletion
+      channel = await lc.getChannel(lcId);
+      expect(channel[0][0]).to.not.equal(partyA)
+      expect(channel[0][1]).to.not.equal(partyI)
     });
   });
 });
