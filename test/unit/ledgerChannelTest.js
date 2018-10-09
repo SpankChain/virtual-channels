@@ -557,11 +557,20 @@ contract("LedgerChannel :: consensusCloseChannel()", function(accounts) {
     web3latest.utils.toWei("10")
   ];
 
+  const finalBalances = [
+    web3latest.utils.toWei("5"), // ethA
+    web3latest.utils.toWei("15"), // ethI
+    web3latest.utils.toWei("5"), // erc20A
+    web3latest.utils.toWei("15") // erc20I
+  ];
+
   const lcId = web3latest.utils.sha3("1111", { encoding: "hex" });
   const challenge = 0;
+  const finalSequence = 1;
+  const openVcs = 0;
 
   let sigA, sigI, fakeSig;
-  let lcFinalHash, fakeHash, finalSequence;
+  let lcFinalHash, fakeHash;
   before(async () => {
     partyA = accounts[0];
     partyB = accounts[1];
@@ -597,20 +606,10 @@ contract("LedgerChannel :: consensusCloseChannel()", function(accounts) {
       value: sentBalance[0]
     });
 
-    finalSequence = 1;
-    const openVcs = 0;
-
-    const finalBalances = [
-      web3latest.utils.toWei("5"), // ethA
-      web3latest.utils.toWei("15"), // ethI
-      web3latest.utils.toWei("5"), // erc20A
-      web3latest.utils.toWei("15") // erc20I
-    ];
-
     lcFinalHash = web3latest.utils.soliditySha3(
       { type: "bytes32", value: lcId },
       { type: "bool", value: true }, // isclose
-      { type: "uint256", value: sequence }, // sequence
+      { type: "uint256", value: finalSequence }, // sequence
       { type: "uint256", value: openVcs }, // open VCs
       { type: "bytes32", value: emptyRootHash }, // VC root hash
       { type: "address", value: partyA }, // partyA
@@ -624,20 +623,20 @@ contract("LedgerChannel :: consensusCloseChannel()", function(accounts) {
     fakeHash = web3latest.utils.soliditySha3(
       { type: "bytes32", value: lcId }, // ID
       { type: "bool", value: false }, // isclose
-      { type: "uint256", value: sequence }, // sequence
+      { type: "uint256", value: finalSequence }, // sequence
       { type: "uint256", value: openVcs }, // open VCs
       { type: "string", value: emptyRootHash }, // VC root hash
       { type: "address", value: partyA }, // partyA
       { type: "address", value: partyI }, // hub
-      { type: "uint256", value: web3latest.utils.toWei("15") }, // eth
-      { type: "uint256", value: web3latest.utils.toWei("15") }, // eth
-      { type: "uint256", value: web3latest.utils.toWei("15") }, // token
-      { type: "uint256", value: web3latest.utils.toWei("15") } // token
+      { type: "uint256", value: finalBalances[0] }, // ethA
+      { type: "uint256", value: finalBalances[1] }, // ethI
+      { type: "uint256", value: finalBalances[2] }, // tokenA
+      { type: "uint256", value: finalBalances[3] } // tokenI
     );
 
-    sigA = await web3latest.eth.sign(lcFinal, partyA);
-    sigI = await web3latest.eth.sign(lcFinal, partyI);
-    fakeSig = await web3latest.eth.sign(fakeSig, partyA);
+    sigA = await web3latest.eth.sign(lcFinalHash, partyA);
+    sigI = await web3latest.eth.sign(lcFinalHash, partyI);
+    fakeSig = await web3latest.eth.sign(fakeHash, partyA);
   });
 
   describe("consensusCloseChannel() has 7 possible cases:", () => {
@@ -667,8 +666,13 @@ contract("LedgerChannel :: consensusCloseChannel()", function(accounts) {
       );
 
       await lc
-        .consensusCloseChannel(lcId, finalSequence, finalBalances, sigA, sigI)
-        .should.be.rejectedWith(SolRevert);
+        .consensusCloseChannel(
+          failedId, 
+          finalSequence, 
+          finalBalances, 
+          sigA, 
+          sigI
+        ).should.be.rejectedWith(SolRevert);
     });
 
     it("3. Fail: Total Eth deposit is not equal to submitted Eth balances", async () => {
@@ -680,7 +684,7 @@ contract("LedgerChannel :: consensusCloseChannel()", function(accounts) {
       ];
 
       await lc
-        .consensusCloseChannel(lcId, sequence, failedBalances, sigA, sigI)
+        .consensusCloseChannel(lcId, finalSequence, failedBalances, sigA, sigI)
         .should.be.rejectedWith(SolRevert);
     });
 
@@ -691,8 +695,9 @@ contract("LedgerChannel :: consensusCloseChannel()", function(accounts) {
         web3latest.utils.toWei("5"),
         web3latest.utils.toWei("5")
       ];
+
       await lc
-        .consensusCloseChannel(lcId, failedBalances, failedBalances, sigA, sigI)
+        .consensusCloseChannel(lcId, finalSequence, failedBalances, sigA, sigI)
         .should.be.rejectedWith(SolRevert);
     });
 
