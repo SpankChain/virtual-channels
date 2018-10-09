@@ -17,10 +17,14 @@ const should = require("chai")
   .use(require("chai-bignumber")(BigNumber))
   .should();
 
-/** NOTE: tests should be wrapped in try-catch (commented out) and this SolRevert should be used if testing with ganache-ui */
-// const SolRevert = (txId) => {
-// 	return `Transaction: ${txId} exited with an error (status 0).\nPlease check that the transaction:\n    - satisfies all conditions set by Solidity \`require\` statements.\n    - does not trigger a Solidity \`revert\` statement.\n`
-// }
+// GENERAL TO DOs:
+// For the passing case
+// - test emitted event values
+// - test all written channel data stores
+
+// Other general tests:
+// - deposit tests
+// - reentrancy tests on token transfer fns
 
 const SolRevert = "VM Exception while processing transaction: revert";
 
@@ -53,8 +57,6 @@ let sigA;
 let sigI;
 let sigB;
 let fakeSig;
-
-//is close flag, lc state sequence, number open vc, vc root hash, partyA/B, partyI, balA/B, balI
 
 contract("LedgerChannel :: createChannel()", function(accounts) {
   before(async () => {
@@ -736,7 +738,7 @@ contract("LedgerChannel :: consensusCloseChannel()", function(accounts) {
 
 // NOTE: in this case, only tested with empty root hash
 // non-empty root hash is tested in initVCState fns
-contract.only("LedgerChannel :: updateLCstate()", function(accounts) {
+contract("LedgerChannel :: updateLCstate()", function(accounts) {
   const initialDeposit = [
     web3latest.utils.toWei("10"),
     web3latest.utils.toWei("10")
