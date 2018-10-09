@@ -11,6 +11,7 @@ const web3latest = new Web3latest(
   new Web3latest.providers.HttpProvider("http://localhost:8545")
 ); //ganache port
 const BigNumber = web3.BigNumber;
+const Connext = require("connext");
 
 const should = require("chai")
   .use(require("chai-as-promised"))
@@ -28,6 +29,9 @@ const should = require("chai")
 
 const SolRevert = "VM Exception while processing transaction: revert";
 
+const emptyRootHash =
+  "0x0000000000000000000000000000000000000000000000000000000000000000";
+
 function wait(ms) {
   const start = Date.now();
   console.log(`Waiting for ${ms}ms...`);
@@ -35,8 +39,20 @@ function wait(ms) {
   return true;
 }
 
-const emptyRootHash =
-  "0x0000000000000000000000000000000000000000000000000000000000000000";
+function generateProof(vcHashToProve, vcInitStates) {
+  const merkle = Connext.generateMerkleTree(vcInitStates);
+  const mproof = merkle.proof(Utils.hexToBuffer(vcHashToProve));
+
+  let proof = [];
+  for (var i = 0; i < mproof.length; i++) {
+    proof.push(Utils.bufferToHex(mproof[i]));
+  }
+
+  proof.unshift(vcHashToProve);
+
+  proof = Utils.marshallState(proof);
+  return proof;
+}
 
 let lc;
 let ec;
@@ -669,12 +685,13 @@ contract("LedgerChannel :: consensusCloseChannel()", function(accounts) {
 
       await lc
         .consensusCloseChannel(
-          failedId, 
-          finalSequence, 
-          finalBalances, 
-          sigA, 
+          failedId,
+          finalSequence,
+          finalBalances,
+          sigA,
           sigI
-        ).should.be.rejectedWith(SolRevert);
+        )
+        .should.be.rejectedWith(SolRevert);
     });
 
     it("3. Fail: Total Eth deposit is not equal to submitted Eth balances", async () => {
@@ -729,7 +746,13 @@ contract("LedgerChannel :: consensusCloseChannel()", function(accounts) {
 
     it("7. Success: Channel Closed", async () => {
       const openChansInit = await lc.numChannels();
-      const tx = await lc.consensusCloseChannel(lcId, finalSequence, finalBalances, sigA, sigI);
+      const tx = await lc.consensusCloseChannel(
+        lcId,
+        finalSequence,
+        finalBalances,
+        sigA,
+        sigI
+      );
       const openChansFinal = await lc.numChannels();
       expect(openChansInit - openChansFinal).to.be.equal(1);
     });
@@ -749,7 +772,7 @@ contract("LedgerChannel :: updateLCstate()", function(accounts) {
     web3latest.utils.toWei("5"),
     web3latest.utils.toWei("15"),
     web3latest.utils.toWei("5"),
-    web3latest.utils.toWei("15"),
+    web3latest.utils.toWei("15")
   ];
 
   // nonce = 3
@@ -757,7 +780,7 @@ contract("LedgerChannel :: updateLCstate()", function(accounts) {
     web3latest.utils.toWei("0"),
     web3latest.utils.toWei("20"),
     web3latest.utils.toWei("0"),
-    web3latest.utils.toWei("20"),
+    web3latest.utils.toWei("20")
   ];
 
   const lcId = web3latest.utils.sha3("channel1", { encoding: "hex" });
@@ -785,10 +808,17 @@ contract("LedgerChannel :: updateLCstate()", function(accounts) {
     await token.approve(lc.address, initialDeposit[1], { from: partyA });
     await token.approve(lc.address, initialDeposit[1], { from: partyI });
     // create and join channel
-    await lc.createChannel(lcId, partyI, challenge, token.address, initialDeposit, {
-      from: partyA,
-      value: initialDeposit[0]
-    });
+    await lc.createChannel(
+      lcId,
+      partyI,
+      challenge,
+      token.address,
+      initialDeposit,
+      {
+        from: partyA,
+        value: initialDeposit[0]
+      }
+    );
     await lc.joinChannel(lcId, initialDeposit, {
       from: partyI,
       value: initialDeposit[0]
@@ -808,7 +838,7 @@ contract("LedgerChannel :: updateLCstate()", function(accounts) {
       { type: "uint256", value: finalBalances[3] } // tokenI
     );
 
-    const finalSequence = sequence + 1
+    const finalSequence = sequence + 1;
     const finalStateHash = web3latest.utils.soliditySha3(
       { type: "bytes32", value: lcId },
       { type: "bool", value: false }, // isclose
@@ -839,13 +869,12 @@ contract("LedgerChannel :: updateLCstate()", function(accounts) {
         finalBalances[0],
         finalBalances[1],
         finalBalances[2],
-        finalBalances[3],
+        finalBalances[3]
       ];
       const failedId = web3latest.utils.sha3("akjn", { encoding: "hex" });
       await lc
         .updateLCstate(failedId, updateParams, emptyRootHash, sigA, sigI)
         .should.be.rejectedWith(SolRevert);
-
     });
 
     it("2. Fail: Channel with that ID is not joined", async () => {
@@ -866,19 +895,14 @@ contract("LedgerChannel :: updateLCstate()", function(accounts) {
         finalBalances[0],
         finalBalances[1],
         finalBalances[2],
-        finalBalances[3],
+        finalBalances[3]
       ];
 
       await lc
-        .updateLCstate(
-          unjoinedId, 
-          updateParams, 
-          emptyRootHash, 
-          sigA, 
-          sigI
-        ).should.be.rejectedWith(SolRevert);
+        .updateLCstate(unjoinedId, updateParams, emptyRootHash, sigA, sigI)
+        .should.be.rejectedWith(SolRevert);
     });
-    
+
     it("3. Fail: Total Eth deposit is not equal to submitted Eth balances", async () => {
       const updateParams = [
         sequence,
@@ -886,7 +910,7 @@ contract("LedgerChannel :: updateLCstate()", function(accounts) {
         initialDeposit[0],
         finalBalances[1],
         finalBalances[2],
-        finalBalances[3],
+        finalBalances[3]
       ];
       const badStateHash = web3latest.utils.soliditySha3(
         { type: "bytes32", value: lcId }, // ID
@@ -900,18 +924,13 @@ contract("LedgerChannel :: updateLCstate()", function(accounts) {
         { type: "uint256", value: updateParams[3] }, // ethI
         { type: "uint256", value: updateParams[4] }, // tokenA
         { type: "uint256", value: updateParams[5] } // tokenI
-      ); 
+      );
       const badSigA = await web3latest.eth.sign(badStateHash, partyA);
       const badSigI = await web3latest.eth.sign(badStateHash, partyA);
 
       await lc
-        .updateLCstate(
-          lcId, 
-          updateParams, 
-          emptyRootHash, 
-          badSigA, 
-          badSigI
-        ).should.be.rejectedWith(SolRevert);
+        .updateLCstate(lcId, updateParams, emptyRootHash, badSigA, badSigI)
+        .should.be.rejectedWith(SolRevert);
     });
 
     it("4. Fail: Total token deposit is not equal to submitted Eth balances", async () => {
@@ -921,7 +940,7 @@ contract("LedgerChannel :: updateLCstate()", function(accounts) {
         finalBalances[0],
         finalBalances[1],
         initialDeposit[1],
-        finalBalances[3],
+        finalBalances[3]
       ];
       const badStateHash = web3latest.utils.soliditySha3(
         { type: "bytes32", value: lcId }, // ID
@@ -935,18 +954,13 @@ contract("LedgerChannel :: updateLCstate()", function(accounts) {
         { type: "uint256", value: updateParams[3] }, // ethI
         { type: "uint256", value: updateParams[4] }, // tokenA
         { type: "uint256", value: updateParams[5] } // tokenI
-      ); 
+      );
       const badSigA = await web3latest.eth.sign(badStateHash, partyA);
       const badSigI = await web3latest.eth.sign(badStateHash, partyI);
 
       await lc
-        .updateLCstate(
-          lcId, 
-          updateParams, 
-          emptyRootHash, 
-          badSigA, 
-          badSigI
-        ).should.be.rejectedWith(SolRevert);
+        .updateLCstate(lcId, updateParams, emptyRootHash, badSigA, badSigI)
+        .should.be.rejectedWith(SolRevert);
     });
 
     it("5. Fail: Incorrect sig for partyA", async () => {
@@ -956,7 +970,7 @@ contract("LedgerChannel :: updateLCstate()", function(accounts) {
         finalBalances[0],
         finalBalances[1],
         finalBalances[2],
-        finalBalances[3],
+        finalBalances[3]
       ];
       await lc
         .updateLCstate(lcId, updateParams, emptyRootHash, fakeSig, sigI)
@@ -970,7 +984,7 @@ contract("LedgerChannel :: updateLCstate()", function(accounts) {
         finalBalances[0],
         finalBalances[1],
         finalBalances[2],
-        finalBalances[3],
+        finalBalances[3]
       ];
       await lc
         .updateLCstate(lcId, updateParams, emptyRootHash, sigA, fakeSig)
@@ -984,7 +998,7 @@ contract("LedgerChannel :: updateLCstate()", function(accounts) {
         finalBalances[0],
         finalBalances[1],
         finalBalances[2],
-        finalBalances[3],
+        finalBalances[3]
       ];
       await lc.updateLCstate(lcId, updateParams, emptyRootHash, sigA, sigI);
 
@@ -1010,14 +1024,14 @@ contract("LedgerChannel :: updateLCstate()", function(accounts) {
 
       const badSigA = await web3latest.eth.sign(finalStateHash2, partyA);
       const badSigI = await web3latest.eth.sign(finalStateHash2, partyI);
-  
+
       const updateParams = [
         badSequence,
         openVcs,
         finalBalances2[0],
         finalBalances2[1],
         finalBalances2[2],
-        finalBalances2[3],
+        finalBalances2[3]
       ];
 
       await lc
@@ -1033,25 +1047,24 @@ contract("LedgerChannel :: updateLCstate()", function(accounts) {
         finalBalances2[0],
         finalBalances2[1],
         finalBalances2[2],
-        finalBalances2[3],
+        finalBalances2[3]
       ];
 
-      await lc
-        .updateLCstate(lcId, updateParams, emptyRootHash, sigA2, sigI2)
+      await lc.updateLCstate(lcId, updateParams, emptyRootHash, sigA2, sigI2);
 
       const channel = await lc.getChannel(lcId);
       expect(Number(channel[4])).to.be.equal(finalSequence); //new state updated successfully!
     });
 
-    it("10. Error: UpdateLC timed out", async () => {    
-      const finalSequence = sequence + 2;  
+    it("10. Error: UpdateLC timed out", async () => {
+      const finalSequence = sequence + 2;
       const updateParams = [
         finalSequence,
         openVcs,
         finalBalances[0],
         finalBalances[1],
         finalBalances[2],
-        finalBalances[3],
+        finalBalances[3]
       ];
 
       const hash = web3latest.utils.soliditySha3(
@@ -1072,7 +1085,7 @@ contract("LedgerChannel :: updateLCstate()", function(accounts) {
       const finalSigI = await web3latest.eth.sign(hash, partyI);
 
       // wait 1s after challenge
-      wait(1000*(1+challenge))
+      wait(1000 * (1 + challenge));
       await lc
         .updateLCstate(lcId, updateParams, emptyRootHash, finalSigA, finalSigI)
         .should.be.rejectedWith(SolRevert);
@@ -1081,6 +1094,29 @@ contract("LedgerChannel :: updateLCstate()", function(accounts) {
 });
 
 contract("LedgerChannel :: initVCstate()", function(accounts) {
+  const lcDeposit0 = [
+    web3latest.utils.toWei("10"),
+    web3latest.utils.toWei("10")
+  ];
+
+  const vcDeposit0 = [web3latest.utils.toWei("1"), web3latest.utils.toWei("1")];
+
+  // in subchanA, subchanB reflects bonds in I balance
+  const lcDeposit1 = [
+    web3latest.utils.toWei("9"), // ethA
+    web3latest.utils.toWei("10"), // ethI
+    web3latest.utils.toWei("9"), // tokenA
+    web3latest.utils.toWei("10") // tokenI
+  ];
+
+  const lcId = web3latest.utils.sha3("1111", { encoding: "hex" });
+  const vcId = web3latest.utils.sha3("asldk", { encoding: "hex" });
+  const challenge = 4;
+  const lcSequence = 1;
+  const vcSequence = 0;
+  const openVcs = 1;
+  let sigALc, sigILc, sigAVc;
+  let vcRootHash, proof;
   before(async () => {
     partyA = accounts[0];
     partyB = accounts[1];
@@ -1093,501 +1129,336 @@ contract("LedgerChannel :: initVCstate()", function(accounts) {
     Ledger.link("ECTools", ec.address);
     lc = await Ledger.new();
 
+    await token.transfer(partyA, web3latest.utils.toWei("100"));
     await token.transfer(partyB, web3latest.utils.toWei("100"));
     await token.transfer(partyI, web3latest.utils.toWei("100"));
 
-    let sentBalance = [
-      web3latest.utils.toWei("10"),
-      web3latest.utils.toWei("10")
-    ];
-    await token.approve(lc.address, sentBalance[1]);
-    await token.approve(lc.address, sentBalance[1], { from: partyI });
-    let lc_id = web3latest.utils.sha3("1111", { encoding: "hex" });
-    await lc.createChannel(lc_id, partyI, "1", token.address, sentBalance, {
+    await token.approve(lc.address, lcDeposit0[1], { from: partyA });
+    await token.approve(lc.address, lcDeposit0[1], { from: partyI });
+
+    await lc.createChannel(lcId, partyI, challenge, token.address, lcDeposit0, {
       from: partyA,
-      value: sentBalance[0]
+      value: lcDeposit0[0]
     });
-    await lc.joinChannel(lc_id, sentBalance, {
+    await lc.joinChannel(lcId, lcDeposit0, {
       from: partyI,
-      value: sentBalance[0]
+      value: lcDeposit0[0]
     });
 
-    initialVCstate = web3latest.utils.soliditySha3(
-      { type: "uint256", value: lc_id }, // VC ID
-      { type: "uint256", value: 0 }, // sequence
+    const initVcHash = web3latest.utils.soliditySha3(
+      { type: "uint256", value: vcId }, // VC ID
+      { type: "uint256", value: vcSequence }, // sequence
       { type: "address", value: partyA }, // partyA
       { type: "address", value: partyB }, // partyB
-      { type: "uint256", value: web3latest.utils.toWei("1") }, // bond eth
-      { type: "uint256", value: web3latest.utils.toWei("1") }, // bond token
-      { type: "uint256", value: web3latest.utils.toWei("0") }, // eth
-      { type: "uint256", value: web3latest.utils.toWei("1") }, // eth
-      { type: "uint256", value: web3latest.utils.toWei("0") }, // token
-      { type: "uint256", value: web3latest.utils.toWei("1") } // token
+      { type: "uint256", value: vcDeposit0[0] }, // bond eth
+      { type: "uint256", value: vcDeposit0[1] }, // bond token
+      { type: "uint256", value: vcDeposit0[0] }, // ethA
+      { type: "uint256", value: web3latest.utils.toWei("0") }, // ethB
+      { type: "uint256", value: vcDeposit0[1] }, // tokenA
+      { type: "uint256", value: web3latest.utils.toWei("0") } // tokenB
     );
 
-    payload = web3latest.utils.soliditySha3(
-      { type: "uint256", value: lc_id },
+    const threadInitialStates = {
+      channelId: vcId,
+      nonce: vcSequence,
+      partyA,
+      partyB,
+      ethBalanceA: vcDeposit0[0],
+      ethBalanceB: web3latest.utils.toBN("0"),
+      tokenBalanceA: vcDeposit0[1],
+      tokenBalanceB: web3latest.utils.toBN("0")
+    };
+
+    vcRootHash = Connext.generateThreadRootHash({
+      threadInitialStates: [threadInitialStates]
+    });
+
+    proof = generateProof(initVcHash, [threadInitialStates]);
+
+    const lcStateHash1 = web3latest.utils.soliditySha3(
+      { type: "uint256", value: lcId },
       { type: "bool", value: false }, // isclose
-      { type: "uint256", value: "1" }, // sequence
-      { type: "uint256", value: "1" }, // open VCs
-      { type: "bytes32", value: initialVCstate }, // VC root hash
+      { type: "uint256", value: lcSequence }, // sequence
+      { type: "uint256", value: openVcs }, // open VCs
+      { type: "bytes32", value: vcRootHash }, // VC root hash
       { type: "address", value: partyA }, // partyA
       { type: "address", value: partyI }, // hub
-      { type: "uint256", value: web3latest.utils.toWei("5") },
-      { type: "uint256", value: web3latest.utils.toWei("15") },
-      { type: "uint256", value: web3latest.utils.toWei("5") }, // token
-      { type: "uint256", value: web3latest.utils.toWei("15") } // token
+      { type: "uint256", value: lcDeposit1[0] }, // ethA
+      { type: "uint256", value: lcDeposit1[1] }, // ethI
+      { type: "uint256", value: lcDeposit1[2] }, // tokenA
+      { type: "uint256", value: lcDeposit1[3] } // tokenI
     );
 
-    fakeSig = web3latest.utils.soliditySha3(
-      { type: "uint256", value: lc_id }, // ID
-      { type: "bool", value: false }, // isclose
-      { type: "uint256", value: "1" }, // sequence
-      { type: "uint256", value: "0" }, // open VCs
-      { type: "string", value: "0x0" }, // VC root hash
+    const fakeVcHash = web3latest.utils.soliditySha3(
+      { type: "uint256", value: vcId }, // VC ID
+      { type: "uint256", value: 7 }, // sequence (wrong)
       { type: "address", value: partyA }, // partyA
-      { type: "address", value: partyI }, // hub
-      { type: "uint256", value: web3latest.utils.toWei("15") }, // eth
-      { type: "uint256", value: web3latest.utils.toWei("15") }, // eth
-      { type: "uint256", value: web3latest.utils.toWei("15") }, // token
-      { type: "uint256", value: web3latest.utils.toWei("15") } // token
+      { type: "address", value: partyB }, // partyB
+      { type: "uint256", value: vcDeposit0[0] }, // bond eth
+      { type: "uint256", value: vcDeposit0[1] }, // bond token
+      { type: "uint256", value: vcDeposit0[0] }, // ethA
+      { type: "uint256", value: web3latest.utils.toWei("0") }, // ethB
+      { type: "uint256", value: vcDeposit0[1] }, // tokenA
+      { type: "uint256", value: web3latest.utils.toWei("0") } // tokenB
     );
 
-    sigA = await web3latest.eth.sign(payload, partyA);
-    sigI = await web3latest.eth.sign(payload, partyI);
-    fakeSig = await web3latest.eth.sign(fakeSig, partyA);
+    sigALc = await web3latest.eth.sign(lcStateHash1, partyA);
+    sigILc = await web3latest.eth.sign(lcStateHash1, partyI);
+    sigAVc = await web3latest.eth.sign(initVcHash, partyA);
+    fakeSig = await web3latest.eth.sign(fakeVcHash, partyA);
 
-    vcRootHash = initialVCstate;
-    bond = [web3latest.utils.toWei("1"), web3latest.utils.toWei("1")];
-    let updateParams = [
-      "1",
-      "1",
-      web3latest.utils.toWei("5"),
-      web3latest.utils.toWei("15"),
-      web3latest.utils.toWei("5"),
-      web3latest.utils.toWei("15")
+    // call updateLcState on channel
+    const updateParams = [
+      lcSequence,
+      openVcs,
+      lcDeposit1[0], // ethA
+      lcDeposit1[1], // ethI
+      lcDeposit1[2], // tokenA
+      lcDeposit1[3] // tokenI
     ];
-    await lc.updateLCstate(lc_id, updateParams, vcRootHash, sigA, sigI);
-
-    let lc_id_fail = web3latest.utils.sha3("fail", { encoding: "hex" });
-    await token.approve(lc.address, sentBalance[1]);
-    await lc.createChannel(
-      lc_id_fail,
-      partyI,
-      "0",
-      token.address,
-      sentBalance,
-      { from: partyA, value: sentBalance[0] }
-    );
+    await lc.updateLCstate(lcId, updateParams, vcRootHash, sigALc, sigILc);
   });
 
   describe("initVCstate() has 8 possible cases:", () => {
-    it("1. Fail: Channel with that ID does not exist", async () => {
-      let lc_id = web3latest.utils.sha3("nochannel", { encoding: "hex" });
-      let balances = [
-        web3latest.utils.toWei("0"),
-        web3latest.utils.toWei("1"),
-        web3latest.utils.toWei("0"),
-        web3latest.utils.toWei("1")
-      ];
-      let channel = await lc.getChannel(lc_id);
-      let vc = await lc.getVirtualChannel(lc_id);
-      let verificationA = await web3latest.eth.sign(initialVCstate, partyA);
-      sigA = await web3latest.eth.sign(initialVCstate, partyA);
+    it("1. Fail: Ledger channel with that ID does not exist", async () => {
+      const failedLcId = web3latest.utils.sha3("nochannel", {
+        encoding: "hex"
+      });
 
-      expect(channel[0][0]).to.be.equal(
-        "0x0000000000000000000000000000000000000000"
-      ); //fail
-      expect(channel[9]).to.not.be.equal(true); //pass
-      expect(vc[0]).to.not.be.equal(true); //pass
-      expect(channel[8] * 1000).to.be.below(Date.now()); //pass (inverted because channel[8] is 0 for nonexistent channel)
-      expect(vc[4].toString()).to.be.equal("0"); //pass
-      expect(sigA).to.be.equal(verificationA); //pass
-      expect(vcRootHash).to.be.equal(initialVCstate); //pass (this is a way of checking isContained() if there is only one VC open)
+      const balances = [
+        vcDeposit0[0], // ethA
+        web3latest.utils.toWei("0"), // ethB
+        vcDeposit0[1], // tokenA
+        web3latest.utils.toWei("0") // tokenB
+      ];
+
+      console.log("proof:", proof);
 
       await lc
-        .initVCstate(lc_id, lc_id, 0, partyA, partyB, bond, balances, sigA)
+        .initVCstate(
+          failedLcId,
+          vcId,
+          proof,
+          partyA,
+          partyB,
+          vcDeposit0, // bond
+          balances,
+          sigAVc
+        )
         .should.be.rejectedWith(SolRevert);
-
-      // try {
-      // await lc.initVCstate(lc_id, lc_id, 0, partyA, partyB, bond, balances, sigA)
-      // } catch (e) {
-      // expect(e.message).to.equal(SolRevert(e.tx))
-      // expect(e.name).to.equal('StatusError')
-      // }
     });
+
     it("2. Fail: Channel with that ID is not open", async () => {
-      let lc_id = web3latest.utils.sha3("fail", { encoding: "hex" });
-      let balances = [
-        web3latest.utils.toWei("0"),
-        web3latest.utils.toWei("1"),
-        web3latest.utils.toWei("0"),
-        web3latest.utils.toWei("1")
-      ];
-      let channel = await lc.getChannel(lc_id);
-      let vc = await lc.getVirtualChannel(lc_id);
-      let verificationA = await web3latest.eth.sign(initialVCstate, partyA);
-      sigA = await web3latest.eth.sign(initialVCstate, partyA);
+      // create unjoined channel
+      const unjoinedLc = web3latest.utils.sha3("fail", { encoding: "hex" });
 
-      expect(channel[0][0]).to.be.equal(partyA); //pass
-      expect(channel[9]).to.not.be.equal(true); //fail
-      expect(vc[0]).to.not.be.equal(true); //pass
-      expect(channel[8] * 1000).to.be.below(Date.now()); //pass (inverted because channel[8] is 0 for non open channel)
-      expect(vc[4].toString()).to.be.equal("0"); //pass
-      expect(sigA).to.be.equal(verificationA); //pass
-      expect(vcRootHash).to.be.equal(initialVCstate); //pass (this is a way of checking isContained() if there is only one VC open)
-
-      await lc
-        .initVCstate(lc_id, lc_id, 0, partyA, partyB, bond, balances, sigA)
-        .should.be.rejectedWith(SolRevert);
-
-      // try {
-      // await lc.initVCstate(lc_id, lc_id, 0, partyA, partyB, bond, balances, sigA)
-      // } catch (e) {
-      // expect(e.message).to.equal(SolRevert(e.tx))
-      // expect(e.name).to.equal('StatusError')
-      // }
-    });
-    it("TODO Fail: 3. Fail: VC with that ID is closed already", async () => {
-      let lc_id = web3latest.utils.sha3("closed", { encoding: "hex" });
-      let sentBalance = [
-        web3latest.utils.toWei("10"),
-        web3latest.utils.toWei("10")
-      ];
-      await token.approve(lc.address, sentBalance[1]);
-      await token.approve(lc.address, sentBalance[1], { from: partyI });
-      await lc.createChannel(lc_id, partyI, 0, token.address, sentBalance, {
-        from: partyA,
-        value: sentBalance[0]
-      });
-      await lc.joinChannel(lc_id, sentBalance, {
-        from: partyI,
-        value: sentBalance[0]
-      });
-
-      let vcRootHash_temp = web3latest.utils.soliditySha3(
-        { type: "uint256", value: lc_id }, // VC ID
-        { type: "uint256", value: 0 }, // sequence
-        { type: "address", value: partyA }, // partyA
-        { type: "address", value: partyB }, // partyB
-        { type: "uint256", value: web3latest.utils.toWei("1") }, // bond eth
-        { type: "uint256", value: web3latest.utils.toWei("1") }, // bond token
-        { type: "uint256", value: web3latest.utils.toWei("1") }, // eth
-        { type: "uint256", value: web3latest.utils.toWei("0") }, // eth
-        { type: "uint256", value: web3latest.utils.toWei("1") }, // token
-        { type: "uint256", value: web3latest.utils.toWei("0") } // token
-      );
-
-      let payload_temp = web3latest.utils.soliditySha3(
-        { type: "uint256", value: lc_id },
-        { type: "bool", value: false }, // isclose
-        { type: "uint256", value: 1 }, // sequence
-        { type: "uint256", value: 1 }, // open VCs
-        { type: "bytes32", value: vcRootHash_temp }, // VC root hash
-        { type: "address", value: partyA }, // partyA
-        { type: "address", value: partyI }, // hub
-        { type: "uint256", value: web3latest.utils.toWei("5") },
-        { type: "uint256", value: web3latest.utils.toWei("15") },
-        { type: "uint256", value: web3latest.utils.toWei("5") }, // token
-        { type: "uint256", value: web3latest.utils.toWei("15") } // token
-      );
-
-      sigA = await web3latest.eth.sign(payload_temp, partyA);
-      sigI = await web3latest.eth.sign(payload_temp, partyI);
-      let updateParams = [
-        1,
-        1,
-        web3latest.utils.toWei("5"),
-        web3latest.utils.toWei("15"),
-        web3latest.utils.toWei("5"),
-        web3latest.utils.toWei("15")
-      ];
-      await lc.updateLCstate(lc_id, updateParams, vcRootHash_temp, sigA, sigI);
-
-      let balances = [
-        web3latest.utils.toWei("1"),
-        web3latest.utils.toWei("0"),
-        web3latest.utils.toWei("1"),
-        web3latest.utils.toWei("0")
-      ];
-      sigA = await web3latest.eth.sign(vcRootHash_temp, partyA);
-      await lc.initVCstate(
-        lc_id,
-        lc_id,
-        0,
-        partyA,
-        partyB,
-        bond,
-        balances,
-        sigA
-      );
-      // wait
-      wait(1000);
-      await lc.closeVirtualChannel(lc_id, lc_id);
-
-      let channel = await lc.getChannel(lc_id);
-      let vc = await lc.getVirtualChannel(lc_id);
-      let verificationA = await web3latest.eth.sign(vcRootHash_temp, partyA);
-      sigA = await web3latest.eth.sign(vcRootHash_temp, partyA);
-
-      expect(channel[0][0]).to.be.equal(partyA); //pass
-      expect(channel[9]).to.be.equal(true); //pass
-      expect(vc[0]).to.be.equal(true); //fail
-      expect(channel[8] * 1000).to.be.below(Date.now()); //pass
-      expect(vc[4].toString()).to.not.be.equal("0"); //pass (inverted because vc was already closed)
-      expect(sigA).to.be.equal(verificationA); //pass
-      expect(vcRootHash_temp).to.be.equal(vcRootHash_temp); //pass (this is a way of checking isContained() if there is only one VC open)
-
-      await lc
-        .initVCstate(lc_id, lc_id, 0, partyA, partyB, bond, balances, sigA)
-        .should.be.rejectedWith(SolRevert);
-
-      // try {
-      // await lc.initVCstate(lc_id, lc_id, 0, partyA, partyB, bond, balances, sigA)
-      // } catch (e) {
-      // expect(e.message).to.equal(SolRevert(e.tx))
-      // expect(e.name).to.equal('StatusError')
-      // }
-    });
-    it("4. Fail: LC update timer has not yet expired", async () => {
-      let sentBalance = [
-        web3latest.utils.toWei("10"),
-        web3latest.utils.toWei("10")
-      ];
-      await token.approve(lc.address, sentBalance[1]);
-      await token.approve(lc.address, sentBalance[1], { from: partyI });
-      let lc_id = web3latest.utils.sha3("2222", { encoding: "hex" });
+      await token.approve(lc.address, lcDeposit0[1], { from: partyA });
       await lc.createChannel(
-        lc_id,
+        unjoinedLc,
         partyI,
-        "100000000",
+        challenge,
         token.address,
-        sentBalance,
-        { from: partyA, value: sentBalance[0] }
+        lcDeposit0,
+        {
+          from: partyA,
+          value: lcDeposit0[0]
+        }
       );
-      await lc.joinChannel(lc_id, sentBalance, {
+
+      const balances = [
+        vcDeposit0[0], // ethA
+        web3latest.utils.toWei("0"), // ethB
+        vcDeposit0[1], // tokenA
+        web3latest.utils.toWei("0") // tokenB
+      ];
+
+      await lc
+        .initVCstate(
+          unjoinedLc,
+          vcId,
+          proof,
+          partyA,
+          partyB,
+          vcDeposit0, // bond
+          balances,
+          sigAVc
+        )
+        .should.be.rejectedWith(SolRevert);
+    });
+
+    it("3. Fail: LC update timer has not yet expired", async () => {
+      // ensure timer has not yet expired
+      const channel = await lc.getChannel(lcId);
+      expect(
+        channel[8].gt(web3latest.utils.toBN(Math.floor(Date.now() / 1000)))
+      ).to.be.equal(true);
+
+      const balances = [
+        vcDeposit0[0], // ethA
+        web3latest.utils.toWei("0"), // ethB
+        vcDeposit0[1], // tokenA
+        web3latest.utils.toWei("0") // tokenB
+      ];
+
+      await lc
+        .initVCstate(
+          lcId,
+          vcId,
+          proof,
+          partyA,
+          partyB,
+          vcDeposit0, // bond
+          balances,
+          sigAVc
+        )
+        .should.be.rejectedWith(SolRevert);
+    });
+
+    it("4. Fail: Alice has not signed initial state (or wrong state)", async () => {
+      // explicitly wait out timer
+      wait(1000 * (challenge + 1));
+
+      const balances = [
+        vcDeposit0[0], // ethA
+        web3latest.utils.toWei("0"), // ethB
+        vcDeposit0[1], // tokenA
+        web3latest.utils.toWei("0") // tokenB
+      ];
+
+      await lc
+        .initVCstate(
+          lcId,
+          vcId,
+          proof,
+          partyA,
+          partyB,
+          vcDeposit0, // bond
+          balances,
+          fakeSig
+        )
+        .should.be.rejectedWith(SolRevert);
+    });
+
+    it("5. Fail: Old state not contained in root hash", async () => {
+      // generate a channel with empty root hash
+      const failedId = web3latest.utils.sha3("faj83", { encoding: "hex" });
+      await token.approve(lc.address, lcDeposit0[1], { from: partyA });
+      await token.approve(lc.address, lcDeposit0[1], { from: partyI });
+
+      const shortChallenge = 0;
+      await lc.createChannel(
+        failedId,
+        partyI,
+        shortChallenge,
+        token.address,
+        lcDeposit0,
+        {
+          from: partyA,
+          value: lcDeposit0[0]
+        }
+      );
+      await lc.joinChannel(failedId, lcDeposit0, {
         from: partyI,
-        value: sentBalance[0]
+        value: lcDeposit0[0]
       });
 
-      let vcRootHash_temp = web3latest.utils.soliditySha3(
-        { type: "uint256", value: lc_id }, // VC ID
-        { type: "uint256", value: 0 }, // sequence
-        { type: "address", value: partyA }, // partyA
-        { type: "address", value: partyB }, // partyB
-        { type: "uint256", value: web3latest.utils.toWei("1") }, // bond eth
-        { type: "uint256", value: web3latest.utils.toWei("1") }, // bond token
-        { type: "uint256", value: web3latest.utils.toWei("0") }, // eth
-        { type: "uint256", value: web3latest.utils.toWei("1") }, // eth
-        { type: "uint256", value: web3latest.utils.toWei("0") }, // token
-        { type: "uint256", value: web3latest.utils.toWei("1") } // token
-      );
-
-      let payload_temp = web3latest.utils.soliditySha3(
-        { type: "uint256", value: lc_id },
+      const lcStateHash = web3latest.utils.soliditySha3(
+        { type: "uint256", value: failedId },
         { type: "bool", value: false }, // isclose
-        { type: "uint256", value: "1" }, // sequence
-        { type: "uint256", value: "1" }, // open VCs
-        { type: "bytes32", value: vcRootHash_temp }, // VC root hash
+        { type: "uint256", value: lcSequence }, // sequence
+        { type: "uint256", value: 0 }, // open VCs
+        { type: "bytes32", value: emptyRootHash }, // VC root hash
         { type: "address", value: partyA }, // partyA
         { type: "address", value: partyI }, // hub
-        { type: "uint256", value: web3latest.utils.toWei("5") },
-        { type: "uint256", value: web3latest.utils.toWei("15") },
-        { type: "uint256", value: web3latest.utils.toWei("5") }, // token
-        { type: "uint256", value: web3latest.utils.toWei("15") } // token
+        { type: "uint256", value: lcDeposit1[0] }, // ethA
+        { type: "uint256", value: lcDeposit1[1] }, // ethI
+        { type: "uint256", value: lcDeposit1[2] }, // tokenA
+        { type: "uint256", value: lcDeposit1[3] } // tokenI
       );
-      let channel = await lc.getChannel(lc_id);
 
-      let sigA_temp = await web3latest.eth.sign(payload_temp, partyA);
-      let sigI_temp = await web3latest.eth.sign(payload_temp, partyI);
-      let updateParams = [
-        "1",
-        "1",
-        web3latest.utils.toWei("5"),
-        web3latest.utils.toWei("15"),
-        web3latest.utils.toWei("5"),
-        web3latest.utils.toWei("15")
+      const sigALcFail = await web3latest.eth.sign(lcStateHash, partyA);
+      const sigILcFail = await web3latest.eth.sign(lcStateHash, partyI);
+
+      const updateParams = [
+        lcSequence,
+        0, // openVcs
+        lcDeposit1[0], // ethA
+        lcDeposit1[1], // ethI
+        lcDeposit1[2], // tokenA
+        lcDeposit1[3] // tokenI
       ];
       await lc.updateLCstate(
-        lc_id,
+        failedId,
         updateParams,
-        vcRootHash_temp,
-        sigA_temp,
-        sigI_temp
+        emptyRootHash,
+        sigALcFail,
+        sigILcFail
       );
 
-      let balances = [
-        web3latest.utils.toWei("0"),
-        web3latest.utils.toWei("1"),
-        web3latest.utils.toWei("0"),
-        web3latest.utils.toWei("1")
+      // try to initVC
+      wait(1000 * (1 + shortChallenge)); // wait out timer
+      const balances = [
+        vcDeposit0[0], // ethA
+        web3latest.utils.toWei("0"), // ethB
+        vcDeposit0[1], // tokenA
+        web3latest.utils.toWei("0") // tokenB
       ];
-      channel = await lc.getChannel(lc_id);
-      let vc = await lc.getVirtualChannel(lc_id);
-      let verificationA = await web3latest.eth.sign(vcRootHash_temp, partyA);
-      sigA = await web3latest.eth.sign(vcRootHash_temp, partyA);
-
-      expect(channel[0][0]).to.be.equal(partyA); //pass
-      expect(channel[9]).to.be.equal(true); //pass
-      expect(vc[0]).to.not.be.equal(true); //pass
-      expect(channel[8] * 1000).to.not.be.below(Date.now()); //fail
-      expect(vc[4].toString()).to.be.equal("0"); //pass
-      expect(sigA).to.be.equal(verificationA); //pass
-      expect(vcRootHash_temp).to.be.equal(vcRootHash_temp); //pass (this is a way of checking isContained() if there is only one VC open)
 
       await lc
-        .initVCstate(lc_id, lc_id, 0, partyA, partyB, bond, balances, sigA)
+        .initVCstate(
+          failedId,
+          vcId,
+          proof,
+          partyA,
+          partyB,
+          vcDeposit0, // bond
+          balances,
+          sigAVc
+        )
         .should.be.rejectedWith(SolRevert);
-
-      // try {
-      // await lc.initVCstate(lc_id, lc_id, 0, partyA, partyB, bond, balances, sigA)
-      // } catch (e) {
-      // expect(e.message).to.equal(SolRevert(e.tx))
-      // expect(e.name).to.equal('StatusError')
-      // }
     });
-    it("5. Fail: Alice has not signed initial state (or wrong state)", async () => {
-      let lc_id = web3latest.utils.sha3("1111", { encoding: "hex" });
-      let balances = [
-        web3latest.utils.toWei("0"),
-        web3latest.utils.toWei("1"),
-        web3latest.utils.toWei("0"),
-        web3latest.utils.toWei("1")
+
+    it("6. Success: VC inited successfully", async () => {
+      const balances = [
+        vcDeposit0[0], // ethA
+        web3latest.utils.toWei("0"), // ethB
+        vcDeposit0[1], // tokenA
+        web3latest.utils.toWei("0") // tokenB
       ];
-      let channel = await lc.getChannel(lc_id);
-      let verificationA = await web3latest.eth.sign(initialVCstate, partyA);
-      sigA = await web3latest.eth.sign(initialVCstate, partyA);
-      let vc = await lc.getVirtualChannel(lc_id);
-
-      expect(channel[0][0]).to.be.equal(partyA); //pass
-      expect(channel[9]).to.be.equal(true); //pass
-      expect(vc[0]).to.not.be.equal(true); //pass
-      expect(channel[8] * 1000).to.be.below(Date.now()); //pass (inverted because channel[8] is 0 for non open channel)
-      expect(vc[4].toString()).to.be.equal("0"); //pass
-      expect(fakeSig).to.not.be.equal(verificationA); //fail
-      expect(vcRootHash).to.be.equal(initialVCstate); //pass (this is a way of checking isContained() if there is only one VC open)
-
-      await lc
-        .initVCstate(lc_id, lc_id, 0, partyA, partyB, bond, balances, fakeSig)
-        .should.be.rejectedWith(SolRevert);
-
-      // try {
-      // await lc.initVCstate(lc_id, lc_id, 0, partyA, partyB, bond, balances, fakeSig)
-      // } catch (e) {
-      // expect(e.message).to.equal(SolRevert(e.tx))
-      // expect(e.name).to.equal('StatusError')
-      // }
-    });
-    it("6. Fail: Old state not contained in root hash", async () => {
-      let lc_id = web3latest.utils.sha3("1111", { encoding: "hex" });
-      let balances = [
-        web3latest.utils.toWei("1"),
-        web3latest.utils.toWei("0"),
-        web3latest.utils.toWei("1"),
-        web3latest.utils.toWei("0")
-      ];
-      let channel = await lc.getChannel(lc_id);
-      let vc = await lc.getVirtualChannel(lc_id);
-
-      let vcRootHash_temp = web3latest.utils.soliditySha3(
-        { type: "uint256", value: lc_id }, // VC ID
-        { type: "uint256", value: 0 }, // sequence
-        { type: "address", value: partyA }, // partyA
-        { type: "address", value: partyB }, // partyB
-        { type: "uint256", value: web3latest.utils.toWei("1") }, // bond eth
-        { type: "uint256", value: web3latest.utils.toWei("1") }, // bond token
-        { type: "uint256", value: web3latest.utils.toWei("1") }, // eth
-        { type: "uint256", value: web3latest.utils.toWei("0") }, // eth
-        { type: "uint256", value: web3latest.utils.toWei("1") }, // token
-        { type: "uint256", value: web3latest.utils.toWei("0") } // token
-      );
-
-      let verificationA = await web3latest.eth.sign(vcRootHash_temp, partyA);
-      sigA = verificationA;
-
-      expect(channel[0][0]).to.be.equal(partyA); //pass
-      expect(channel[9]).to.be.equal(true); //pass
-      expect(vc[0]).to.not.be.equal(true); //pass
-      expect(channel[8] * 1000).to.be.below(Date.now()); //pass (inverted because channel[8] is 0 for non open channel)
-      expect(vc[4].toString()).to.be.equal("0"); //pass
-      expect(sigA).to.be.equal(verificationA); //pass
-      expect(vcRootHash_temp).to.not.be.equal(initialVCstate); //fail (this is a way of checking isContained() if there is only one VC open)
-
-      await lc
-        .initVCstate(lc_id, lc_id, 0, partyA, partyB, bond, balances, sigA)
-        .should.be.rejectedWith(SolRevert);
-
-      // try {
-      // await lc.initVCstate(lc_id, lc_id, 0, partyA, partyB, bond, balances, sigA)
-      // } catch (e) {
-      // expect(e.message).to.equal(SolRevert(e.tx))
-      // expect(e.name).to.equal('StatusError')
-      // }
-    });
-    it("7. Success: VC inited successfully", async () => {
-      let lc_id = web3latest.utils.sha3("1111", { encoding: "hex" });
-      let balances = [
-        web3latest.utils.toWei("0"),
-        web3latest.utils.toWei("1"),
-        web3latest.utils.toWei("0"),
-        web3latest.utils.toWei("1")
-      ];
-      let channel = await lc.getChannel(lc_id);
-      let verificationA = await web3latest.eth.sign(initialVCstate, partyA);
-      sigA = await web3latest.eth.sign(initialVCstate, partyA);
-      let vc = await lc.getVirtualChannel(lc_id);
-
-      expect(channel[0][0]).to.be.equal(partyA); //pass
-      expect(channel[9]).to.be.equal(true); //pass
-      expect(vc[0]).to.not.be.equal(true); //pass
-      expect(channel[8] * 1000).to.be.below(Date.now()); //pass (inverted because channel[8] is 0 for non open channel)
-      expect(vc[4].toString()).to.be.equal("0"); //pass
-      expect(sigA).to.be.equal(verificationA); //pass
-      expect(vcRootHash).to.be.equal(initialVCstate); //pass (this is a way of checking isContained() if there is only one VC open)
 
       const tx = await lc.initVCstate(
-        lc_id,
-        lc_id,
-        0,
+        lcId,
+        vcId,
+        proof,
         partyA,
         partyB,
-        bond,
+        vcDeposit0, // bond
         balances,
-        sigA
+        sigAVc
       );
       expect(tx.logs[0].event).to.equal("DidVCInit");
     });
-    it("8. Fail: Update VC timer is not 0 (initVCstate has already been called before)", async () => {
-      let lc_id = web3latest.utils.sha3("1111", { encoding: "hex" });
-      let balances = [
-        web3latest.utils.toWei("0"),
-        web3latest.utils.toWei("1"),
-        web3latest.utils.toWei("0"),
-        web3latest.utils.toWei("1")
-      ];
-      let channel = await lc.getChannel(lc_id);
-      let verificationA = await web3latest.eth.sign(initialVCstate, partyA);
-      sigA = await web3latest.eth.sign(initialVCstate, partyA);
-      let vc = await lc.getVirtualChannel(lc_id);
 
-      expect(channel[0][0]).to.be.equal(partyA); //pass
-      expect(channel[9]).to.be.equal(true); //pass
-      expect(vc[0]).to.not.be.equal(true); //pass
-      expect(channel[8] * 1000).to.be.below(Date.now()); //pass (inverted because channel[8] is 0 for non open channel)
-      expect(vc[4].toString()).to.not.be.equal("0"); //fail
-      expect(sigA).to.be.equal(verificationA); //pass
-      expect(vcRootHash).to.be.equal(initialVCstate); //pass (this is a way of checking isContained() if there is only one VC open)
+    it("7. Fail: VC with that ID is inited already", async () => {
+      const balances = [
+        vcDeposit0[0], // ethA
+        web3latest.utils.toWei("0"), // ethB
+        vcDeposit0[1], // tokenA
+        web3latest.utils.toWei("0") // tokenB
+      ];
 
       await lc
-        .initVCstate(lc_id, lc_id, 0, partyA, partyB, bond, balances, sigA)
+        .initVCstate(
+          lcId,
+          vcId,
+          proof,
+          partyA,
+          partyB,
+          vcDeposit0, // bond
+          balances,
+          sigAVc
+        )
         .should.be.rejectedWith(SolRevert);
-
-      // try {
-      // await lc.initVCstate(lc_id, lc_id, 0, partyA, partyB, bond, balances, sigA)
-      // } catch (e) {
-      // expect(e.message).to.equal(SolRevert(e.tx))
-      // expect(e.name).to.equal('StatusError')
-      // }
     });
   });
 });
