@@ -151,15 +151,13 @@ contract LedgerChannel {
         Channels[_lcID].LCopenTimeout = now.add(_confirmTime);
         Channels[_lcID].initialDeposit = _balances;
 
-        if(_balances[0] != 0) {
-            require(msg.value == _balances[0], "Eth balance does not match sent value");
-            Channels[_lcID].ethBalances[0] = msg.value;
-        } 
-        if(_balances[1] != 0) {
-            Channels[_lcID].token = HumanStandardToken(_token);
-            require(Channels[_lcID].token.transferFrom(msg.sender, this, _balances[1]),"CreateChannel: token transfer failure");
-            Channels[_lcID].erc20Balances[0] = _balances[1];
-        }
+        Channels[_lcID].token = HumanStandardToken(_token);
+
+        require(msg.value == _balances[0], "Eth balance does not match sent value");
+        Channels[_lcID].ethBalances[0] = msg.value;
+
+        require(Channels[_lcID].token.transferFrom(msg.sender, this, _balances[1]),"CreateChannel: token transfer failure");
+        Channels[_lcID].erc20Balances[0] = _balances[1];
 
         emit DidLCOpen(_lcID, msg.sender, _partyI, _balances[0], _token, _balances[1], Channels[_lcID].LCopenTimeout);
     }
@@ -178,38 +176,34 @@ contract LedgerChannel {
         Channels[_lcID].erc20Balances[0] = 0;
         Channels[_lcID].erc20Balances[1] = 0;
 
-        if(ethBalance != 0) {
-            Channels[_lcID].partyAddresses[0].transfer(ethBalance);
-        } 
-        if(erc20Balance != 0) {
-            require(Channels[_lcID].token.transfer(Channels[_lcID].partyAddresses[0], erc20Balance),"CreateChannel: token transfer failure");
-        }
+        Channels[_lcID].partyAddresses[0].transfer(ethbalanceA); 
+        require(Channels[_lcID].token.transfer(Channels[_lcID].partyAddresses[0], tokenbalanceA), "CreateChannel: token transfer failure");
 
-        emit DidLCClose(_lcID, 0, ethBalance, erc20Balance, 0, 0);
+        emit DidLCClose(_lcID, 0, ethbalanceA, tokenbalanceA, 0, 0);
 
         // only safe to delete since no action was taken on this channel
-        delete Channels[_lcID];
+        delete Channels[_lcID]; // TODO don't need to delete, add another variable to track open/joined
     }
+
+    // TODO need settle 0 state function (leave joined channel that doesn't have updates)
 
     function joinChannel(bytes32 _lcID, uint256[2] _balances) public payable {
         // require the channel is not open yet
         require(Channels[_lcID].isOpen == false, "Channel is already joined");
         require(msg.sender == Channels[_lcID].partyAddresses[1], "Channel can only be joined by counterparty");
 
+        // TODO: can separate these by party
         Channels[_lcID].initialDeposit[0] = Channels[_lcID].initialDeposit[0].add(_balances[0]);
         Channels[_lcID].initialDeposit[1] = Channels[_lcID].initialDeposit[1].add(_balances[1]);
         // no longer allow joining functions to be called
         Channels[_lcID].isOpen = true;
         numChannels = numChannels.add(1);
 
-        if(_balances[0] != 0) {
-            require(msg.value == _balances[0], "State balance does not match sent value");
-            Channels[_lcID].ethBalances[1] = msg.value;
-        } 
-        if(_balances[1] != 0) {
-            require(Channels[_lcID].token.transferFrom(msg.sender, this, _balances[1]),"joinChannel: token transfer failure");
-            Channels[_lcID].erc20Balances[1] = _balances[1];          
-        }
+        require(msg.value == _balances[0], "State balance does not match sent value");
+        Channels[_lcID].ethBalances[1] = msg.value;
+ 
+        require(Channels[_lcID].token.transferFrom(msg.sender, this, _balances[1]), "joinChannel: token transfer failure");
+        Channels[_lcID].erc20Balances[1] = _balances[1];
 
         emit DidLCJoin(_lcID, _balances[0], _balances[1]);
     }
@@ -217,15 +211,18 @@ contract LedgerChannel {
 
     // additive updates of monetary state
     // TODO check this for attack vectors
+    // TODO refactor to take balances array and update both at the same time
     function deposit(bytes32 _lcID, address recipient, uint256 _balance, bool isToken) public payable {
         require(Channels[_lcID].isOpen == true, "Tried adding funds to a closed channel");
         require(
             recipient == Channels[_lcID].partyAddresses[0] || recipient == Channels[_lcID].partyAddresses[1],
             "Receipient must be channel member"
         );
+        require(msg.sender == recipient, "Receipient must be channel member");
 
         //if(Channels[_lcID].token)
 
+        // TODO consolidate arrays
         if (Channels[_lcID].partyAddresses[0] == recipient) {
             if(isToken) {
                 require(Channels[_lcID].token.transferFrom(msg.sender, this, _balance), "deposit: token transfer failure");
@@ -238,7 +235,7 @@ contract LedgerChannel {
 
         if (Channels[_lcID].partyAddresses[1] == recipient) {
             if(isToken) {
-                require(Channels[_lcID].token.transferFrom(msg.sender, this, _balance),"deposit: token transfer failure");
+                require(Channels[_lcID].token.transferFrom(msg.sender, this, _balance), "deposit: token transfer failure");
                 Channels[_lcID].erc20Balances[3] = Channels[_lcID].erc20Balances[3].add(_balance);
             } else {
                 require(msg.value == _balance, "State balance does not match sent value");
@@ -286,18 +283,22 @@ contract LedgerChannel {
         require(Channels[_lcID].partyAddresses[0] == ECTools.recoverSigner(_state, _sigA), "Party A signature invalid");
         require(Channels[_lcID].partyAddresses[1] == ECTools.recoverSigner(_state, _sigI), "Party I signature invalid");
 
+        // this will prevent reentrancy
         Channels[_lcID].isOpen = false;
         numChannels = numChannels.sub(1);
 
-        if(_balances[0] != 0 || _balances[1] != 0) {
-            Channels[_lcID].partyAddresses[0].transfer(_balances[0]);
-            Channels[_lcID].partyAddresses[1].transfer(_balances[1]);
-        }
+        Channels[_lcID].ethBalances[0] = 0;
+        Channels[_lcID].ethBalances[1] = 0;
+        Channels[_lcID].erc20Balances[0] = 0;
+        Channels[_lcID].erc20Balances[1] = 0;
 
-        if(_balances[2] != 0 || _balances[3] != 0) {
-            require(Channels[_lcID].token.transfer(Channels[_lcID].partyAddresses[0], _balances[2]), "consensusCloseChannel: token transfer failure");
-            require(Channels[_lcID].token.transfer(Channels[_lcID].partyAddresses[1], _balances[3]), "consensusCloseChannel: token transfer failure");          
-        }
+        Channels[_lcID].partyAddresses[0].transfer(_balances[0]);
+        Channels[_lcID].partyAddresses[1].transfer(_balances[1]);
+
+        require(Channels[_lcID].token.transfer(Channels[_lcID].partyAddresses[0], _balances[2]), "consensusCloseChannel: token transfer failure");
+        require(Channels[_lcID].token.transfer(Channels[_lcID].partyAddresses[1], _balances[3]), "consensusCloseChannel: token transfer failure");
+
+        // TODO use isClosed flag/enum
 
         emit DidLCClose(_lcID, _sequence, _balances[0], _balances[1], _balances[2], _balances[3]);
     }
