@@ -83,7 +83,7 @@ contract("LedgerChannel :: createChannel()", function(accounts) {
     token = await Token.new(web3latest.utils.toWei("1000"), "Test", 1, "TST");
     Ledger.link("HumanStandardToken", token.address);
     Ledger.link("ECTools", ec.address);
-    lc = await Ledger.new();
+    lc = await Ledger.new([token.address]);
 
     await token.transfer(partyB, web3latest.utils.toWei("100"));
     await token.transfer(partyI, web3latest.utils.toWei("100"));
@@ -288,7 +288,7 @@ contract("LedgerChannel :: LCOpenTimeout()", function(accounts) {
     token = await Token.new(web3latest.utils.toWei("1000"), "Test", 1, "TST");
     Ledger.link("HumanStandardToken", token.address);
     Ledger.link("ECTools", ec.address);
-    lc = await Ledger.new();
+    lc = await Ledger.new([token.address]);
 
     await token.transfer(partyB, web3latest.utils.toWei("100"));
     await token.transfer(partyI, web3latest.utils.toWei("100"));
@@ -312,14 +312,14 @@ contract("LedgerChannel :: LCOpenTimeout()", function(accounts) {
     it("1. Fail: Sender is not PartyA of channel", async () => {
       await lc
         .LCOpenTimeout(lcId, { from: partyB })
-        .should.be.rejectedWith("May not withdraw from channel.");
+        .should.be.rejectedWith("Request not sent by channel party A");
     });
 
     it("2. Fail: Channel does not exist", async () => {
       const fakeLcId = web3latest.utils.sha3("wrong", { encoding: "hex" });
       await lc
         .LCOpenTimeout(fakeLcId, { from: partyA })
-        .should.be.rejectedWith("May not withdraw from channel.");
+        .should.be.rejectedWith("Request not sent by channel party A");
     });
 
     it("3. Fail: Channel is already open", async () => {
@@ -344,7 +344,7 @@ contract("LedgerChannel :: LCOpenTimeout()", function(accounts) {
 
       await lc
         .LCOpenTimeout(joinedChannelId, { from: partyA })
-        .should.be.rejectedWith("May not withdraw from channel.");
+        .should.be.rejectedWith("Channel has been joined");
     });
 
     it("4. Fail: LCopenTimeout has not expired", async () => {
@@ -363,7 +363,7 @@ contract("LedgerChannel :: LCOpenTimeout()", function(accounts) {
 
       await lc
         .LCOpenTimeout(longChallenge, { from: partyA })
-        .should.be.rejectedWith("Timeout window has not elapsed.");
+        .should.be.rejectedWith("Channel timeout has not expired");
     });
 
     //******
@@ -440,7 +440,7 @@ contract("LedgerChannel :: joinChannel()", function(accounts) {
     token = await Token.new(web3latest.utils.toWei("1000"), "Test", 1, "TST");
     Ledger.link("HumanStandardToken", token.address);
     Ledger.link("ECTools", ec.address);
-    lc = await Ledger.new();
+    lc = await Ledger.new([token.address]);
 
     await token.transfer(partyA, web3latest.utils.toWei("100"));
     await token.transfer(partyB, web3latest.utils.toWei("100"));
@@ -496,7 +496,7 @@ contract("LedgerChannel :: joinChannel()", function(accounts) {
           from: partyI,
           value: sentBalance[0]
         })
-        .should.be.rejectedWith("Channel is already opened.");
+        .should.be.rejectedWith("Channel is already joined");
     });
 
     it("2. Fail: Msg.sender is not PartyI of this channel", async () => {
@@ -510,7 +510,7 @@ contract("LedgerChannel :: joinChannel()", function(accounts) {
           from: partyB,
           value: sentBalance[0]
         })
-        .should.be.rejectedWith("Not your channel to join.");
+        .should.be.rejectedWith("Channel can only be joined by counterparty");
     });
 
     it("3. Fail: Token balance is negative", async () => {
@@ -627,7 +627,7 @@ contract.skip("LedgerChannel :: deposit()", function(accounts) {
     token = await Token.new(web3latest.utils.toWei("1000"), "Test", 1, "TST");
     Ledger.link("HumanStandardToken", token.address);
     Ledger.link("ECTools", ec.address);
-    lc = await Ledger.new();
+    lc = await Ledger.new([token.address]);
 
     await token.transfer(partyA, web3latest.utils.toWei("100"));
     await token.transfer(partyB, web3latest.utils.toWei("100"));
@@ -705,7 +705,7 @@ contract("LedgerChannel :: consensusCloseChannel()", function(accounts) {
     token = await Token.new(web3latest.utils.toWei("1000"), "Test", 1, "TST");
     Ledger.link("HumanStandardToken", token.address);
     Ledger.link("ECTools", ec.address);
-    lc = await Ledger.new();
+    lc = await Ledger.new([token.address]);
 
     await token.transfer(partyA, web3latest.utils.toWei("100"));
     await token.transfer(partyB, web3latest.utils.toWei("100"));
@@ -812,7 +812,9 @@ contract("LedgerChannel :: consensusCloseChannel()", function(accounts) {
 
       await lc
         .consensusCloseChannel(lcId, finalSequence, failedBalances, sigA, sigI)
-        .should.be.rejectedWith("Incorrect eth balance provided.");
+        .should.be.rejectedWith(
+          "On-chain balances not equal to provided balances"
+        );
     });
 
     it("4. Fail: Total token deposit is not equal to submitted token balances", async () => {
@@ -825,7 +827,9 @@ contract("LedgerChannel :: consensusCloseChannel()", function(accounts) {
 
       await lc
         .consensusCloseChannel(lcId, finalSequence, failedBalances, sigA, sigI)
-        .should.be.rejectedWith("Incorrect token balance provided.");
+        .should.be.rejectedWith(
+          "On-chain balances not equal to provided balances"
+        );
     });
 
     it("5. Fail: Incorrect sig for partyA", async () => {
@@ -837,7 +841,7 @@ contract("LedgerChannel :: consensusCloseChannel()", function(accounts) {
           fakeSig,
           sigI
         )
-        .should.be.rejectedWith("Incorrect signer for partyA.");
+        .should.be.rejectedWith("Party A signature invalid");
     });
 
     it("6. Fail: Incorrect sig for partyI", async () => {
@@ -849,7 +853,7 @@ contract("LedgerChannel :: consensusCloseChannel()", function(accounts) {
           sigA,
           fakeSig
         )
-        .should.be.rejectedWith("Incorrect signer for partyI.");
+        .should.be.rejectedWith("Party I signature invalid.");
     });
 
     it("7. Success: Channel Closed", async () => {
@@ -911,7 +915,7 @@ contract("LedgerChannel :: updateLCstate()", function(accounts) {
     token = await Token.new(web3latest.utils.toWei("1000"), "Test", 1, "TST");
     Ledger.link("HumanStandardToken", token.address);
     Ledger.link("ECTools", ec.address);
-    lc = await Ledger.new();
+    lc = await Ledger.new([token.address]);
     // token disbursement
     await token.transfer(partyA, web3latest.utils.toWei("100"));
     await token.transfer(partyB, web3latest.utils.toWei("100"));
@@ -1042,7 +1046,9 @@ contract("LedgerChannel :: updateLCstate()", function(accounts) {
 
       await lc
         .updateLCstate(lcId, updateParams, emptyRootHash, badSigA, badSigI)
-        .should.be.rejectedWith("Incorrect channel eth balances provided.");
+        .should.be.rejectedWith(
+          "On-chain eth balances must be higher than provided balances"
+        );
     });
 
     it("4. Fail: Total token deposit is not equal to submitted Eth balances", async () => {
@@ -1072,7 +1078,9 @@ contract("LedgerChannel :: updateLCstate()", function(accounts) {
 
       await lc
         .updateLCstate(lcId, updateParams, emptyRootHash, badSigA, badSigI)
-        .should.be.rejectedWith("Incorrect channel token balances provided.");
+        .should.be.rejectedWith(
+          "On-chain token balances must be higher than provided balances"
+        );
     });
 
     it("5. Fail: Incorrect sig for partyA", async () => {
@@ -1086,7 +1094,7 @@ contract("LedgerChannel :: updateLCstate()", function(accounts) {
       ];
       await lc
         .updateLCstate(lcId, updateParams, emptyRootHash, fakeSig, sigI)
-        .should.be.rejectedWith("Incorrect signer for partyA.");
+        .should.be.rejectedWith("Party A signature invalid");
     });
 
     it("6. Fail: Incorrect sig for partyI", async () => {
@@ -1100,7 +1108,7 @@ contract("LedgerChannel :: updateLCstate()", function(accounts) {
       ];
       await lc
         .updateLCstate(lcId, updateParams, emptyRootHash, sigA, fakeSig)
-        .should.be.rejectedWith("Incorrect signer for partyI.");
+        .should.be.rejectedWith("Party I signature invalid");
     });
 
     it("7. Success 1: updateLCstate called first time and timeout started", async () => {
@@ -1185,7 +1193,7 @@ contract("LedgerChannel :: updateLCstate()", function(accounts) {
 
       await lc
         .updateLCstate(lcId, updateParams, emptyRootHash, sigA, sigI)
-        .should.be.rejectedWith("Sequence must increase.");
+        .should.be.rejectedWith("Sequence must be higher");
     });
 
     it("10. Error: UpdateLC timed out", async () => {
@@ -1221,7 +1229,7 @@ contract("LedgerChannel :: updateLCstate()", function(accounts) {
       wait(1000 * (1 + challenge));
       await lc
         .updateLCstate(lcId, updateParams, emptyRootHash, finalSigA, finalSigI)
-        .should.be.rejectedWith("LC settlement period has expired.");
+        .should.be.rejectedWith("Update timeout not expired");
     });
   });
 });
@@ -1260,7 +1268,7 @@ contract("LedgerChannel :: initVCstate()", function(accounts) {
     token = await Token.new(web3latest.utils.toWei("1000"), "Test", 1, "TST");
     Ledger.link("HumanStandardToken", token.address);
     Ledger.link("ECTools", ec.address);
-    lc = await Ledger.new();
+    lc = await Ledger.new([token.address]);
 
     await token.transfer(partyA, web3latest.utils.toWei("100"));
     await token.transfer(partyB, web3latest.utils.toWei("100"));
@@ -1442,7 +1450,7 @@ contract("LedgerChannel :: initVCstate()", function(accounts) {
           balances,
           sigAVc
         )
-        .should.be.rejectedWith("LC timeout not over.");
+        .should.be.rejectedWith("Update LC timeout not expired");
     });
 
     it("4. Fail: Alice has not signed initial state (or wrong state)", async () => {
@@ -1467,7 +1475,7 @@ contract("LedgerChannel :: initVCstate()", function(accounts) {
           balances,
           fakeSig
         )
-        .should.be.rejectedWith("Incorrect signer detected.");
+        .should.be.rejectedWith("Party A signature invalid");
     });
 
     it("5. Fail: Old state not contained in root hash", async () => {
@@ -1546,7 +1554,7 @@ contract("LedgerChannel :: initVCstate()", function(accounts) {
           balances,
           sigAVc
         )
-        .should.be.rejectedWith("VC is not contained in root hash.");
+        .should.be.rejectedWith("Old state is not contained in root hash");
     });
 
     it("6. Success: VC inited successfully", async () => {
@@ -1618,7 +1626,8 @@ contract("LedgerChannel :: initVCstate()", function(accounts) {
           balances,
           sigAVc
         )
-        .should.be.rejectedWith("VC has already been initialized.");
+        .should.be.rejectedWith("Update VC timeout not expired");
+        // if it is not initialized, timeout is 0
     });
   });
 });
@@ -1669,7 +1678,7 @@ contract("LedgerChannel :: settleVC()", function(accounts) {
     token = await Token.new(web3latest.utils.toWei("1000"), "Test", 1, "TST");
     Ledger.link("HumanStandardToken", token.address);
     Ledger.link("ECTools", ec.address);
-    lc = await Ledger.new();
+    lc = await Ledger.new([token.address]);
 
     await token.transfer(partyA, web3latest.utils.toWei("100"));
     await token.transfer(partyB, web3latest.utils.toWei("100"));
@@ -1974,7 +1983,7 @@ contract("LedgerChannel :: settleVC()", function(accounts) {
     it("4. Fail: Incorrect partyA signature or payload", async () => {
       await lc
         .settleVC(lcId, vcId, vcSequence, partyA, partyB, vcDeposit1, fakeSig)
-        .should.be.rejectedWith("Incorrect signer detected");
+        .should.be.rejectedWith("Party A signature invalid");
     });
 
     it("5. Fail: updateLC timeout has not expired", async () => {
@@ -2229,7 +2238,7 @@ contract("LedgerChannel :: settleVC()", function(accounts) {
       const sigA3 = await web3latest.eth.sign(vcHash, partyA);
       await lc
         .settleVC(lcId, vcId, vcSequence + 2, partyA, partyB, vcDeposit3, sigA3)
-        .should.be.rejectedWith("Update VC has timed out.");
+        .should.be.rejectedWith("Timeouts not expired");
     });
 
     it("13. Fail: VC with that ID is already closed (cannot call settleVC after closeVC)", async () => {
@@ -2313,7 +2322,7 @@ contract("LedgerChannel :: closeVirtualChannel()", function(accounts) {
     token = await Token.new(web3latest.utils.toWei("1000"), "Test", 1, "TST");
     Ledger.link("HumanStandardToken", token.address);
     Ledger.link("ECTools", ec.address);
-    lc = await Ledger.new();
+    lc = await Ledger.new([token.address]);
 
     await token.transfer(partyA, web3latest.utils.toWei("100"));
     await token.transfer(partyB, web3latest.utils.toWei("100"));
@@ -2479,7 +2488,7 @@ contract("LedgerChannel :: closeVirtualChannel()", function(accounts) {
 
       await lc
         .closeVirtualChannel(lcId, vcId)
-        .should.be.rejectedWith("Update vc timeout has not elapsed.");
+        .should.be.rejectedWith("Update VC timeout has not expired.");
     });
 
     it("5: Success! VC is closed", async () => {
@@ -2572,7 +2581,7 @@ contract("LedgerChannel :: byzantineCloseChannel()", function(accounts) {
     token = await Token.new(web3latest.utils.toWei("1000"), "Test", 1, "TST");
     Ledger.link("HumanStandardToken", token.address);
     Ledger.link("ECTools", ec.address);
-    lc = await Ledger.new();
+    lc = await Ledger.new([token.address]);
 
     await token.transfer(partyA, web3latest.utils.toWei("100"));
     await token.transfer(partyB, web3latest.utils.toWei("100"));
@@ -2921,7 +2930,7 @@ contract("LedgerChannel :: byzantineCloseChannel()", function(accounts) {
       // updateLC state increases numOpenVcs
       await lc
         .byzantineCloseChannel(channelWithVcs)
-        .should.be.rejectedWith("Channel still has open VCs.");
+        .should.be.rejectedWith("Open VCs must be 0");
     });
 
     it.skip("6. Fail: Onchain Eth balances are greater than deposit", async () => {
