@@ -609,13 +609,10 @@ contract("LedgerChannel :: joinChannel()", function(accounts) {
 });
 
 // TODO deposit tests
-contract.skip("LedgerChannel :: deposit()", function(accounts) {
-  const sentBalance = [
-    web3latest.utils.toWei("10"),
-    web3latest.utils.toWei("10")
-  ];
+contract("LedgerChannel :: deposit()", function(accounts) {
+  const deposit = [web3latest.utils.toWei("10"), web3latest.utils.toWei("10")];
 
-  const lcId = web3latest.utils.sha3("fail", { encoding: "hex" });
+  const lcId = web3latest.utils.sha3("asd3", { encoding: "hex" });
 
   before(async () => {
     partyA = accounts[0];
@@ -634,44 +631,510 @@ contract.skip("LedgerChannel :: deposit()", function(accounts) {
     await token.transfer(partyI, web3latest.utils.toWei("100"));
 
     // approve req token transfers for opening/joining
-    const approvalA = await token.approve(lc.address, sentBalance[1], {
+    const approvalA = await token.approve(lc.address, deposit[1], {
       from: partyA
     });
-    const approvalI = await token.approve(lc.address, sentBalance[1], {
+    const approvalI = await token.approve(lc.address, deposit[1], {
       from: partyI
     });
 
     // create joined channel on contract
     const challenge = 0;
-    await lc.createChannel(
-      lcId,
-      partyI,
-      challenge,
-      token.address,
-      sentBalance,
-      {
-        from: partyA,
-        value: sentBalance[0]
-      }
-    );
-    await lc.joinChannel(lcId, sentBalance, {
+    await lc.createChannel(lcId, partyI, challenge, token.address, deposit, {
+      from: partyA,
+      value: deposit[0]
+    });
+    await lc.joinChannel(lcId, deposit, {
       from: partyI,
-      value: sentBalance[0]
+      value: deposit[0]
+    });
+
+    // approve token transfer of deposit
+    const depositApproval = await token.approve(lc.address, deposit[1], {
+      from: partyA
     });
   });
 
   describe("deposit has 9 total cases:", () => {
-    it("1. Fail: Depositing into a nonexistent Channel", async () => {});
-    it("2. Fail: Depositing into an unjoined Channel", async () => {});
-    it("3. Fail: Recipient is not channel member", async () => {});
-    it("4. Fail: Token amount is negative", async () => {});
-    it("5. Fail: Token transfer failure (not approved)", async () => {});
-    /** NOTE: don't need to check for negative provided balances, msg.value is used */
-    it("6. Fail: Sent ETH doesnt match provided balance", async () => {});
-    it("6. Success: Deposited ETH only", async () => {});
-    it("7. Success: Deposited tokens only", async () => {});
-    it("8. Success: Deposited eth and tokens", async () => {});
-    it("9. Fail: Depositing into a closed channel", async () => {});
+    it("1. Fail: Depositing into a nonexistent Channel", async () => {
+      // create fake channelID
+      const fakeLcId = web3latest.utils.sha3("wrong", { encoding: "hex" });
+
+      await lc
+        .deposit(fakeLcId, partyA, deposit, { from: partyA, value: deposit[0] })
+        .should.be.rejectedWith("Tried adding funds to a closed channel");
+      // isOpen is false if does not exist
+    });
+
+    it("2. Fail: Depositing into an unjoined Channel", async () => {
+      // create fake channelID
+      const fakeLcId = web3latest.utils.sha3("245dd", { encoding: "hex" });
+      // create channel with 0 deposits
+      const challenge = 1;
+      await lc.createChannel(
+        fakeLcId,
+        partyI,
+        challenge,
+        token.address,
+        [0, 0],
+        { from: partyA }
+      );
+
+      await lc
+        .deposit(fakeLcId, partyA, deposit, { from: partyA, value: deposit[0] })
+        .should.be.rejectedWith("Tried adding funds to a closed channel");
+      // isOpen is false if channel is not joined
+    });
+
+    it("3. Fail: Recipient is not channel member", async () => {
+      await lc
+        .deposit(lcId, partyB, deposit, { from: partyA, value: deposit[0] })
+        .should.be.rejectedWith("Recipient must be channel member");
+    });
+
+    it("4. Fail: Sender is not channel member", async () => {
+      await lc
+        .deposit(lcId, partyA, deposit, { from: partyB, value: deposit[0] })
+        .should.be.rejectedWith("Sender must be channel member");
+    });
+
+    it("5. Fail: Token transfer failure (not approved) for partyA", async () => {
+      // try to deposit excess tokens
+      const failedToken = [
+        web3latest.utils.toWei("10"),
+        web3latest.utils.toWei("90")
+      ];
+      /** NOTE: fails without msg. Check on chain information before */
+      // channel opened, msg.sender, recipient === member, msg.value === balance
+      const channel = await lc.getChannel(lcId);
+      expect(channel[0][0]).to.equal(partyA); // partyA === recipient === sender
+      expect(channel[9]).to.be.equal(true); // isOpen === true
+      expect(failedToken[0]).to.be.equal(failedToken[0]); // value  === balance
+      await lc
+        .deposit(lcId, partyA, failedToken, {
+          from: partyA,
+          value: failedToken[0]
+        })
+        .should.be.rejectedWith(SolRevert);
+    });
+
+    it("6. Fail: Token transfer failure (not approved) for partyI", async () => {
+      // try to deposit excess tokens
+      const failedToken = [
+        web3latest.utils.toWei("10"),
+        web3latest.utils.toWei("90")
+      ];
+      /** NOTE: fails without msg. Check on chain information before */
+      // channel opened, msg.sender, recipient === member, msg.value === balance
+      const channel = await lc.getChannel(lcId);
+      expect(channel[0][1]).to.equal(partyI); // partyA === recipient === sender
+      expect(channel[9]).to.be.equal(true); // isOpen === true
+      expect(failedToken[0]).to.be.equal(failedToken[0]); // value  === balance
+      await lc
+        .deposit(lcId, partyI, failedToken, {
+          from: partyI,
+          value: failedToken[0]
+        })
+        .should.be.rejectedWith(SolRevert);
+    });
+
+    it("7. Fail: Sent ETH doesnt match provided balance for partyA", async () => {
+      await lc
+        .deposit(lcId, partyA, deposit, { from: partyA })
+        .should.be.rejectedWith("State balance does not match sent value");
+    });
+
+    it("8. Fail: Sent ETH doesnt match provided balance for partyI", async () => {
+      await lc
+        .deposit(lcId, partyI, deposit, { from: partyI })
+        .should.be.rejectedWith("State balance does not match sent value");
+    });
+
+    it("9. Success: Party A deposited ETH only into its side of channel", async () => {
+      const deposited = [
+        web3latest.utils.toWei("10"),
+        web3latest.utils.toWei("0")
+      ];
+      // calculate expected
+      let channel = await lc.getChannel(lcId);
+      const expectedEth = web3latest.utils
+        .toBN(deposited[0])
+        .add(channel[1][2]);
+      const expectedErc = web3latest.utils
+        .toBN(deposited[1])
+        .add(channel[2][2]);
+
+      await lc.deposit(lcId, partyA, deposited, {
+        from: partyA,
+        value: deposited[0]
+      });
+      // check on chain information
+      channel = await lc.getChannel(lcId);
+      expect(channel[1][2].eq(expectedEth)).to.be.equal(true); // depositedEthA
+      expect(channel[2][2].eq(expectedErc)).to.be.equal(true); // depositedErc20A
+    });
+
+    it("10. Success: Party A deposited ETH only into Party I's channel", async () => {
+      const deposited = [
+        web3latest.utils.toWei("10"),
+        web3latest.utils.toWei("0")
+      ];
+      // calculate expected
+      let channel = await lc.getChannel(lcId);
+      const expectedEth = web3latest.utils
+        .toBN(deposited[0])
+        .add(channel[1][3]);
+      const expectedErc = web3latest.utils
+        .toBN(deposited[1])
+        .add(channel[2][3]);
+
+      await lc.deposit(lcId, partyI, deposited, {
+        from: partyA,
+        value: deposited[0]
+      });
+      // check on chain information
+      channel = await lc.getChannel(lcId);
+      expect(channel[1][3].eq(expectedEth)).to.be.equal(true); // depositedEthI
+      expect(channel[2][3].eq(expectedErc)).to.be.equal(true); // depositedErc20I
+    });
+
+    it("11. Success: Party I deposited ETH only into its side of channel", async () => {
+      const deposited = [
+        web3latest.utils.toWei("10"),
+        web3latest.utils.toWei("0")
+      ];
+      // calculate expected
+      let channel = await lc.getChannel(lcId);
+      const expectedEth = web3latest.utils
+        .toBN(deposited[0])
+        .add(channel[1][3]);
+      const expectedErc = web3latest.utils
+        .toBN(deposited[1])
+        .add(channel[2][3]);
+
+      await lc.deposit(lcId, partyI, deposited, {
+        from: partyI,
+        value: deposited[0]
+      });
+      // check on chain information
+      channel = await lc.getChannel(lcId);
+      expect(channel[1][3].eq(expectedEth)).to.be.equal(true); // depositedEthI
+      expect(channel[2][3].eq(expectedErc)).to.be.equal(true); // depositedErc20I
+    });
+
+    it("12. Success: Party I deposited ETH only into Party A's side of channel", async () => {
+      const deposited = [
+        web3latest.utils.toWei("10"),
+        web3latest.utils.toWei("0")
+      ];
+      // calculate expected
+      let channel = await lc.getChannel(lcId);
+      const expectedEth = web3latest.utils
+        .toBN(deposited[0])
+        .add(channel[1][2]);
+      const expectedErc = web3latest.utils
+        .toBN(deposited[1])
+        .add(channel[2][2]);
+
+      await lc.deposit(lcId, partyA, deposited, {
+        from: partyI,
+        value: deposited[0]
+      });
+      // check on chain information
+      channel = await lc.getChannel(lcId);
+      expect(channel[1][2].eq(expectedEth)).to.be.equal(true); // depositedEthA
+      expect(channel[2][2].eq(expectedErc)).to.be.equal(true); // depositedErc20A
+    });
+
+    it("13. Success: Party A deposited tokens only into its side of channel", async () => {
+      const deposited = [
+        web3latest.utils.toWei("0"),
+        web3latest.utils.toWei("10")
+      ];
+      // calculate expected
+      let channel = await lc.getChannel(lcId);
+      const expectedEth = web3latest.utils
+        .toBN(deposited[0])
+        .add(channel[1][2]);
+      const expectedErc = web3latest.utils
+        .toBN(deposited[1])
+        .add(channel[2][2]);
+
+      // approve token transfer of deposit
+      const depositApproval = await token.approve(lc.address, deposited[1], {
+        from: partyA
+      });
+      await lc.deposit(lcId, partyA, deposited, {
+        from: partyA,
+        value: deposited[0]
+      });
+      // check on chain information
+      channel = await lc.getChannel(lcId);
+      expect(channel[1][2].eq(expectedEth)).to.be.equal(true); // depositedEthA
+      expect(channel[2][2].eq(expectedErc)).to.be.equal(true); // depositedErc20A
+    });
+
+    it("14. Success: Party A deposited tokens only into Party I's side of channel", async () => {
+      const deposited = [
+        web3latest.utils.toWei("0"),
+        web3latest.utils.toWei("10")
+      ];
+      // calculate expected
+      let channel = await lc.getChannel(lcId);
+      const expectedEth = web3latest.utils
+        .toBN(deposited[0])
+        .add(channel[1][3]);
+      const expectedErc = web3latest.utils
+        .toBN(deposited[1])
+        .add(channel[2][3]);
+
+      // approve token transfer of deposit
+      const depositApproval = await token.approve(lc.address, deposited[1], {
+        from: partyA
+      });
+      await lc.deposit(lcId, partyI, deposited, {
+        from: partyA,
+        value: deposited[0]
+      });
+      // check on chain information
+      channel = await lc.getChannel(lcId);
+      expect(channel[1][3].eq(expectedEth)).to.be.equal(true); // depositedEthI
+      expect(channel[2][3].eq(expectedErc)).to.be.equal(true); // depositedErc20I
+    });
+
+    it("15. Success: Party I deposited tokens only into its side of channel", async () => {
+      const deposited = [
+        web3latest.utils.toWei("0"),
+        web3latest.utils.toWei("10")
+      ];
+      // calculate expected
+      let channel = await lc.getChannel(lcId);
+      const expectedEth = web3latest.utils
+        .toBN(deposited[0])
+        .add(channel[1][3]);
+      const expectedErc = web3latest.utils
+        .toBN(deposited[1])
+        .add(channel[2][3]);
+
+      // approve token transfer of deposit
+      const depositApproval = await token.approve(lc.address, deposited[1], {
+        from: partyI
+      });
+      await lc.deposit(lcId, partyI, deposited, {
+        from: partyI,
+        value: deposited[0]
+      });
+      // check on chain information
+      channel = await lc.getChannel(lcId);
+      expect(channel[1][3].eq(expectedEth)).to.be.equal(true); // depositedEthI
+      expect(channel[2][3].eq(expectedErc)).to.be.equal(true); // depositedErc20I
+    });
+
+    it("16. Success: Party I deposited tokens only into Party A's side of channel", async () => {
+      const deposited = [
+        web3latest.utils.toWei("0"),
+        web3latest.utils.toWei("10")
+      ];
+      // calculate expected
+      let channel = await lc.getChannel(lcId);
+      const expectedEth = web3latest.utils
+        .toBN(deposited[0])
+        .add(channel[1][2]);
+      const expectedErc = web3latest.utils
+        .toBN(deposited[1])
+        .add(channel[2][2]);
+
+      // approve token transfer of deposit
+      const depositApproval = await token.approve(lc.address, deposited[1], {
+        from: partyI
+      });
+      await lc.deposit(lcId, partyA, deposited, {
+        from: partyI,
+        value: deposited[0]
+      });
+      // check on chain information
+      channel = await lc.getChannel(lcId);
+      expect(channel[1][2].eq(expectedEth)).to.be.equal(true); // depositedEthA
+      expect(channel[2][2].eq(expectedErc)).to.be.equal(true); // depositedErc20A
+    });
+
+    it("17. Success: Party A deposited eth and tokens into its side of the channel", async () => {
+      const deposited = [
+        web3latest.utils.toWei("10"),
+        web3latest.utils.toWei("10")
+      ];
+      // calculate expected
+      let channel = await lc.getChannel(lcId);
+      const expectedEth = web3latest.utils
+        .toBN(deposited[0])
+        .add(channel[1][2]);
+      const expectedErc = web3latest.utils
+        .toBN(deposited[1])
+        .add(channel[2][2]);
+
+      // approve token transfer of deposit
+      const depositApproval = await token.approve(lc.address, deposited[1], {
+        from: partyA
+      });
+      await lc.deposit(lcId, partyA, deposited, {
+        from: partyA,
+        value: deposited[0]
+      });
+      // check on chain information
+      channel = await lc.getChannel(lcId);
+      expect(channel[1][2].eq(expectedEth)).to.be.equal(true); // depositedEthA
+      expect(channel[2][2].eq(expectedErc)).to.be.equal(true); // depositedErc20A
+    });
+
+    it("18. Success: Party A deposited eth and tokens into Party I's side of channel", async () => {
+      const deposited = [
+        web3latest.utils.toWei("10"),
+        web3latest.utils.toWei("10")
+      ];
+      // calculate expected
+      let channel = await lc.getChannel(lcId);
+      const expectedEth = web3latest.utils
+        .toBN(deposited[0])
+        .add(channel[1][3]);
+      const expectedErc = web3latest.utils
+        .toBN(deposited[1])
+        .add(channel[2][3]);
+
+      // approve token transfer of deposit
+      const depositApproval = await token.approve(lc.address, deposited[1], {
+        from: partyA
+      });
+      await lc.deposit(lcId, partyI, deposited, {
+        from: partyA,
+        value: deposited[0]
+      });
+      // check on chain information
+      channel = await lc.getChannel(lcId);
+      expect(channel[1][3].eq(expectedEth)).to.be.equal(true); // depositedEthI
+      expect(channel[2][3].eq(expectedErc)).to.be.equal(true); // depositedErc20I
+    });
+
+    it("19. Success: Party I deposited eth and tokens into its side of channel", async () => {
+      const deposited = [
+        web3latest.utils.toWei("10"),
+        web3latest.utils.toWei("10")
+      ];
+      // calculate expected
+      let channel = await lc.getChannel(lcId);
+      const expectedEth = web3latest.utils
+        .toBN(deposited[0])
+        .add(channel[1][3]);
+      const expectedErc = web3latest.utils
+        .toBN(deposited[1])
+        .add(channel[2][3]);
+
+      // approve token transfer of deposit
+      const depositApproval = await token.approve(lc.address, deposited[1], {
+        from: partyI
+      });
+      await lc.deposit(lcId, partyI, deposited, {
+        from: partyI,
+        value: deposited[0]
+      });
+      // check on chain information
+      channel = await lc.getChannel(lcId);
+      expect(channel[1][3].eq(expectedEth)).to.be.equal(true); // depositedEthI
+      expect(channel[2][3].eq(expectedErc)).to.be.equal(true); // depositedErc20I
+    });
+
+    it("20. Success: Party I deposited eth and tokens into Party A's side of channel", async () => {
+      const deposited = [
+        web3latest.utils.toWei("10"),
+        web3latest.utils.toWei("10")
+      ];
+      // calculate expected
+      let channel = await lc.getChannel(lcId);
+      const expectedEth = web3latest.utils
+        .toBN(deposited[0])
+        .add(channel[1][2]);
+      const expectedErc = web3latest.utils
+        .toBN(deposited[1])
+        .add(channel[2][2]);
+
+      // approve token transfer of deposit
+      const depositApproval = await token.approve(lc.address, deposited[1], {
+        from: partyI
+      });
+      await lc.deposit(lcId, partyA, deposited, {
+        from: partyI,
+        value: deposited[0]
+      });
+      // check on chain information
+      channel = await lc.getChannel(lcId);
+      expect(channel[1][2].eq(expectedEth)).to.be.equal(true); // depositedEthA
+      expect(channel[2][2].eq(expectedErc)).to.be.equal(true); // depositedErc20A
+    });
+
+    it("21. Fail: Depositing into a closed channel", async () => {
+      // create, join, and close channel
+      const finalBalances = [
+        web3latest.utils.toWei("5"), // ethA
+        web3latest.utils.toWei("15"), // ethI
+        web3latest.utils.toWei("5"), // erc20A
+        web3latest.utils.toWei("15") // erc20I
+      ];
+
+      const closedId = web3latest.utils.sha3("cdjha2", { encoding: "hex" });
+      const challenge = 1;
+      const finalSequence = 1;
+      const openVcs = 0;
+
+      await token.approve(lc.address, deposit[1], { from: partyA });
+      await token.approve(lc.address, deposit[1], { from: partyI });
+      let tx = await lc.createChannel(
+        closedId,
+        partyI,
+        challenge,
+        token.address,
+        deposit,
+        {
+          from: partyA,
+          value: deposit[0]
+        }
+      );
+      expect(tx.logs[0].event).to.equal("DidLCOpen");
+
+      tx = await lc.joinChannel(closedId, deposit, {
+        from: partyI,
+        value: deposit[0]
+      });
+      expect(tx.logs[0].event).to.equal("DidLCJoin");
+
+      const lcFinalHash = web3latest.utils.soliditySha3(
+        { type: "bytes32", value: closedId },
+        { type: "bool", value: true }, // isclose
+        { type: "uint256", value: finalSequence }, // sequence
+        { type: "uint256", value: openVcs }, // open VCs
+        { type: "bytes32", value: emptyRootHash }, // VC root hash
+        { type: "address", value: partyA }, // partyA
+        { type: "address", value: partyI }, // hub
+        { type: "uint256", value: finalBalances[0] }, // ethA
+        { type: "uint256", value: finalBalances[1] }, // ethI
+        { type: "uint256", value: finalBalances[2] }, // tokenA
+        { type: "uint256", value: finalBalances[3] } // tokenI
+      );
+
+      const sigAClose = await web3latest.eth.sign(lcFinalHash, partyA);
+      const sigIClose = await web3latest.eth.sign(lcFinalHash, partyI);
+      // close channel
+      tx = await lc.consensusCloseChannel(
+        closedId,
+        finalSequence,
+        finalBalances,
+        sigAClose,
+        sigIClose
+      );
+      expect(tx.logs[0].event).to.equal("DidLCClose");
+      // try to deposit
+      await lc
+        .deposit(closedId, partyA, deposit, { from: partyA, value: deposit[0] })
+        .should.be.rejectedWith("Tried adding funds to a closed channel");
+    });
   });
 });
 
@@ -1627,7 +2090,7 @@ contract("LedgerChannel :: initVCstate()", function(accounts) {
           sigAVc
         )
         .should.be.rejectedWith("Update VC timeout not expired");
-        // if it is not initialized, timeout is 0
+      // if it is not initialized, timeout is 0
     });
   });
 });
