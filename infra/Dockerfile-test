@@ -4,6 +4,6 @@ WORKDIR /usr/src/virtual-channels
 ADD . $WORKDIR
 RUN npm install
 RUN npm rebuild
-RUN npm install -g truffle
+RUN npm install -g truffle@v5.0.0-beta.1
 
 CMD truffle test ./test/unit/ledgerChannelTest.js

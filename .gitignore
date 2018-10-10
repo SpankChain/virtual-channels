@@ -3,3 +3,4 @@ build
 .DS_Store
 /coverage
 test/unit/ledgerChannelNotes.txt
+test/unit/-.txt

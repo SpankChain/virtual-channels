@@ -131,6 +131,7 @@ contract LedgerChannel is Ownable {
 
     mapping(address => bool) public approvedTokens;
 
+    //TODO initialize contract with hubAddress
     constructor(address[] whitelist) public {
         for (uint256 i = 0; i < whitelist.length; i++) {
             addTokenToWhitelist(whitelist[i]);
@@ -154,7 +155,7 @@ contract LedgerChannel is Ownable {
 
     function createChannel(
         bytes32 _lcID,
-        address _partyI, //TODO Why pass this in?
+        address _partyI, 
         uint256 _confirmTime,
         address _token,
         uint256[2] _balances // [eth, token]
@@ -162,6 +163,8 @@ contract LedgerChannel is Ownable {
         public
         payable 
     {
+        //TODO require that msg.sender != partyI
+        //TODO require partyI is equal to hubAddress (set in constructor)
         require(Channels[_lcID].partyAddresses[0] == address(0), "Channel has already been created.");
         require(_partyI != 0x0, "No partyI address provided to LC creation");
         require(approvedTokens[_token], "Token is not whitelisted");
@@ -194,7 +197,7 @@ contract LedgerChannel is Ownable {
     function LCOpenTimeout(bytes32 _lcID) public {
         require(msg.sender == Channels[_lcID].partyAddresses[0], "Request not sent by channel party A");
         require(Channels[_lcID].isOpen == false, "Channel has been joined");
-        require(now > Channels[_lcID].LCopenTimeout, "Channel timeout has not expire");
+        require(now > Channels[_lcID].LCopenTimeout, "Channel timeout has not expired");
 
         // reentrancy protection
         uint256 ethbalanceA = Channels[_lcID].ethBalances[0];
@@ -239,7 +242,7 @@ contract LedgerChannel is Ownable {
 
 
     // additive updates of monetary state
-    // TODO check this for attack vectors
+    // TODO check to figure out if party can push counterparty to unrecoverable state with malicious deposit
     function deposit(
         bytes32 _lcID, 
         address recipient, 
@@ -253,7 +256,10 @@ contract LedgerChannel is Ownable {
             recipient == Channels[_lcID].partyAddresses[0] || recipient == Channels[_lcID].partyAddresses[1],
             "Receipient must be channel member"
         );
-        require(msg.sender == recipient, "Receipient must be channel member");
+        require(
+            msg.sender == Channels[_lcID].partyAddresses[0] || msg.sender == Channels[_lcID].partyAddresses[1],
+            "Sender must be channel member"
+        );
 
         //if(Channels[_lcID].token)
 
@@ -416,7 +422,7 @@ contract LedgerChannel is Ownable {
         address _partyA, 
         address _partyB, 
         uint256[2] _bond,
-        uint256[4] _balances, // 0: ethBalanceA 1:ethBalanceI 2:tokenBalanceA 3:tokenBalanceI
+        uint256[4] _balances, // 0: ethBalanceA 1:ethBalanceB 2:tokenBalanceA 3:tokenBalanceB
         string sigA
     ) 
         public 
@@ -667,8 +673,8 @@ contract LedgerChannel is Ownable {
         Channel memory channel = Channels[id];
         return (
             channel.partyAddresses,
-            channel.ethBalances,
-            channel.erc20Balances,
+            channel.ethBalances, // 0: balanceA 1:balanceI 2:depositedA 3:depositedI
+            channel.erc20Balances, // 0: balanceA 1:balanceI 2:depositedA 3:depositedI
             channel.initialDeposit,
             channel.sequence,
             channel.confirmTime,
