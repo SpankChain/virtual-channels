@@ -304,7 +304,7 @@ contract LedgerChannel {
     }
 
     // Byzantine functions
-
+    // TODO only allowing one update. should not block launch.
     function updateLCstate(
         bytes32 _lcID, 
         uint256[6] updateParams, // [sequence, numOpenVc, ethbalanceA, ethbalanceI, tokenbalanceA, tokenbalanceI]
@@ -317,10 +317,12 @@ contract LedgerChannel {
         Channel storage channel = Channels[_lcID];
         require(channel.isOpen, "Channel is not open");
         require(channel.sequence < updateParams[0], "Sequence must be higher"); // do same as vc sequence check
+
+        // TODO: need to check deposits here
         require(
             channel.ethBalances[0].add(channel.ethBalances[1]) >= updateParams[2].add(updateParams[3]),
             "On-chain eth balances must be higher than provided balances"
-        ); //TODO should this be equal?
+        ); // TODO should this be equal?
         require(
             channel.erc20Balances[0].add(channel.erc20Balances[1]) >= updateParams[4].add(updateParams[5]),
             "On-chain token balances must be higher than provided balances"
@@ -377,7 +379,8 @@ contract LedgerChannel {
         );
     }
 
-    // supply initial state of VC to "prime" the force push game  
+    // supply initial state of VC to "prime" the force push game 
+    // TODO: combine with settleVC
     function initVCstate(
         bytes32 _lcID, 
         bytes32 _vcID, 
@@ -422,7 +425,7 @@ contract LedgerChannel {
         emit DidVCInit(_lcID, _vcID, _proof, uint256(0), _partyA, _partyB, _balances[0], _balances[1]);
     }
 
-    //TODO: verify state transition since the hub did not agree to this state
+    // TODO: verify state transition since the hub did not agree to this state
     // make sure the A/B balances are not beyond ingrids bonds  
     // Params: vc init state, vc final balance, vcID
     function settleVC(
@@ -439,7 +442,10 @@ contract LedgerChannel {
         require(Channels[_lcID].isOpen, "LC is closed.");
         // sub-channel must be open
         require(!virtualChannels[_vcID].isClose, "VC is closed.");
+
+        // TODO: Can remove this
         require(virtualChannels[_vcID].sequence < updateSeq, "VC sequence is higher than update sequence.");
+
         require(
             virtualChannels[_vcID].ethBalances[1] < updateBal[1] && virtualChannels[_vcID].erc20Balances[1] < updateBal[3],
             "State updates may only increase recipient balance."
@@ -475,7 +481,10 @@ contract LedgerChannel {
 
         // store VC data
         // we may want to record who is initiating on-chain settles
+        // TODO: remove this
         virtualChannels[_vcID].challenger = msg.sender;
+
+        // TODO: remove this, only can call this function once
         virtualChannels[_vcID].sequence = updateSeq;
 
         // channel state
@@ -484,6 +493,7 @@ contract LedgerChannel {
         virtualChannels[_vcID].erc20Balances[0] = updateBal[2];
         virtualChannels[_vcID].erc20Balances[1] = updateBal[3];
 
+        // TODO: remove this, only can call this function once
         virtualChannels[_vcID].updateVCtimeout = now.add(Channels[_lcID].confirmTime);
 
         emit DidVCSettle(_lcID, _vcID, updateSeq, updateBal[0], updateBal[1], msg.sender, virtualChannels[_vcID].updateVCtimeout);
@@ -492,15 +502,20 @@ contract LedgerChannel {
     function closeVirtualChannel(bytes32 _lcID, bytes32 _vcID) public {
         // require(updateLCtimeout > now)
         require(Channels[_lcID].isOpen, "LC is closed.");
+
+        // TODO: could be an enum
         require(virtualChannels[_vcID].isInSettlementState, "VC is not in settlement state.");
-        require(virtualChannels[_vcID].updateVCtimeout < now, "Update VC timeout has not expired.");
         require(!virtualChannels[_vcID].isClose, "VC is already closed");
+
+        require(virtualChannels[_vcID].updateVCtimeout < now, "Update VC timeout has not expired.");
         // reduce the number of open virtual channels stored on LC
         Channels[_lcID].numOpenVC = Channels[_lcID].numOpenVC.sub(1);
         // close vc flags
         virtualChannels[_vcID].isClose = true;
+
         // re-introduce the balances back into the LC state from the settled VC
         // decide if this lc is alice or bob in the vc
+        // TODO: refactor into using the indices as variables
         if(virtualChannels[_vcID].partyA == Channels[_lcID].partyAddresses[0]) {
             Channels[_lcID].ethBalances[0] = Channels[_lcID].ethBalances[0].add(virtualChannels[_vcID].ethBalances[0]);
             Channels[_lcID].ethBalances[1] = Channels[_lcID].ethBalances[1].add(virtualChannels[_vcID].ethBalances[1]);
@@ -519,7 +534,7 @@ contract LedgerChannel {
     }
 
 
-    // todo: allow ethier lc.end-user to nullify the settled LC state and return to off-chain
+    // TODO: allow either LC end-user to nullify the settled LC state and return to off-chain
     function byzantineCloseChannel(bytes32 _lcID) public {
         Channel storage channel = Channels[_lcID];
 
@@ -527,6 +542,8 @@ contract LedgerChannel {
         require(channel.isOpen, "Channel is not open");
         require(channel.isUpdateLCSettling == true, "Channel is not settling");
         require(channel.numOpenVC == 0, "Open VCs must be 0");
+
+        // TODO: remove this
         require(channel.updateLCtimeout < now, "LC timeout over.");
 
         // if off chain state update didnt reblance deposits, just return to deposit owner
@@ -536,14 +553,14 @@ contract LedgerChannel {
         uint256 possibleTotalEthBeforeDeposit = channel.ethBalances[0].add(channel.ethBalances[1]); 
         uint256 possibleTotalTokenBeforeDeposit = channel.erc20Balances[0].add(channel.erc20Balances[1]);
 
-        if(possibleTotalEthBeforeDeposit < totalEthDeposit) {
+        if (possibleTotalEthBeforeDeposit < totalEthDeposit) {
             channel.ethBalances[0] = channel.ethBalances[0].add(channel.ethBalances[2]);
             channel.ethBalances[1] = channel.ethBalances[1].add(channel.ethBalances[3]);
         } else {
             require(possibleTotalEthBeforeDeposit == totalEthDeposit, "Eth deposit must add up");
         }
 
-        if(possibleTotalTokenBeforeDeposit < totalTokenDeposit) {
+        if (possibleTotalTokenBeforeDeposit < totalTokenDeposit) {
             channel.erc20Balances[0] = channel.erc20Balances[0].add(channel.erc20Balances[2]);
             channel.erc20Balances[1] = channel.erc20Balances[1].add(channel.erc20Balances[3]);
         } else {
@@ -551,6 +568,9 @@ contract LedgerChannel {
         }
 
         // reentrancy
+        channel.isOpen = false;
+        numChannels = numChannels.sub(1);
+
         uint256 ethbalanceA = channel.ethBalances[0];
         uint256 ethbalanceI = channel.ethBalances[1];
         uint256 tokenbalanceA = channel.erc20Balances[0];
@@ -558,15 +578,19 @@ contract LedgerChannel {
 
         channel.ethBalances[0] = 0;
         channel.ethBalances[1] = 0;
+        channel.ethBalances[2] = 0;
+        channel.ethBalances[3] = 0;
         channel.erc20Balances[0] = 0;
         channel.erc20Balances[1] = 0;
+        channel.erc20Balances[2] = 0;
+        channel.erc20Balances[3] = 0;
 
-        if(ethbalanceA != 0 || ethbalanceI != 0) {
+        if (ethbalanceA != 0 || ethbalanceI != 0) {
             channel.partyAddresses[0].transfer(ethbalanceA);
             channel.partyAddresses[1].transfer(ethbalanceI);
         }
 
-        if(tokenbalanceA != 0 || tokenbalanceI != 0) {
+        if (tokenbalanceA != 0 || tokenbalanceI != 0) {
             require(
                 channel.token.transfer(channel.partyAddresses[0], tokenbalanceA),
                 "byzantineCloseChannel: token transfer failure"
@@ -576,9 +600,6 @@ contract LedgerChannel {
                 "byzantineCloseChannel: token transfer failure"
             );          
         }
-
-        channel.isOpen = false;
-        numChannels = numChannels.sub(1);
 
         emit DidLCClose(_lcID, channel.sequence, ethbalanceA, ethbalanceI, tokenbalanceA, tokenbalanceI);
     }
@@ -600,7 +621,7 @@ contract LedgerChannel {
         return cursor == _root;
     }
 
-    //Struct Getters
+    // Struct Getters
     function getChannel(bytes32 id) public view returns (
         address[2],
         uint256[4],
