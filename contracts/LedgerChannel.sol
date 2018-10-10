@@ -3,11 +3,12 @@ pragma solidity ^0.4.23;
 import "./lib/ECTools.sol";
 import "./lib/token/HumanStandardToken.sol";
 import "./lib/SafeMath.sol";
+import "./lib/Ownable.sol";
 
 /// @title Set Virtual Channels - A layer2 hub and spoke payment network 
 /// @author Nathan Ginnever
 
-contract LedgerChannel {
+contract LedgerChannel is Ownable {
     using SafeMath for uint256;
 
     string public constant NAME = "Ledger Channel";
@@ -87,6 +88,11 @@ contract LedgerChannel {
         uint256 balanceB
     );
 
+    event WhitelistModified(
+        address indexed token,
+        bool added
+    );
+
     struct Channel {
         address[2] partyAddresses; // 0: partyA 1: partyI
         uint256[4] ethBalances; // 0: balanceA 1:balanceI 2:depositedA 3:depositedI
@@ -123,6 +129,29 @@ contract LedgerChannel {
     mapping(bytes32 => VirtualChannel) public virtualChannels;
     mapping(bytes32 => Channel) public Channels;
 
+    mapping(address => bool) public approvedTokens;
+
+    constructor(address[] whitelist) public {
+        for (uint256 i = 0; i < whitelist.length; i++) {
+            addTokenToWhitelist(whitelist[i]);
+        }
+
+        // add 0 address to whitelist for eth only channels
+        addTokenToWhitelist(address(0));
+    }
+
+    function addTokenToWhitelist(address token) public onlyOwner {
+        approvedTokens[token] = true;
+
+        emit WhitelistModified(token, true);
+    }
+
+    function removeTokenToWhitelist(address token) public onlyOwner {
+        approvedTokens[token] = false;
+
+        emit WhitelistModified(token, false);
+    }
+
     function createChannel(
         bytes32 _lcID,
         address _partyI, //TODO Why pass this in?
@@ -135,7 +164,7 @@ contract LedgerChannel {
     {
         require(Channels[_lcID].partyAddresses[0] == address(0), "Channel has already been created.");
         require(_partyI != 0x0, "No partyI address provided to LC creation");
-        //TODO check to see if token is part of whitelist
+        require(approvedTokens[_token], "Token is not whitelisted");
 
         // Set initial ledger channel state
         // Alice must execute this and we assume the initial state 
