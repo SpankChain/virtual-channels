@@ -608,7 +608,7 @@ contract("LedgerChannel :: joinChannel()", function(accounts) {
   });
 });
 
-// TODO deposit tests
+/** NOTE: Should we require a token deposit > 0? */
 contract("LedgerChannel :: deposit()", function(accounts) {
   const deposit = [web3latest.utils.toWei("10"), web3latest.utils.toWei("10")];
 
@@ -3296,7 +3296,7 @@ contract("LedgerChannel :: byzantineCloseChannel()", function(accounts) {
 
       await lc
         .byzantineCloseChannel(updatingLC)
-        .should.be.rejectedWith("LC timeout over.");
+        .should.be.rejectedWith("LC timeout not over.");
     });
 
     it("5. Fail: VCs are still open", async () => {
@@ -3397,11 +3397,131 @@ contract("LedgerChannel :: byzantineCloseChannel()", function(accounts) {
     });
 
     it.skip("6. Fail: Onchain Eth balances are greater than deposit", async () => {
-      // can't test this until deposits are complete
+      // create, join, and update a channel (no VCs)
+      const failedEthDeposit = web3latest.utils.sha3("df21e2", {
+        encoding: "hex"
+      });
+
+      let shortTimer = 1;
+      await token.approve(lc.address, lcDeposit0[1], { from: partyA });
+      await token.approve(lc.address, lcDeposit0[1], { from: partyI });
+      await lc.createChannel(
+        failedEthDeposit,
+        partyI,
+        shortTimer,
+        token.address,
+        lcDeposit0,
+        {
+          from: partyA,
+          value: lcDeposit0[0]
+        }
+      );
+      await lc.joinChannel(failedEthDeposit, lcDeposit0, {
+        from: partyI,
+        value: lcDeposit0[0]
+      });
+
+      // deposit eth into channel
+      const ethDeposit = [
+        web3latest.utils.toWei("10"),
+        web3latest.utils.toWei("0")
+      ];
+
+      let channel = await lc.getChannel(failedEthDeposit);
+      const expectedEth = channel[1][2].add(
+        web3latest.utils.toBN(ethDeposit[0])
+      );
+
+      let tx = await lc.deposit(failedEthDeposit, partyA, ethDeposit, {
+        from: partyA,
+        value: ethDeposit[0]
+      });
+      expect(tx.logs[0].event).to.equal("DidLCDeposit");
+
+      channel = await lc.getChannel(failedEthDeposit);
+      expect(expectedEth.eq(channel[1][2])).to.equal(true);
+
+      // generate an update state that does not reflect deposit
+      // NOTE: this does not contain any VCs
+      console.log("\nSigning balances:");
+      const updatedBalances = [
+        web3latest.utils.toWei("9"), // ethA
+        web3latest.utils.toWei("11"), // ethI
+        web3latest.utils.toWei("9"), // tokenA
+        web3latest.utils.toWei("11") // tokenI
+      ];
+      console.log("\n", updatedBalances[0]);
+      console.log(updatedBalances[1]);
+      // console.log("\n", updatedBalances[2]);
+      // console.log( updatedBalances[3]);
+
+      const lcHash1 = web3latest.utils.soliditySha3(
+        { type: "bytes32", value: failedEthDeposit },
+        { type: "bool", value: false }, // isclose
+        { type: "uint256", value: lcSequence }, // sequence
+        { type: "uint256", value: 0 }, // open VCs
+        { type: "bytes32", value: emptyRootHash }, // VC root hash
+        { type: "address", value: partyA }, // partyA
+        { type: "address", value: partyI }, // hub
+        { type: "uint256", value: updatedBalances[0] }, // ethA
+        { type: "uint256", value: updatedBalances[1] }, // ethI
+        { type: "uint256", value: updatedBalances[2] }, // tokenA
+        { type: "uint256", value: updatedBalances[3] } // tokenI
+      );
+
+      const updatingSigA = await web3latest.eth.sign(lcHash1, partyA);
+      const updatingSigI = await web3latest.eth.sign(lcHash1, partyI);
+
+      const updateParams = [
+        lcSequence, // set to 1
+        0,
+        updatedBalances[0], // ethA
+        updatedBalances[1], // ethI
+        updatedBalances[2], // tokenA
+        updatedBalances[3] // tokenI
+      ];
+
+      await lc.updateLCstate(
+        failedEthDeposit,
+        updateParams,
+        emptyRootHash,
+        updatingSigA,
+        updatingSigI
+      );
+
+      // calculate possibleTotalEthBeforeDeposit from on chain information
+      channel = await lc.getChannel(failedEthDeposit);
+      const possibleTotalEthBeforeDepositChain = channel[1][0].add(
+        channel[1][1]
+      ); // ethBalanceA + ethBalanceI
+      const totalEthDeposit = channel[1][2]
+        .add(channel[1][3])
+        .add(channel[3][0]); // depositedEthA + depositedEthI + initialDepositEth
+      expect(possibleTotalEthBeforeDepositChain.lt(totalEthDeposit)).to.equal(
+        false
+      );
+      console.log(
+        "possibleTotalEth:",
+        possibleTotalEthBeforeDepositChain.toString()
+      );
+
+      console.log("totalEthDeposit:", totalEthDeposit.toString());
+      // update to calculate if require is hit
+
+      // calculate possibleTotalEthBeforeDeposit intended
+      // const possibleTotalEthBeforeDepositIntended = updatedBalances[1].add(
+      //   updatedBalances[2]
+      // );
+
+      // explicitly waitout timer
+      wait(1000 * (1 + shortTimer));
+      await lc
+        .byzantineCloseChannel(failedEthDeposit)
+        .should.be.rejectedWith("Eth deposit must add up");
     });
 
     it.skip("7. Fail: Onchain token balances are greater than deposit", async () => {
-      // can't test this until deposits are complete
+      /** NOTE: currently you can deposit into a settling channel. If this changes, this test will need to be updated. */
     });
 
     it("8. Success: Channel byzantine closed!", async () => {
