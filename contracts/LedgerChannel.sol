@@ -194,7 +194,7 @@ contract LedgerChannel is Ownable {
     function LCOpenTimeout(bytes32 _lcID) public {
         require(msg.sender == Channels[_lcID].partyAddresses[0], "Request not sent by channel party A");
         require(Channels[_lcID].isOpen == false, "Channel has been joined");
-        require(now > Channels[_lcID].LCopenTimeout, "Channel timeout has not expire");
+        require(now > Channels[_lcID].LCopenTimeout, "Channel timeout has not expired");
 
         // reentrancy protection
         uint256 ethbalanceA = Channels[_lcID].ethBalances[0];
