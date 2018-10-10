@@ -254,7 +254,7 @@ contract LedgerChannel is Ownable {
         require(Channels[_lcID].isOpen == true, "Tried adding funds to a closed channel");
         require(
             recipient == Channels[_lcID].partyAddresses[0] || recipient == Channels[_lcID].partyAddresses[1],
-            "Receipient must be channel member"
+            "Recipient must be channel member"
         );
         require(
             msg.sender == Channels[_lcID].partyAddresses[0] || msg.sender == Channels[_lcID].partyAddresses[1],
@@ -578,7 +578,7 @@ contract LedgerChannel is Ownable {
         require(channel.numOpenVC == 0, "Open VCs must be 0");
 
         // TODO: remove this
-        require(channel.updateLCtimeout < now, "LC timeout over.");
+        require(channel.updateLCtimeout < now, "LC timeout not over.");
 
         // if off chain state update didnt reblance deposits, just return to deposit owner
         uint256 totalEthDeposit = channel.initialDeposit[0].add(channel.ethBalances[2]).add(channel.ethBalances[3]);
