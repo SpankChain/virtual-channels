@@ -55,6 +55,7 @@ function generateProof(vcHashToProve, vcInitStates) {
 let lc;
 let ec;
 let token;
+let badToken;
 let bond;
 
 // state
@@ -87,9 +88,15 @@ contract("LedgerChannel :: createChannel()", function(accounts) {
 
     await token.transfer(partyB, web3latest.utils.toWei("100"));
     await token.transfer(partyI, web3latest.utils.toWei("100"));
+
+
+    badToken = await Token.new(web3latest.utils.toWei("1000"), "Unauthorized", 1, "UNA");
+    await badToken.transfer(partyB, web3latest.utils.toWei("100"));
+    await badToken.transfer(partyI, web3latest.utils.toWei("100"));
+
   });
 
-  describe("Creating a channel has 6 possible cases:", () => {
+  describe("Creating a channel has 7 possible cases:", () => {
     it("1. Fail: Channel with that ID has already been created", async () => {
       const lcId = web3latest.utils.sha3("fail", { encoding: "hex" });
       const sentBalance = [
@@ -149,7 +156,28 @@ contract("LedgerChannel :: createChannel()", function(accounts) {
         .should.be.rejectedWith("No partyI address provided to LC creation");
     });
 
-    it("3. Fail: Token balance input is negative.", async () => {
+    it("3. Fail: Token has not been whitelisted", async() => {
+      const lcId = web3latest.utils.sha3("1111", { encoding: "hex" });
+      const sentBalance = [
+        web3latest.utils.toWei("10"),
+        web3latest.utils.toWei("10")
+      ];
+
+      const approval = await badToken.approve(lc.address, sentBalance[1]);
+      const challenge = 0;
+
+      const tx = await lc.createChannel(
+        lcId,
+        partyI,
+        challenge,
+        badToken.address,
+        sentBalance,
+        { from: partyA, value: sentBalance[0] }
+      ).should.be.rejectedWith("Token is not whitelisted");
+
+    })
+
+    it("4. Fail: Token balance input is negative.", async () => {
       const lcId = web3latest.utils.sha3("1111", { encoding: "hex" });
       const sentBalance = [
         web3latest.utils.toWei("10"),
@@ -177,7 +205,7 @@ contract("LedgerChannel :: createChannel()", function(accounts) {
       // NOTE: reverts here without the message
     });
 
-    it("4. Fail: Eth balance doesn't match paid value.", async () => {
+    it("5. Fail: Eth balance doesn't match paid value.", async () => {
       const lcId = web3latest.utils.sha3("1111", { encoding: "hex" });
       const sentBalance = [
         web3latest.utils.toWei("10"),
@@ -195,7 +223,7 @@ contract("LedgerChannel :: createChannel()", function(accounts) {
         .should.be.rejectedWith("Eth balance does not match sent value");
     });
 
-    it("5. Fail: Token transferFrom failed.", async () => {
+    it("6. Fail: Token transferFrom failed.", async () => {
       const lcId = web3latest.utils.sha3("1111", { encoding: "hex" });
       const sentBalance = [
         web3latest.utils.toWei("10"),
@@ -222,7 +250,7 @@ contract("LedgerChannel :: createChannel()", function(accounts) {
         .should.be.rejectedWith(SolRevert);
     });
 
-    it("6. Success: Channel created!", async () => {
+    it("7. Success: Channel created!", async () => {
       const lcId = web3latest.utils.sha3("1111", { encoding: "hex" });
       const sentBalance = [
         web3latest.utils.toWei("10"),
