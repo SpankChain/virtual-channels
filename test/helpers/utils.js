@@ -1,49 +1,62 @@
-const Buffer = require('buffer').Buffer
-const util = require('ethereumjs-util')
-const Web3latest = require('web3')
-const web3latest = new Web3latest(new Web3latest.providers.HttpProvider("http://localhost:8545"))
+const Buffer = require("buffer").Buffer;
+const util = require("ethereumjs-util");
+const Web3latest = require("web3");
+const web3latest = new Web3latest(
+  new Web3latest.providers.HttpProvider("http://localhost:8545")
+);
 
 module.exports = {
   latestTime: async function latestTime() {
-    let t = await web3latest.eth.getBlock('latest').timestamp
-    return t
+    let t = await web3latest.eth.getBlock("latest").timestamp;
+    return t;
   },
 
   increaseTime: function increaseTime(duration) {
-    const id = Date.now()
+    const id = Date.now();
     return new Promise((resolve, reject) => {
-      web3latest.currentProvider.send({
-        jsonrpc: '2.0',
-        method: 'evm_increaseTime',
-        params: [duration],
-        id: id,
-      }, e1 => {
-        if (e1) return reject(e1)
+      web3latest.currentProvider.send(
+        {
+          jsonrpc: "2.0",
+          method: "evm_increaseTime",
+          params: [duration],
+          id: id
+        },
+        e1 => {
+          if (e1) return reject(e1);
 
-        web3latest.currentProvider.send({
-          jsonrpc: '2.0',
-          method: 'evm_mine',
-          id: id+1,
-        }, (e2, res) => {
-          return e2 ? reject(e2) : resolve(res)
-        })
-      })
-    })
+          web3latest.currentProvider.send(
+            {
+              jsonrpc: "2.0",
+              method: "evm_mine",
+              id: id + 1
+            },
+            (e2, res) => {
+              return e2 ? reject(e2) : resolve(res);
+            }
+          );
+        }
+      );
+    });
   },
 
   increaseTimeTo: function increaseTimeTo(target) {
-    let now = this.latestTime()
-    if (target < now) throw Error(`Cannot increase current time(${now}) to a moment in the past(${target})`)
-    let diff = target - now
-    return this.increaseTime(diff)
+    let now = this.latestTime();
+    if (target < now)
+      throw Error(
+        `Cannot increase current time(${now}) to a moment in the past(${target})`
+      );
+    let diff = target - now;
+    return this.increaseTime(diff);
   },
 
   assertThrowsAsync: async function assertThrowsAsync(fn, regExp) {
     let f = () => {};
     try {
       await fn();
-    } catch(e) {
-      f = () => {throw e};
+    } catch (e) {
+      f = () => {
+        throw e;
+      };
     } finally {
       assert.throws(f, regExp);
     }
@@ -55,90 +68,102 @@ module.exports = {
     } catch (error) {
       // TODO: Check jump destination to destinguish between a throw
       //       and an actual invalid jump.
-      const invalidOpcode = error.message.search('invalid opcode') >= 0;
+      const invalidOpcode = error.message.search("invalid opcode") >= 0;
       // TODO: When we contract A calls contract B, and B throws, instead
       //       of an 'invalid jump', we get an 'out of gas' error. How do
       //       we distinguish this from an actual out of gas event? (The
       //       ganache log actually show an 'invalid jump' event.)
-      const outOfGas = error.message.search('out of gas') >= 0;
-      const revert = error.message.search('revert') >= 0;
+      const outOfGas = error.message.search("out of gas") >= 0;
+      const revert = error.message.search("revert") >= 0;
       assert(
         invalidOpcode || outOfGas || revert,
-        'Expected throw, got \'' + error + '\' instead',
+        "Expected throw, got '" + error + "' instead"
       );
       return;
     }
-    assert.fail('Expected throw not received');
+    assert.fail("Expected throw not received");
   },
 
   duration: {
-    seconds: function(val) { return val * 1000},
-    minutes: function(val) { return val * this.seconds(60) },
-    hours:   function(val) { return val * this.minutes(60) },
-    days:    function(val) { return val * this.hours(24) },
-    weeks:   function(val) { return val * this.days(7) },
-    years:   function(val) { return val * this.days(365)}
+    seconds: function(val) {
+      return val * 1000;
+    },
+    minutes: function(val) {
+      return val * this.seconds(60);
+    },
+    hours: function(val) {
+      return val * this.minutes(60);
+    },
+    days: function(val) {
+      return val * this.hours(24);
+    },
+    weeks: function(val) {
+      return val * this.days(7);
+    },
+    years: function(val) {
+      return val * this.days(365);
+    }
   },
 
   getBytes: function getBytes(input) {
-    if(Buffer.isBuffer(input)) input = '0x' + input.toString('hex')
-    if(66-input.length <= 0) return web3.toHex(input)
-    return this.padBytes32(web3.toHex(input))
+    if (Buffer.isBuffer(input)) input = "0x" + input.toString("hex");
+    if (66 - input.length <= 0) return web3latest.utils.toHex(input);
+    return this.padBytes32(web3latest.utils.toHex(input));
   },
 
   marshallState: function marshallState(inputs) {
-    var m = this.getBytes(inputs[0])
+    var m = this.getBytes(inputs[0]);
 
-    for(var i=1; i<inputs.length;i++) {
-      let x = this.getBytes(inputs[i])
-      m += x.substr(2, x.length)
+    for (var i = 1; i < inputs.length; i++) {
+      let x = this.getBytes(inputs[i]);
+      m += x.substr(2, x.length);
     }
-    return m
+    return m;
   },
 
   getCTFaddress: async function getCTFaddress(_r) {
-    return web3.sha3(_r, {encoding: 'hex'})
+    return web3latest.sha3(_r, { encoding: "hex" });
   },
 
   getCTFstate: async function getCTFstate(_contract, _signers, _args) {
-    _args.unshift(_contract)
-    var _m = this.marshallState(_args)
-    _signers.push(_contract.length)
-    _signers.push(_m)
-    var _r = this.marshallState(_signers)
-    return _r
-  }, 
-
-  padBytes32: function padBytes32(data){
-    // TODO: check input is hex / move to TS
-    let l = 66-data.length
-
-    let x = data.substr(2, data.length)
-
-    for(var i=0; i<l; i++) {
-      x = 0 + x
-    }
-    return '0x' + x
+    _args.unshift(_contract);
+    var _m = this.marshallState(_args);
+    _signers.push(_contract.length);
+    _signers.push(_m);
+    var _r = this.marshallState(_signers);
+    return _r;
   },
 
-  rightPadBytes32: function rightPadBytes32(data){
-    let l = 66-data.length
+  padBytes32: function padBytes32(data) {
+    // TODO: check input is hex / move to TS
+    let l = 66 - data.length;
 
-    for(var i=0; i<l; i++) {
-      data+=0
+    let x = data.substr(2, data.length);
+
+    for (var i = 0; i < l; i++) {
+      x = 0 + x;
     }
-    return data
+    return "0x" + x;
+  },
+
+  rightPadBytes32: function rightPadBytes32(data) {
+    let l = 66 - data.length;
+
+    for (var i = 0; i < l; i++) {
+      data += 0;
+    }
+    return data;
   },
 
   hexToBuffer: function hexToBuffer(hexString) {
-    return new Buffer(hexString.substr(2, hexString.length), 'hex')
+    return new Buffer(hexString.substr(2, hexString.length), "hex");
   },
 
   bufferToHex: function bufferToHex(buffer) {
-    return '0x'+ buffer.toString('hex')
+    return "0x" + buffer.toString("hex");
   },
 
   isHash: function isHash(buffer) {
-    return buffer.length === 32 && Buffer.isBuffer(buffer)
+    return buffer.length === 32 && Buffer.isBuffer(buffer);
   }
-}
+};
