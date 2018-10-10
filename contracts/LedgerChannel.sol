@@ -155,7 +155,7 @@ contract LedgerChannel is Ownable {
 
     function createChannel(
         bytes32 _lcID,
-        address _partyI, //TODO Why pass this in?
+        address _partyI, 
         uint256 _confirmTime,
         address _token,
         uint256[2] _balances // [eth, token]
@@ -163,6 +163,8 @@ contract LedgerChannel is Ownable {
         public
         payable 
     {
+        //TODO require that msg.sender != partyI
+        //TODO require partyI is equal to hubAddress (set in constructor)
         require(Channels[_lcID].partyAddresses[0] == address(0), "Channel has already been created.");
         require(_partyI != 0x0, "No partyI address provided to LC creation");
         require(approvedTokens[_token], "Token is not whitelisted");
@@ -240,7 +242,7 @@ contract LedgerChannel is Ownable {
 
 
     // additive updates of monetary state
-    // TODO check this for attack vectors
+    // TODO check to figure out if party can push counterparty to unrecoverable state with malicious deposit
     function deposit(
         bytes32 _lcID, 
         address recipient, 
@@ -254,7 +256,10 @@ contract LedgerChannel is Ownable {
             recipient == Channels[_lcID].partyAddresses[0] || recipient == Channels[_lcID].partyAddresses[1],
             "Receipient must be channel member"
         );
-        require(msg.sender == recipient, "Receipient must be channel member");
+        require(
+            msg.sender == Channels[_lcID].partyAddresses[0] || msg.sender == Channels[_lcID].partyAddresses[1],
+            "Sender must be channel member"
+        );
 
         //if(Channels[_lcID].token)
 
