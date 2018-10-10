@@ -578,7 +578,7 @@ contract LedgerChannel is Ownable {
         require(channel.numOpenVC == 0, "Open VCs must be 0");
 
         // TODO: remove this
-        require(channel.updateLCtimeout < now, "LC timeout over.");
+        require(channel.updateLCtimeout < now, "LC timeout not over.");
 
         // if off chain state update didnt reblance deposits, just return to deposit owner
         uint256 totalEthDeposit = channel.initialDeposit[0].add(channel.ethBalances[2]).add(channel.ethBalances[3]);
