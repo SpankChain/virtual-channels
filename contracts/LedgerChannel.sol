@@ -416,7 +416,7 @@ contract LedgerChannel is Ownable {
         address _partyA, 
         address _partyB, 
         uint256[2] _bond,
-        uint256[4] _balances, // 0: ethBalanceA 1:ethBalanceI 2:tokenBalanceA 3:tokenBalanceI
+        uint256[4] _balances, // 0: ethBalanceA 1:ethBalanceB 2:tokenBalanceA 3:tokenBalanceB
         string sigA
     ) 
         public 
@@ -667,8 +667,8 @@ contract LedgerChannel is Ownable {
         Channel memory channel = Channels[id];
         return (
             channel.partyAddresses,
-            channel.ethBalances,
-            channel.erc20Balances,
+            channel.ethBalances, // 0: balanceA 1:balanceI 2:depositedA 3:depositedI
+            channel.erc20Balances, // 0: balanceA 1:balanceI 2:depositedA 3:depositedI
             channel.initialDeposit,
             channel.sequence,
             channel.confirmTime,
