@@ -35,8 +35,8 @@ contract LedgerChannel is Ownable {
     event DidLCDeposit (
         bytes32 indexed channelId,
         address indexed recipient,
-        uint256 deposit,
-        bool isToken
+        uint256 ethDeposit,
+        uint256 tokenDeposit
     );
 
     event DidLCUpdateState (
@@ -240,8 +240,14 @@ contract LedgerChannel is Ownable {
 
     // additive updates of monetary state
     // TODO check this for attack vectors
-    // TODO refactor to take balances array and update both at the same time
-    function deposit(bytes32 _lcID, address recipient, uint256 _balance, bool isToken) public payable {
+    function deposit(
+        bytes32 _lcID, 
+        address recipient, 
+        uint256[2] _balances // [eth, token]
+    ) 
+        public 
+        payable 
+    {
         require(Channels[_lcID].isOpen == true, "Tried adding funds to a closed channel");
         require(
             recipient == Channels[_lcID].partyAddresses[0] || recipient == Channels[_lcID].partyAddresses[1],
@@ -251,28 +257,21 @@ contract LedgerChannel is Ownable {
 
         //if(Channels[_lcID].token)
 
-        // TODO consolidate arrays
         if (Channels[_lcID].partyAddresses[0] == recipient) {
-            if(isToken) {
-                require(Channels[_lcID].token.transferFrom(msg.sender, this, _balance), "deposit: token transfer failure");
-                Channels[_lcID].erc20Balances[2] = Channels[_lcID].erc20Balances[2].add(_balance);
-            } else {
-                require(msg.value == _balance, "State balance does not match sent value");
-                Channels[_lcID].ethBalances[2] = Channels[_lcID].ethBalances[2].add(msg.value);
-            }
-        }
+            require(msg.value == _balances[0], "State balance does not match sent value");
+            Channels[_lcID].ethBalances[2] = Channels[_lcID].ethBalances[2].add(msg.value);
 
-        if (Channels[_lcID].partyAddresses[1] == recipient) {
-            if(isToken) {
-                require(Channels[_lcID].token.transferFrom(msg.sender, this, _balance), "deposit: token transfer failure");
-                Channels[_lcID].erc20Balances[3] = Channels[_lcID].erc20Balances[3].add(_balance);
-            } else {
-                require(msg.value == _balance, "State balance does not match sent value");
-                Channels[_lcID].ethBalances[3] = Channels[_lcID].ethBalances[3].add(msg.value);
-            }
+            require(Channels[_lcID].token.transferFrom(msg.sender, this, _balances[1]), "deposit: token transfer failure");
+            Channels[_lcID].erc20Balances[2] = Channels[_lcID].erc20Balances[2].add(_balances[1]);
+        } else if (Channels[_lcID].partyAddresses[1] == recipient) {
+            require(msg.value == _balances[0], "State balance does not match sent value");
+            Channels[_lcID].ethBalances[3] = Channels[_lcID].ethBalances[3].add(msg.value);
+
+            require(Channels[_lcID].token.transferFrom(msg.sender, this, _balances[1]), "deposit: token transfer failure");
+            Channels[_lcID].erc20Balances[3] = Channels[_lcID].erc20Balances[3].add(_balances[1]);
         }
         
-        emit DidLCDeposit(_lcID, recipient, _balance, isToken);
+        emit DidLCDeposit(_lcID, recipient, _balances[0], _balances[1]);
     }
 
     // TODO: Check there are no open virtual channels, the client should have cought this before signing a close LC state update
