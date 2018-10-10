@@ -131,6 +131,7 @@ contract LedgerChannel is Ownable {
 
     mapping(address => bool) public approvedTokens;
 
+    // TODO hardcode booty, do we need to have address(0)?
     constructor(address[] whitelist) public {
         for (uint256 i = 0; i < whitelist.length; i++) {
             addTokenToWhitelist(whitelist[i]);
