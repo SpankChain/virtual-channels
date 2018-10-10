@@ -1,0 +1,12 @@
+version: '3'
+services:
+  ganache:
+    image: trufflesuite/ganache-cli:latest
+    container_name: ganache
+    ports:
+      - "8545:8545"
+    command: -m 'candy maple cake sugar pudding cream honey rich smooth crumble sweet treat'
+networks:
+    default:
+        external:
+            name: cloudbuild
