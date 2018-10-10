@@ -4,7 +4,6 @@ import "./lib/ECTools.sol";
 import "./lib/token/HumanStandardToken.sol";
 
 /// @title Set Virtual Channels - A layer2 hub and spoke payment network 
-/// @author Nathan Ginnever
 
 contract VulnerableLedgerChannel {
 
