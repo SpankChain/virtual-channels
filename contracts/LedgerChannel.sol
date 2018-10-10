@@ -254,7 +254,7 @@ contract LedgerChannel is Ownable {
         require(Channels[_lcID].isOpen == true, "Tried adding funds to a closed channel");
         require(
             recipient == Channels[_lcID].partyAddresses[0] || recipient == Channels[_lcID].partyAddresses[1],
-            "Receipient must be channel member"
+            "Recipient must be channel member"
         );
         require(
             msg.sender == Channels[_lcID].partyAddresses[0] || msg.sender == Channels[_lcID].partyAddresses[1],
