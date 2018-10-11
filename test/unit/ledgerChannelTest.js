@@ -1364,8 +1364,8 @@ contract("LedgerChannel :: consensusCloseChannel()", function(accounts) {
   });
 });
 
-NOTE: in this case, only tested with empty root hash
-non-empty root hash is tested in initVCState fns
+// NOTE: in this case, only tested with empty root hash
+// non-empty root hash is tested in initVCState fns
 contract("LedgerChannel :: updateLCstate()", function(accounts) {
   const initialDeposit = [
     web3latest.utils.toWei("10"),
