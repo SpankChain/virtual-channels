@@ -6,8 +6,9 @@ const HumanStandardToken = artifacts.require(
 );
 
 module.exports = async function(deployer, network, accounts) {
-  const authorizedTokens = [];
   deployer.deploy(EC);
+
+  let tokenAddress = "0x0"; // change to BOOTY address for mainnet
 
   if (network !== "mainnet" && network !== "rinkeby") {
     deployer.link(EC, Vulnerable);
@@ -33,10 +34,9 @@ module.exports = async function(deployer, network, accounts) {
         );
       })
     );
-
-    authorizedTokens.push(hst.address);
+    tokenAddress = hst.address;
   }
 
   deployer.link(EC, LC);
-  deployer.deploy(LC, authorizedTokens);
+  deployer.deploy(LC, tokenAddress, accounts[0]);
 };
