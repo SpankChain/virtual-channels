@@ -3,12 +3,10 @@ pragma solidity ^0.4.23;
 import "./lib/ECTools.sol";
 import "./lib/token/HumanStandardToken.sol";
 import "./lib/SafeMath.sol";
-import "./lib/Ownable.sol";
 
 /// @title Set Virtual Channels - A layer2 hub and spoke payment network 
-/// @author Nathan Ginnever
 
-contract LedgerChannel is Ownable {
+contract LedgerChannel {
     using SafeMath for uint256;
 
     string public constant NAME = "Ledger Channel";
@@ -93,6 +91,14 @@ contract LedgerChannel is Ownable {
         bool added
     );
 
+    enum ChannelStatus {
+        Nonexistent,
+        Opened,
+        Joined,
+        Settling,
+        Settled
+    }
+
     struct Channel {
         address[2] partyAddresses; // 0: partyA 1: partyI
         uint256[4] ethBalances; // 0: balanceA 1:balanceI 2:depositedA 3:depositedI
@@ -103,23 +109,23 @@ contract LedgerChannel is Ownable {
         bytes32 VCrootHash;
         uint256 LCopenTimeout;
         uint256 updateLCtimeout; // when update LC times out
+        ChannelStatus status;
         bool isOpen; // true when both parties have joined
         bool isUpdateLCSettling;
         uint256 numOpenVC;
         HumanStandardToken token; // TODO add onlyowner method for whitelisting tokens
     }
 
+    // TODO new enum for VC states
     // virtual-channel state
     struct VirtualChannel {
-        bool isClose;
-        bool isInSettlementState;
+        ChannelStatus status;
         uint256 sequence;
         address challenger; // Initiator of challenge
         uint256 updateVCtimeout; // when update VC times out
         // channel state
         address partyA; // VC participant A
         address partyB; // VC participant B
-        address partyI; // LC hub
         uint256[2] ethBalances;
         uint256[2] erc20Balances;
         uint256[2] bond;
@@ -129,33 +135,17 @@ contract LedgerChannel is Ownable {
     mapping(bytes32 => VirtualChannel) public virtualChannels;
     mapping(bytes32 => Channel) public Channels;
 
-    mapping(address => bool) public approvedTokens;
+    address public approvedToken;
+    address public hubAddress;
 
-    // TODO hardcode booty, do we need to have address(0)?
-    constructor(address[] whitelist) public {
-        for (uint256 i = 0; i < whitelist.length; i++) {
-            addTokenToWhitelist(whitelist[i]);
-        }
-
-        // add 0 address to whitelist for eth only channels
-        addTokenToWhitelist(address(0));
-    }
-
-    function addTokenToWhitelist(address token) public onlyOwner {
-        approvedTokens[token] = true;
-
-        emit WhitelistModified(token, true);
-    }
-
-    function removeTokenToWhitelist(address token) public onlyOwner {
-        approvedTokens[token] = false;
-
-        emit WhitelistModified(token, false);
+    constructor(address _token, address _hubAddress) public {
+        approvedToken = _token;
+        hubAddress = _hubAddress;
     }
 
     function createChannel(
         bytes32 _lcID,
-        address _partyI, 
+        address _partyI, // TODO can remove this, leaving in to preserve interface
         uint256 _confirmTime,
         address _token,
         uint256[2] _balances // [eth, token]
@@ -163,16 +153,16 @@ contract LedgerChannel is Ownable {
         public
         payable 
     {
-        //TODO require that msg.sender != partyI
-        //TODO require partyI is equal to hubAddress (set in constructor)
-        require(Channels[_lcID].partyAddresses[0] == address(0), "Channel has already been created.");
-        require(_partyI != 0x0, "No partyI address provided to LC creation");
-        require(approvedTokens[_token], "Token is not whitelisted");
+        require(Channels[_lcID].status == ChannelStatus.Nonexistent, "Channel already exists");
+        require(_token == approvedToken, "Token is not whitelisted");
+        require(_partyI == hubAddress, "Channel must be created with hub");
 
         // Set initial ledger channel state
         // Alice must execute this and we assume the initial state 
         // to be signed from this requirement
         // Alternative is to check a sig as in joinChannel
+        Channels[_lcID].status = ChannelStatus.Opened;
+
         Channels[_lcID].partyAddresses[0] = msg.sender;
         Channels[_lcID].partyAddresses[1] = _partyI;
 
@@ -196,10 +186,11 @@ contract LedgerChannel is Ownable {
 
     function LCOpenTimeout(bytes32 _lcID) public {
         require(msg.sender == Channels[_lcID].partyAddresses[0], "Request not sent by channel party A");
-        require(Channels[_lcID].isOpen == false, "Channel has been joined");
+        require(Channels[_lcID].status == ChannelStatus.Opened, "Channel status must be Opened");
         require(now > Channels[_lcID].LCopenTimeout, "Channel timeout has not expired");
 
         // reentrancy protection
+        Channels[_lcID].status = ChannelStatus.Settled;
         uint256 ethbalanceA = Channels[_lcID].ethBalances[0];
         uint256 tokenbalanceA = Channels[_lcID].erc20Balances[0];
 
@@ -212,24 +203,22 @@ contract LedgerChannel is Ownable {
         require(Channels[_lcID].token.transfer(Channels[_lcID].partyAddresses[0], tokenbalanceA), "CreateChannel: token transfer failure");
 
         emit DidLCClose(_lcID, 0, ethbalanceA, tokenbalanceA, 0, 0);
-
-        // only safe to delete since no action was taken on this channel
-        delete Channels[_lcID]; // TODO don't need to delete, add another variable to track open/joined
     }
 
     // TODO need settle 0 state function (leave joined channel that doesn't have updates)
 
     function joinChannel(bytes32 _lcID, uint256[2] _balances) public payable {
         // require the channel is not open yet
-        require(Channels[_lcID].isOpen == false, "Channel is already joined");
+        require(Channels[_lcID].status == ChannelStatus.Opened, "Channel status must be Opened");
         require(msg.sender == Channels[_lcID].partyAddresses[1], "Channel can only be joined by counterparty");
+
+        // no longer allow joining functions to be called
+        Channels[_lcID].status = ChannelStatus.Joined;
+        numChannels = numChannels.add(1);
 
         // TODO: can separate these by party
         Channels[_lcID].initialDeposit[0] = Channels[_lcID].initialDeposit[0].add(_balances[0]);
         Channels[_lcID].initialDeposit[1] = Channels[_lcID].initialDeposit[1].add(_balances[1]);
-        // no longer allow joining functions to be called
-        Channels[_lcID].isOpen = true;
-        numChannels = numChannels.add(1);
 
         require(msg.value == _balances[0], "State balance does not match sent value");
         Channels[_lcID].ethBalances[1] = msg.value;
@@ -251,7 +240,7 @@ contract LedgerChannel is Ownable {
         public 
         payable 
     {
-        require(Channels[_lcID].isOpen == true, "Tried adding funds to a closed channel");
+        require(Channels[_lcID].status == ChannelStatus.Joined, "Channel status must be Joined");
         require(
             recipient == Channels[_lcID].partyAddresses[0] || recipient == Channels[_lcID].partyAddresses[1],
             "Recipient must be channel member"
@@ -292,7 +281,8 @@ contract LedgerChannel is Ownable {
     {
         // assume num open vc is 0 and root hash is 0x0
         //require(Channels[_lcID].sequence < _sequence);
-        require(Channels[_lcID].isOpen == true, "Channel is not open");
+        require(Channels[_lcID].status == ChannelStatus.Joined, "Channel status must be Joined");
+
         uint256 totalEthDeposit = Channels[_lcID].initialDeposit[0].add(Channels[_lcID].ethBalances[2]).add(Channels[_lcID].ethBalances[3]);
         uint256 totalTokenDeposit = Channels[_lcID].initialDeposit[1].add(Channels[_lcID].erc20Balances[2]).add(Channels[_lcID].erc20Balances[3]);
         require(totalEthDeposit == _balances[0].add(_balances[1]), "On-chain balances not equal to provided balances");
@@ -318,21 +308,29 @@ contract LedgerChannel is Ownable {
         require(Channels[_lcID].partyAddresses[1] == ECTools.recoverSigner(_state, _sigI), "Party I signature invalid");
 
         // this will prevent reentrancy
-        Channels[_lcID].isOpen = false;
+        Channels[_lcID].status = ChannelStatus.Settled;
         numChannels = numChannels.sub(1);
 
-        Channels[_lcID].ethBalances[0] = 0;
+        Channels[_lcID].ethBalances[0] = 0; // TODO add comments to array, extract into function
         Channels[_lcID].ethBalances[1] = 0;
+        Channels[_lcID].ethBalances[2] = 0;
+        Channels[_lcID].ethBalances[3] = 0;
         Channels[_lcID].erc20Balances[0] = 0;
         Channels[_lcID].erc20Balances[1] = 0;
+        Channels[_lcID].erc20Balances[2] = 0;
+        Channels[_lcID].erc20Balances[3] = 0;
 
         Channels[_lcID].partyAddresses[0].transfer(_balances[0]);
         Channels[_lcID].partyAddresses[1].transfer(_balances[1]);
 
-        require(Channels[_lcID].token.transfer(Channels[_lcID].partyAddresses[0], _balances[2]), "consensusCloseChannel: token transfer failure");
-        require(Channels[_lcID].token.transfer(Channels[_lcID].partyAddresses[1], _balances[3]), "consensusCloseChannel: token transfer failure");
-
-        // TODO use isClosed flag/enum
+        require(
+            Channels[_lcID].token.transfer(Channels[_lcID].partyAddresses[0], _balances[2]),
+            "consensusCloseChannel: token transfer failure"
+        );
+        require(
+            Channels[_lcID].token.transfer(Channels[_lcID].partyAddresses[1], _balances[3]),
+            "consensusCloseChannel: token transfer failure"
+        );
 
         emit DidLCClose(_lcID, _sequence, _balances[0], _balances[1], _balances[2], _balances[3]);
     }
@@ -349,10 +347,13 @@ contract LedgerChannel is Ownable {
         public 
     {
         Channel storage channel = Channels[_lcID];
-        require(channel.isOpen, "Channel is not open");
+        require(
+            channel.status == ChannelStatus.Joined || channel.status == ChannelStatus.Settling,
+            "Channel status must be Joined or Settling"
+        );
         require(channel.sequence < updateParams[0], "Sequence must be higher"); // do same as vc sequence check
 
-        // TODO: need to check deposits here
+        // TODO: need to check deposits here, add them
         require(
             channel.ethBalances[0].add(channel.ethBalances[1]) >= updateParams[2].add(updateParams[3]),
             "On-chain eth balances must be higher than provided balances"
@@ -362,7 +363,7 @@ contract LedgerChannel is Ownable {
             "On-chain token balances must be higher than provided balances"
         );
 
-        if(channel.isUpdateLCSettling == true) { 
+        if (channel.status == ChannelStatus.Settling) { 
             require(channel.updateLCtimeout > now, "Update timeout not expired");
         }
       
@@ -395,7 +396,7 @@ contract LedgerChannel is Ownable {
         channel.erc20Balances[0] = updateParams[4];
         channel.erc20Balances[1] = updateParams[5];
         channel.VCrootHash = _VCroot;
-        channel.isUpdateLCSettling = true;
+        channel.status = ChannelStatus.Settling;
         channel.updateLCtimeout = now.add(channel.confirmTime);
 
         // make settlement flag
@@ -427,9 +428,9 @@ contract LedgerChannel is Ownable {
     ) 
         public 
     {
-        require(Channels[_lcID].isOpen, "LC is closed");
         // sub-channel must be open
-        require(!virtualChannels[_vcID].isClose, "VC is closed");
+        require(Channels[_lcID].status == ChannelStatus.Settling, "Channel status must be Settling");
+        require(virtualChannels[_vcID].status != ChannelStatus.Settled, "VC is closed");
         // Check time has passed on updateLCtimeout and has not passed the time to store a vc state
         require(Channels[_lcID].updateLCtimeout < now, "Update LC timeout not expired");
         // prevent rentry of initializing vc state
@@ -445,6 +446,7 @@ contract LedgerChannel is Ownable {
         // Check the oldState is in the root hash
         require(_isContained(_initState, _proof, Channels[_lcID].VCrootHash) == true, "Old state is not contained in root hash");
 
+        virtualChannels[_vcID].status = ChannelStatus.Settling;
         virtualChannels[_vcID].partyA = _partyA; // VC participant A
         virtualChannels[_vcID].partyB = _partyB; // VC participant B
         virtualChannels[_vcID].sequence = uint256(0);
@@ -454,7 +456,6 @@ contract LedgerChannel is Ownable {
         virtualChannels[_vcID].erc20Balances[1] = _balances[3];
         virtualChannels[_vcID].bond = _bond;
         virtualChannels[_vcID].updateVCtimeout = now.add(Channels[_lcID].confirmTime);
-        virtualChannels[_vcID].isInSettlementState = true;
 
         emit DidVCInit(_lcID, _vcID, _proof, uint256(0), _partyA, _partyB, _balances[0], _balances[1]);
     }
@@ -473,11 +474,11 @@ contract LedgerChannel is Ownable {
     ) 
         public 
     {
-        require(Channels[_lcID].isOpen, "LC is closed.");
         // sub-channel must be open
-        require(!virtualChannels[_vcID].isClose, "VC is closed.");
+        require(Channels[_lcID].status == ChannelStatus.Settling, "Channel status must be Settling");
+        require(virtualChannels[_vcID].status == ChannelStatus.Settling, "Virtual channel status must be Settling");
 
-        // TODO: Can remove this
+        // TODO: Can remove this once we implement logic to only allow one settle call
         require(virtualChannels[_vcID].sequence < updateSeq, "VC sequence is higher than update sequence.");
 
         require(
@@ -492,8 +493,7 @@ contract LedgerChannel is Ownable {
         // Check time has passed on updateLCtimeout and has not passed the time to store a vc state
         // virtualChannels[_vcID].updateVCtimeout should be 0 on uninitialized vc state, and this should
         // fail if initVC() isn't called first
-        require(Channels[_lcID].updateLCtimeout < now && now < virtualChannels[_vcID].updateVCtimeout, "Timeouts not expired");
-        // require(Channels[_lcID].updateLCtimeout < now); // for testing!
+        require(now < virtualChannels[_vcID].updateVCtimeout, "Timeouts not expired");
 
         bytes32 _updateState = keccak256(
             abi.encodePacked(
@@ -513,10 +513,7 @@ contract LedgerChannel is Ownable {
         // Make sure Alice has signed a higher sequence new state
         require(virtualChannels[_vcID].partyA == ECTools.recoverSigner(_updateState, sigA), "Party A signature invalid");
 
-        // store VC data
-        // we may want to record who is initiating on-chain settles
-        // TODO: remove this
-        virtualChannels[_vcID].challenger = msg.sender;
+        // TODO remove challenger from vc struct and getter
 
         // TODO: remove this, only can call this function once
         virtualChannels[_vcID].sequence = updateSeq;
@@ -534,18 +531,14 @@ contract LedgerChannel is Ownable {
     }
 
     function closeVirtualChannel(bytes32 _lcID, bytes32 _vcID) public {
-        // require(updateLCtimeout > now)
-        require(Channels[_lcID].isOpen, "LC is closed.");
-
-        // TODO: could be an enum
-        require(virtualChannels[_vcID].isInSettlementState, "VC is not in settlement state.");
-        require(!virtualChannels[_vcID].isClose, "VC is already closed");
-
+        require(Channels[_lcID].status == ChannelStatus.Settling, "Channel status must be Settling");
+        require(virtualChannels[_vcID].status == ChannelStatus.Settling, "Virtual channel status must be Settling");
         require(virtualChannels[_vcID].updateVCtimeout < now, "Update VC timeout has not expired.");
+
         // reduce the number of open virtual channels stored on LC
         Channels[_lcID].numOpenVC = Channels[_lcID].numOpenVC.sub(1);
-        // close vc flags
-        virtualChannels[_vcID].isClose = true;
+        // close vc 
+        virtualChannels[_vcID].status = ChannelStatus.Settled;
 
         // re-introduce the balances back into the LC state from the settled VC
         // decide if this lc is alice or bob in the vc
@@ -567,17 +560,13 @@ contract LedgerChannel is Ownable {
         emit DidVCClose(_lcID, _vcID, virtualChannels[_vcID].erc20Balances[0], virtualChannels[_vcID].erc20Balances[1]);
     }
 
-
     // TODO: allow either LC end-user to nullify the settled LC state and return to off-chain
     function byzantineCloseChannel(bytes32 _lcID) public {
         Channel storage channel = Channels[_lcID];
 
         // check settlement flag
-        require(channel.isOpen, "Channel is not open");
-        require(channel.isUpdateLCSettling == true, "Channel is not settling");
+        require(channel.status == ChannelStatus.Settling, "Channel status must be Settling");
         require(channel.numOpenVC == 0, "Open VCs must be 0");
-
-        // TODO: remove this
         require(channel.updateLCtimeout < now, "LC timeout not over.");
 
         // if off chain state update didnt reblance deposits, just return to deposit owner
@@ -602,7 +591,7 @@ contract LedgerChannel is Ownable {
         }
 
         // reentrancy
-        channel.isOpen = false;
+        channel.status = ChannelStatus.Settled;
         numChannels = numChannels.sub(1);
 
         uint256 ethbalanceA = channel.ethBalances[0];
@@ -666,8 +655,7 @@ contract LedgerChannel is Ownable {
         bytes32,
         uint256,
         uint256,
-        bool,
-        bool,
+        uint256,
         uint256
     ) {
         Channel memory channel = Channels[id];
@@ -681,15 +669,13 @@ contract LedgerChannel is Ownable {
             channel.VCrootHash,
             channel.LCopenTimeout,
             channel.updateLCtimeout,
-            channel.isOpen,
-            channel.isUpdateLCSettling,
+            uint256(channel.status),
             channel.numOpenVC
         );
     }
 
     function getVirtualChannel(bytes32 id) public view returns(
-        bool,
-        bool,
+        uint256,
         uint256,
         address,
         uint256,
@@ -702,8 +688,7 @@ contract LedgerChannel is Ownable {
     ) {
         VirtualChannel memory virtualChannel = virtualChannels[id];
         return(
-            virtualChannel.isClose,
-            virtualChannel.isInSettlementState,
+            uint256(virtualChannel.status),
             virtualChannel.sequence,
             virtualChannel.challenger,
             virtualChannel.updateVCtimeout,
