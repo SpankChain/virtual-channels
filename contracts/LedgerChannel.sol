@@ -201,8 +201,12 @@ contract LedgerChannel {
 
         Channels[_lcID].ethBalances[0] = 0;
         Channels[_lcID].ethBalances[1] = 0;
+        Channels[_lcID].ethBalances[2] = 0;
+        Channels[_lcID].ethBalances[3] = 0;
         Channels[_lcID].erc20Balances[0] = 0;
         Channels[_lcID].erc20Balances[1] = 0;
+        Channels[_lcID].erc20Balances[2] = 0;
+        Channels[_lcID].erc20Balances[3] = 0;
 
         Channels[_lcID].partyAddresses[0].transfer(ethbalanceA); 
         require(Channels[_lcID].token.transfer(Channels[_lcID].partyAddresses[0], tokenbalanceA), "CreateChannel: token transfer failure");
@@ -254,8 +258,6 @@ contract LedgerChannel {
             msg.sender == Channels[_lcID].partyAddresses[0] || msg.sender == Channels[_lcID].partyAddresses[1],
             "Sender must be channel member"
         );
-
-        //if(Channels[_lcID].token)
 
         if (Channels[_lcID].partyAddresses[0] == recipient) {
             require(msg.value == _balances[0], "State balance does not match sent value");
