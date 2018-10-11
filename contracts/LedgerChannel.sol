@@ -116,12 +116,17 @@ contract LedgerChannel {
         HumanStandardToken token; // TODO add onlyowner method for whitelisting tokens
     }
 
+    enum VirtualChannelStatus {
+        Nonexistent,
+        Settling,
+        Settled
+    }
+
     // TODO new enum for VC states
     // virtual-channel state
     struct VirtualChannel {
-        ChannelStatus status;
+        VirtualChannelStatus status;
         uint256 sequence;
-        address challenger; // Initiator of challenge
         uint256 updateVCtimeout; // when update VC times out
         // channel state
         address partyA; // VC participant A
@@ -430,7 +435,7 @@ contract LedgerChannel {
     {
         // sub-channel must be open
         require(Channels[_lcID].status == ChannelStatus.Settling, "Channel status must be Settling");
-        require(virtualChannels[_vcID].status != ChannelStatus.Settled, "VC is closed");
+        require(virtualChannels[_vcID].status != VirtualChannelStatus.Settled, "VC is closed");
         // Check time has passed on updateLCtimeout and has not passed the time to store a vc state
         require(Channels[_lcID].updateLCtimeout < now, "Update LC timeout not expired");
         // prevent rentry of initializing vc state
@@ -446,7 +451,7 @@ contract LedgerChannel {
         // Check the oldState is in the root hash
         require(_isContained(_initState, _proof, Channels[_lcID].VCrootHash) == true, "Old state is not contained in root hash");
 
-        virtualChannels[_vcID].status = ChannelStatus.Settling;
+        virtualChannels[_vcID].status = VirtualChannelStatus.Settling;
         virtualChannels[_vcID].partyA = _partyA; // VC participant A
         virtualChannels[_vcID].partyB = _partyB; // VC participant B
         virtualChannels[_vcID].sequence = uint256(0);
@@ -476,7 +481,7 @@ contract LedgerChannel {
     {
         // sub-channel must be open
         require(Channels[_lcID].status == ChannelStatus.Settling, "Channel status must be Settling");
-        require(virtualChannels[_vcID].status == ChannelStatus.Settling, "Virtual channel status must be Settling");
+        require(virtualChannels[_vcID].status == VirtualChannelStatus.Settling, "Virtual channel status must be Settling");
 
         // TODO: Can remove this once we implement logic to only allow one settle call
         require(virtualChannels[_vcID].sequence < updateSeq, "VC sequence is higher than update sequence.");
@@ -532,13 +537,13 @@ contract LedgerChannel {
 
     function closeVirtualChannel(bytes32 _lcID, bytes32 _vcID) public {
         require(Channels[_lcID].status == ChannelStatus.Settling, "Channel status must be Settling");
-        require(virtualChannels[_vcID].status == ChannelStatus.Settling, "Virtual channel status must be Settling");
+        require(virtualChannels[_vcID].status == VirtualChannelStatus.Settling, "Virtual channel status must be Settling");
         require(virtualChannels[_vcID].updateVCtimeout < now, "Update VC timeout has not expired.");
 
         // reduce the number of open virtual channels stored on LC
         Channels[_lcID].numOpenVC = Channels[_lcID].numOpenVC.sub(1);
         // close vc 
-        virtualChannels[_vcID].status = ChannelStatus.Settled;
+        virtualChannels[_vcID].status = VirtualChannelStatus.Settled;
 
         // re-introduce the balances back into the LC state from the settled VC
         // decide if this lc is alice or bob in the vc
@@ -677,9 +682,7 @@ contract LedgerChannel {
     function getVirtualChannel(bytes32 id) public view returns(
         uint256,
         uint256,
-        address,
         uint256,
-        address,
         address,
         address,
         uint256[2],
@@ -690,11 +693,9 @@ contract LedgerChannel {
         return(
             uint256(virtualChannel.status),
             virtualChannel.sequence,
-            virtualChannel.challenger,
             virtualChannel.updateVCtimeout,
             virtualChannel.partyA,
             virtualChannel.partyB,
-            virtualChannel.partyI,
             virtualChannel.ethBalances,
             virtualChannel.erc20Balances,
             virtualChannel.bond
