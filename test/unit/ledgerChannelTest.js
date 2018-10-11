@@ -84,16 +84,19 @@ contract("LedgerChannel :: createChannel()", function(accounts) {
     token = await Token.new(web3latest.utils.toWei("1000"), "Test", 1, "TST");
     Ledger.link("HumanStandardToken", token.address);
     Ledger.link("ECTools", ec.address);
-    lc = await Ledger.new([token.address]);
+    lc = await Ledger.new(token.address, partyI);
 
     await token.transfer(partyB, web3latest.utils.toWei("100"));
     await token.transfer(partyI, web3latest.utils.toWei("100"));
 
-
-    badToken = await Token.new(web3latest.utils.toWei("1000"), "Unauthorized", 1, "UNA");
+    badToken = await Token.new(
+      web3latest.utils.toWei("1000"),
+      "Unauthorized",
+      1,
+      "UNA"
+    );
     await badToken.transfer(partyB, web3latest.utils.toWei("100"));
     await badToken.transfer(partyI, web3latest.utils.toWei("100"));
-
   });
 
   describe("Creating a channel has 7 possible cases:", () => {
@@ -128,7 +131,7 @@ contract("LedgerChannel :: createChannel()", function(accounts) {
           from: partyA,
           value: sentBalance[0]
         })
-        .should.be.rejectedWith("Channel has already been created.");
+        .should.be.rejectedWith("Channel already exists.");
     });
 
     it("2. Fail: No Hub address was provided.", async () => {
@@ -153,10 +156,10 @@ contract("LedgerChannel :: createChannel()", function(accounts) {
             value: sentBalance[0]
           }
         )
-        .should.be.rejectedWith("No partyI address provided to LC creation");
+        .should.be.rejectedWith("Channel must be created with hub.");
     });
 
-    it("3. Fail: Token has not been whitelisted", async() => {
+    it("3. Fail: Token has not been whitelisted", async () => {
       const lcId = web3latest.utils.sha3("1111", { encoding: "hex" });
       const sentBalance = [
         web3latest.utils.toWei("10"),
@@ -166,16 +169,13 @@ contract("LedgerChannel :: createChannel()", function(accounts) {
       const approval = await badToken.approve(lc.address, sentBalance[1]);
       const challenge = 0;
 
-      const tx = await lc.createChannel(
-        lcId,
-        partyI,
-        challenge,
-        badToken.address,
-        sentBalance,
-        { from: partyA, value: sentBalance[0] }
-      ).should.be.rejectedWith("Token is not whitelisted");
-
-    })
+      const tx = await lc
+        .createChannel(lcId, partyI, challenge, badToken.address, sentBalance, {
+          from: partyA,
+          value: sentBalance[0]
+        })
+        .should.be.rejectedWith("Token is not whitelisted");
+    });
 
     it("4. Fail: Token balance input is negative.", async () => {
       const lcId = web3latest.utils.sha3("1111", { encoding: "hex" });
@@ -292,9 +292,8 @@ contract("LedgerChannel :: createChannel()", function(accounts) {
         String(Math.floor(Date.now() / 1000))
       ); // lcopen timeout
       expect(channel[8].toString()).to.be.equal("0"); // updateLC timeout
-      expect(channel[9]).to.be.equal(false); // isOpen
-      expect(channel[10]).to.be.equal(false); // isUpdateSettling
-      expect(channel[11].toString()).to.be.equal("0"); // numOpenVC
+      expect(channel[9].toString()).to.be.equal("1"); // status
+      expect(channel[10].toString()).to.be.equal("0"); // numOpenVC
     });
   });
 });
@@ -316,7 +315,7 @@ contract("LedgerChannel :: LCOpenTimeout()", function(accounts) {
     token = await Token.new(web3latest.utils.toWei("1000"), "Test", 1, "TST");
     Ledger.link("HumanStandardToken", token.address);
     Ledger.link("ECTools", ec.address);
-    lc = await Ledger.new([token.address]);
+    lc = await Ledger.new(token.address, partyI);
 
     await token.transfer(partyB, web3latest.utils.toWei("100"));
     await token.transfer(partyI, web3latest.utils.toWei("100"));
@@ -372,7 +371,7 @@ contract("LedgerChannel :: LCOpenTimeout()", function(accounts) {
 
       await lc
         .LCOpenTimeout(joinedChannelId, { from: partyA })
-        .should.be.rejectedWith("Channel has been joined");
+        .should.be.rejectedWith("Channel status must be Opened");
     });
 
     it("4. Fail: LCopenTimeout has not expired", async () => {
@@ -468,7 +467,7 @@ contract("LedgerChannel :: joinChannel()", function(accounts) {
     token = await Token.new(web3latest.utils.toWei("1000"), "Test", 1, "TST");
     Ledger.link("HumanStandardToken", token.address);
     Ledger.link("ECTools", ec.address);
-    lc = await Ledger.new([token.address]);
+    lc = await Ledger.new(token.address, partyI);
 
     await token.transfer(partyA, web3latest.utils.toWei("100"));
     await token.transfer(partyB, web3latest.utils.toWei("100"));
@@ -524,7 +523,7 @@ contract("LedgerChannel :: joinChannel()", function(accounts) {
           from: partyI,
           value: sentBalance[0]
         })
-        .should.be.rejectedWith("Channel is already joined");
+        .should.be.rejectedWith("Channel status must be Opened");
     });
 
     it("2. Fail: Msg.sender is not PartyI of this channel", async () => {
@@ -551,7 +550,7 @@ contract("LedgerChannel :: joinChannel()", function(accounts) {
       // channel opened, msg.sender === partyI,
       const channel = await lc.getChannel(lcId);
       expect(channel[0][1]).to.equal(partyI);
-      expect(channel[9]).to.be.equal(false); // isOpen
+      expect(channel[9].toString()).to.be.equal("1"); // status
       await lc
         .joinChannel(lcId, failedBalance, {
           from: partyI,
@@ -579,7 +578,7 @@ contract("LedgerChannel :: joinChannel()", function(accounts) {
       // channel opened, msg.sender === partyI,
       const channel = await lc.getChannel(lcId);
       expect(channel[0][1]).to.equal(partyI);
-      expect(channel[9]).to.be.equal(false); // isOpen
+      expect(channel[9].toString()).to.be.equal("1"); // status
       await lc
         .joinChannel(lcId, failedBalance, {
           from: partyI,
@@ -629,9 +628,8 @@ contract("LedgerChannel :: joinChannel()", function(accounts) {
         channel[7].lte(web3latest.utils.toBN(Math.floor(Date.now() / 1000)))
       ).to.be.equal(true); // lcopen timeout
       expect(channel[8].toString()).to.be.equal("0"); // updateLC timeout
-      expect(channel[9]).to.be.equal(true); // isOpen
-      expect(channel[10]).to.be.equal(false); // isUpdateSettling
-      expect(channel[11].toString()).to.be.equal("0"); // numOpenVC
+      expect(channel[9].toString()).to.be.equal("2"); // status
+      expect(channel[10].toString()).to.be.equal("0"); // numOpenVC
     });
   });
 });
@@ -652,7 +650,7 @@ contract("LedgerChannel :: deposit()", function(accounts) {
     token = await Token.new(web3latest.utils.toWei("1000"), "Test", 1, "TST");
     Ledger.link("HumanStandardToken", token.address);
     Ledger.link("ECTools", ec.address);
-    lc = await Ledger.new([token.address]);
+    lc = await Ledger.new(token.address, partyI);
 
     await token.transfer(partyA, web3latest.utils.toWei("100"));
     await token.transfer(partyB, web3latest.utils.toWei("100"));
@@ -690,7 +688,7 @@ contract("LedgerChannel :: deposit()", function(accounts) {
 
       await lc
         .deposit(fakeLcId, partyA, deposit, { from: partyA, value: deposit[0] })
-        .should.be.rejectedWith("Tried adding funds to a closed channel");
+        .should.be.rejectedWith("Channel status must be Joined");
       // isOpen is false if does not exist
     });
 
@@ -710,7 +708,7 @@ contract("LedgerChannel :: deposit()", function(accounts) {
 
       await lc
         .deposit(fakeLcId, partyA, deposit, { from: partyA, value: deposit[0] })
-        .should.be.rejectedWith("Tried adding funds to a closed channel");
+        .should.be.rejectedWith("Channel status must be Joined");
       // isOpen is false if channel is not joined
     });
 
@@ -736,7 +734,7 @@ contract("LedgerChannel :: deposit()", function(accounts) {
       // channel opened, msg.sender, recipient === member, msg.value === balance
       const channel = await lc.getChannel(lcId);
       expect(channel[0][0]).to.equal(partyA); // partyA === recipient === sender
-      expect(channel[9]).to.be.equal(true); // isOpen === true
+      expect(channel[9].toString()).to.be.equal("2"); // status === Joined
       expect(failedToken[0]).to.be.equal(failedToken[0]); // value  === balance
       await lc
         .deposit(lcId, partyA, failedToken, {
@@ -756,7 +754,7 @@ contract("LedgerChannel :: deposit()", function(accounts) {
       // channel opened, msg.sender, recipient === member, msg.value === balance
       const channel = await lc.getChannel(lcId);
       expect(channel[0][1]).to.equal(partyI); // partyA === recipient === sender
-      expect(channel[9]).to.be.equal(true); // isOpen === true
+      expect(channel[9].toString()).to.be.equal("2"); // status === Joined
       expect(failedToken[0]).to.be.equal(failedToken[0]); // value  === balance
       await lc
         .deposit(lcId, partyI, failedToken, {
@@ -1196,7 +1194,7 @@ contract("LedgerChannel :: consensusCloseChannel()", function(accounts) {
     token = await Token.new(web3latest.utils.toWei("1000"), "Test", 1, "TST");
     Ledger.link("HumanStandardToken", token.address);
     Ledger.link("ECTools", ec.address);
-    lc = await Ledger.new([token.address]);
+    lc = await Ledger.new(token.address, partyI);
 
     await token.transfer(partyA, web3latest.utils.toWei("100"));
     await token.transfer(partyB, web3latest.utils.toWei("100"));
@@ -1406,7 +1404,7 @@ contract("LedgerChannel :: updateLCstate()", function(accounts) {
     token = await Token.new(web3latest.utils.toWei("1000"), "Test", 1, "TST");
     Ledger.link("HumanStandardToken", token.address);
     Ledger.link("ECTools", ec.address);
-    lc = await Ledger.new([token.address]);
+    lc = await Ledger.new(token.address, partyI);
     // token disbursement
     await token.transfer(partyA, web3latest.utils.toWei("100"));
     await token.transfer(partyB, web3latest.utils.toWei("100"));
@@ -1759,7 +1757,7 @@ contract("LedgerChannel :: initVCstate()", function(accounts) {
     token = await Token.new(web3latest.utils.toWei("1000"), "Test", 1, "TST");
     Ledger.link("HumanStandardToken", token.address);
     Ledger.link("ECTools", ec.address);
-    lc = await Ledger.new([token.address]);
+    lc = await Ledger.new(token.address, partyI);
 
     await token.transfer(partyA, web3latest.utils.toWei("100"));
     await token.transfer(partyB, web3latest.utils.toWei("100"));
@@ -2169,7 +2167,7 @@ contract("LedgerChannel :: settleVC()", function(accounts) {
     token = await Token.new(web3latest.utils.toWei("1000"), "Test", 1, "TST");
     Ledger.link("HumanStandardToken", token.address);
     Ledger.link("ECTools", ec.address);
-    lc = await Ledger.new([token.address]);
+    lc = await Ledger.new(token.address, partyI);
 
     await token.transfer(partyA, web3latest.utils.toWei("100"));
     await token.transfer(partyB, web3latest.utils.toWei("100"));
@@ -2813,7 +2811,7 @@ contract("LedgerChannel :: closeVirtualChannel()", function(accounts) {
     token = await Token.new(web3latest.utils.toWei("1000"), "Test", 1, "TST");
     Ledger.link("HumanStandardToken", token.address);
     Ledger.link("ECTools", ec.address);
-    lc = await Ledger.new([token.address]);
+    lc = await Ledger.new(token.address, partyI);
 
     await token.transfer(partyA, web3latest.utils.toWei("100"));
     await token.transfer(partyB, web3latest.utils.toWei("100"));
@@ -3072,7 +3070,7 @@ contract("LedgerChannel :: byzantineCloseChannel()", function(accounts) {
     token = await Token.new(web3latest.utils.toWei("1000"), "Test", 1, "TST");
     Ledger.link("HumanStandardToken", token.address);
     Ledger.link("ECTools", ec.address);
-    lc = await Ledger.new([token.address]);
+    lc = await Ledger.new(token.address, partyI);
 
     await token.transfer(partyA, web3latest.utils.toWei("100"));
     await token.transfer(partyB, web3latest.utils.toWei("100"));
