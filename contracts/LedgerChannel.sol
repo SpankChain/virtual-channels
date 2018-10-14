@@ -296,7 +296,17 @@ contract LedgerChannel {
         mapping (address => uint256) userTokens;
         mapping (address => uint256) recipientTokens;
         uint256 txCount;
+        Status status;
     }
+
+    // Do I need to store challenges / proposed state updates separately?
+    // - I would want to do this if I was allowed to deposit onchain without offchain ack
+    //   - If I did this, then any startExitWithUpdate would overwrite my deposited funds
+    // - If I can only consensusDeposit, do I still need to store challenges separately?
+    // - What other params can't be overwritten safely?
+    // - All params -> no need to store challenges separately
+    // - If a double-signed state update is provided with a higher txCount and can overwrite onchain state
+    // - This update will stay unless challenged, and if the challenge is successful it will overwrite again
 
     mapping (address => Account) public accounts;
 
@@ -425,6 +435,51 @@ contract LedgerChannel {
         // When I do startExit, where does the offchain state get saved?
         // If there were onchain deposits that are not reflected in the offchain state, they can't be overwritten...
         // - so I need to save the deposits / separate to the actual balances...
+
+        // offchain -> onchain deposits
+        // - use case: hub deposit into performer account during show
+        //   - without interrupting payments
+        //   - new tabs can still be opened (with original balance, not pending deposit balance)
+        // - goal: to reduce contract complexity to avoid requiring separate variables for deposit + balance onchain
+        //   - strategy is to have "pendingDeposits" for ETH/ERC20 that acknowledge a deposit offchain *in advance*
+        //   - once the onchain transaction succeeds, the counterparty would move offchain pending deposits -> balances
+        //   - depositer should be able to withdraw if the receiver doesn't acknowledge the deposit
+        //     - just needs the state with the pendingDeposits to do so
+        //   - either party should be able to exit even if the deposit never happens
+        //     - pending deposits should not affect update/closing/dispute if the onchain balances cover offchain balance (exclusing pending deposit)
+        // Protocol:
+        // 1. hub sends single-signed update to performer which includes pendingDeposit for ETH/ERC20
+        // 2. performer countersigns and responds
+        //    - no interruption on payments
+        //    - performer will still countersign new tabs up to the balances onchain (not including pending deposits)
+        // 3. hub uses doublesigned update to execute onchain deposit calling consensusDeposit
+        //    - this checkpoints the channel onchain
+        // 4.1. Deposit success but not acknowledged
+        //      1. hub starts the exit process
+        // 4.2. Deposit failure - no additional state updates
+        //      1. hub/performer calls startExitWithUpdate (use the previous state right before the deposit) it's as if nothing happened
+        //      2. hub/performer calls startExitWithUpdate (using deposit state) -> succeeds
+        //         - should recognize that onchain balances >= offchain balances
+        //         - when emptyAccount / challengeExit are called, then the extra deposited funds are sent back to the owner
+        // 4.3. Deposit failure - further state updates (that didn't affect pending deposits)
+        //      1. hub/performer calls startExitWithUpdate (using latest state) -> succeeds
+        //         - should recognize that onchain balances >= offchain balances
+        //         - when emptyAccount / challengeExit are called, then the extra deposited funds are sent back to the owner
+
+        // Where do we store the challenge?
+        // - Need a separate place to store offchain state submitted as part of startExitWithUpdate
+        // - separate mapping?
+        // - or just as a pending state on the Account
+        // NOPE - can overwrite.
+
+        // Updated Connext
+        // 1. hub sends single-signed update to performer which includes the deposit as part of the balance
+        //    - also contains a *deposit* flag
+        // 2. performer countersigns and responds
+        // 3. hub uses doublesigned update to execute onchain deposit
+        //    - this checkpoints the channel onchain
+        // Ameen's notes:
+        // - I think this forces the perfomer to stop accepting new tabs / VCs until the deposit is executed
 
     }
 
