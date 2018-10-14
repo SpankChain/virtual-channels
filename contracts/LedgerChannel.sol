@@ -1,152 +1,443 @@
+// Refucktor!
+//
+// Questions:
+// 1. The VC root hash only reflects the initial states of each VC - why?
+//  - we could make it so the VC root hash updates every time, right?
+//  - wrong, because in order to settle a VC into the LC the counterparty needs to sign
+// 2.
+//
+// Notes:
+// 1.
+//
+
 pragma solidity ^0.4.23;
 
 import "./lib/ECTools.sol";
 import "./lib/token/HumanStandardToken.sol";
 import "./lib/SafeMath.sol";
 
-/// @title Set Virtual Channels - A layer2 hub and spoke payment network 
+/// @title Set Virtual Channels - A layer2 hub and spoke payment network
 
 contract LedgerChannel {
     using SafeMath for uint256;
 
-    string public constant NAME = "Ledger Channel";
+    string public constant NAME = "Ledger Channel Manager";
     string public constant VERSION = "0.0.1";
 
-    uint256 public numChannels = 0;
+    uint256 public numChannels = 0; // TODO why does this exist
 
-    event DidLCOpen (
-        bytes32 indexed channelId,
-        address indexed partyA,
-        address indexed partyI,
-        uint256 ethBalanceA,
-        address token,
-        uint256 tokenBalanceA,
-        uint256 LCopenTimeout
-    );
+    // Let's use a single hub address per contract
+    // - if we want to change the hub, then we can deploy a new contract
+    // - this saves us from needing to deal with contract complexity around storing hub addresses
+    // - need to think through how this affects the DB architecture
+    //   - store contract address on the table to know which contract version / hub address we're using.
 
-    event DidLCJoin (
-        bytes32 indexed channelId,
-        uint256 ethBalanceI,
-        uint256 tokenBalanceI
-    );
+    // Let's move to allow multi-token channels / deposits.
+    // - token whitelist enforced by the hub
+    // - only affects new channels
 
-    event DidLCDeposit (
-        bytes32 indexed channelId,
-        address indexed recipient,
-        uint256 ethDeposit,
-        uint256 tokenDeposit
-    );
+    // I can upgrade BOOTY to have more features
+    // - approveAndCall to allow single calls (per token) to the contract
+    // - what about tx batching contracts? -> bulk send proxy contracts
 
-    event DidLCUpdateState (
-        bytes32 indexed channelId, 
-        uint256 sequence, 
-        uint256 numOpenVc, 
-        uint256 ethBalanceA,
-        uint256 tokenBalanceA,
-        uint256 ethBalanceI,
-        uint256 tokenBalanceI,
-        bytes32 vcRoot,
-        uint256 updateLCtimeout
-    );
+    // Reverse the assumption that user - hub need to send eachother an init signed message
+    // - the contract will store deposits separate from balances until confirmed by offchain signature
+    // - deposits can be added to as many times as desired
 
-    event DidLCClose (
-        bytes32 indexed channelId,
-        uint256 sequence,
-        uint256 ethBalanceA,
-        uint256 tokenBalanceA,
-        uint256 ethBalanceI,
-        uint256 tokenBalanceI
-    );
+    // two types of state updates:
+    // 1. offchain, mutual
+    // - consensus join
+    //   -> annoying bit is about approves on tokens
+    //   -> only one user can transfer at a time...
+    //      - unless the hub has it's funds in a contract
+    //      - but then it's the USER that needs their funds in a contract
+    //      - the hub will be the one sending the tx anyway, so ETH can come from hot wallet
+    //
+    // - consensus close
+    // - consensus update (timer -> 2 mins) + challenge
+    //   - payment
+    //   - exchange -> state update introduces free-option, need timer
+    // 2. onchain, unilateral
+    // - openChannel
+    // - joinChannel
+    // - startSettle
+    // - challenge
+    // - settle
 
-    event DidVCInit (
-        bytes32 indexed lcId, 
-        bytes32 indexed vcId, 
-        bytes proof, 
-        uint256 sequence, 
-        address partyA, 
-        address partyB, 
-        uint256 balanceA, 
-        uint256 balanceB 
-    );
+    // SKIP - multisigs don't exist yet, fuck it.
+    // Multisig interop
+    // - TODO read sergey's report
+    // - msg.sender can open channel on behalf of a set of delegate signers
+    // - access controls (approve / revoke / bulk update)
 
-    event DidVCSettle (
-        bytes32 indexed lcId, 
-        bytes32 indexed vcId,
-        uint256 updateSeq, 
-        uint256 updateBalA, 
-        uint256 updateBalB,
-        address challenger,
-        uint256 updateVCtimeout
-    );
+    // SKIP - only helps avoid gas / pay in tokens for gas
+    // - and requires user contract...
+    // Meta Txns
+    // https://github.com/austintgriffith/bouncer-proxy/blob/master/BouncerProxy/BouncerProxy.sol
+    // - Need to have a separate contract w/ permissions that holds the BOOTY
+    // - alternatively, we can use the payment channel as a BOOTY bank as well?
+    // - booty is immediately deposited into the contract by the hub on the user's behalf
+    //   - this is wont happen on the site unless we give out gift cards or allow fiat buy-in
+    //   - otherwise the user will always have ETH or BOOTY to deposit themselves...
+    // - what txs does a user execute, anyways?
+    //   - open channel
+    //   - join channel
+    //   - start settle
+    //   - challenge
+    //   - settle
+    //   - send ETH
+    //   - send BOOTY / SPANK / whitelisted ERC20
+    // - can't use MetaTxns without contract:
+    //   - funds comes from user (open channel, join channel, send ETH, send BOOTY)
+    //   - adversiaral vs. hub (start settle, challenge, settle)
+    //  - so basically, the only way to avoid gas costs is to use a contract
+    //  - this doesn't matter too much for users since they all should have ETH anyways
+    //    - this will only change once we have a fiat onramp / gift cards
 
-    event DidVCClose(
-        bytes32 indexed lcId, 
-        bytes32 indexed vcId, 
-        uint256 balanceA, 
-        uint256 balanceB
-    );
+    // What if the hub is the only one allowed to create channels?
+    // - assumption is that the hub is always online anyways, so why not?
+    // - can I recreate a legit ETH xfer tx and broadcast it?
 
-    event WhitelistModified(
-        address indexed token,
-        bool added
-    );
+    // What if hub can store money on the contract to make deposits into and out of channels easier?
+    // - can keep ETH / BOOTY on the contract, and then move it over.
+    // - what flows does this optimize?
+    //   - viewers join with ETH from their SpankPay
+    //     1. User sends ETH to SpankPay
+    //     1.5. WAIT
+    //     2. User calls createChannel onchain
+    //     3. Wait.
+    //     4. Hub sees createChannel via chainsaw and calls joinChannel with ETH / BOOTY
+    //     5. Wait.
+    //     6. User sees joinChannel finalize, proposed a state update to exchange ETH->BOOTY
+    //     7. Hub countersigns and responds.
+    //     8. User can now open VCs with BOOTY and tip
+    //   - instead, it would look like this:
+    //     1. User sends ETH to SpankPay
+    //     1.5. WAIT
+    //     2. User requests signature from hub to authorize opening the channel, with timeout
+    //     3. Before timeout expires, user calls openChannel w/ hub signature (will include the amount hub wants to deposit)
+    //        3.1. this could fail either because timeout expires or because hub doesn't have enough funds
+    //        3.2. if it fails for timeout, the wallet should request new sig and try again with more gas x2
+    //              - if it fails x3 (network bogged down), then stop wasting gas on a loop... how to restart?
+    //              - the wallet enters a pending state where it stops trying to open for 5 mins (displays: network slow, trying again in 5 mins)
+    //              - if the user sticks around, it will start trying again in 5 mins
+    //              - if the user leaves and comes back (before 5 mins), the pending state should persist
+    //              - if the user leaves and comes back (after 5 mins), the pending state should go away
+    //        3.3  if it fails for lack of funds, the wallet error should say so, and wait for more funds to be deposited before trying again
+    //              - enter into a pending state, start a watcher process that polls the hub (or chain)
+    //              - waits for hub / chain to report the hub ETH / BOOTY balance is enough to cover the channel
+    //              - then requests new sig from hub and submits again
+    //     4. Wait.
+    //     5. User sees openChannel finalize (poll hub), proposed a state update to exchange ETH->BOOTY
+    //     6. Hub countersigns and responds.
+    //     7. User can now open VCs with BOOTY and tip
+    //   - this is one less onchain TX for the hub, and less waiting for the user.
+    // - what about the performer opening channels?
+    //   - right now we have to send them a small amount of ETH so they can join
+    //   - but if their initial balance is zero, then we can call openChannel for them and use our deposits.
+    //  - Does the timeout matter? Even if the hub signs first.
+    //    - it's more anoying than anything else, because the hub would have to track those signed openChannel txs forever
+    //    - users could DOS by hoarding lots of these, then submitting all at once
+    //    - with the timer, the hub can forget about openChannel txs as they expire...
+    //    - this is important because the hub should have enough funds on the contract to cover all pending signed openChannel txns
 
-    enum ChannelStatus {
-        Nonexistent,
-        Opened,
-        Joined,
-        Settling,
-        Settled
+    // So we can have two open functions:
+    // - hubOpenChannel -> authorize user sig, assume 0 user funds to start (for performers)
+    //   - I need to be convinced the performer can also exit without paying gas
+    //   - how would they withdraw?
+    //     1. they would sign an exchange + consensusClose
+    //     2. the hub would countersign and send
+    //     3. the contract would send the performer ETH to their wallet
+    //     4. the wallet would send the funds out
+    //   - can this be optimized to save a tx?
+    //     - The performer could *optionally* supply a destination address
+    //     - if they do, funds would be sent there instead of their address
+    // - userOpenChannel -> authorize hub sig, transfer ETH / BOOTY from contract -> channel
+
+    // Need to think through partial withdrawals + consensusUpdate
+    // - consensusUpdate could execute a partial withdrawal anyway
+    // - performer should not accept any state updates until either:
+    //   1. the consensusUpdate expires
+    //   2. the consensusUpdate succeeds
+
+    // Also need support for hub to deposit / withdraw ETH / ERC20
+    // - deposit (address[] tokens, uint256[] values)
+    // - withdraw (ethAmount, address[] tokens, uint256[] values)
+    // - maybe rescue tokens stupidly sent
+    //   - make fallback not payable
+    //   - tokens? keep track of tokens deposited in channels as a "totalBalance"
+    //   - allow for hub to call a withdrawStupidTokens fn - if token.balanceOf(this) > totalBalance[token], withdraw the extra
+
+    // If we don't add support for watchtowers, the timeout is 1 hour, and performers tend to be offline... we can replay attack at will
+    // Add support for watchtowers? How?
+    // - users who open channels designate watchtower address
+    // - watchtower can be changed in channel via mutual sign
+    // - the watchtower can submit a challenge, where the state provided needs to point to them as the watchtower
+    // - wallet needs to broadcast all signed state messages to watchtower as well
+    //   - how to ensure that states are synchronized?
+    //   - wallet waits for acks from watchtower on previous states before sending new ones
+    //   - testing/debugging this will be a huge bitch
+    // What happens if a watchtower is hacked? How does it get switched out?
+    // - watchtower notifies hub out-of-band (connext picks up phone and calls ameen)
+    //   - hub calls API method for closeAllChannelsByWatchtower(address watchtower)
+    // - this may require user action to copy/pasta a new watchtower address in the wallet and sign a state update
+    //   - this introduces a fishing attack -> but only to replace the watchtower, so no incentive to steal funds (unless hub)
+    //   - hub could be malicious and push bad wallet updates anyways...
+    // How could offline payments work?
+    // - can I open a VC with the seller and pay in that?
+    // - attack vector:
+    //   1. when seller comes back online, hub only gives it 1/2 VC payments
+    //   2. the performer signs and the hub keeps that sig
+    //   3. when user comes back online, hub proposed LC update to settle VC with that sig
+    //  - protocol (probably re-invented hashlocks, wtf):
+    //   1. buyers send signed payment directly to seller's watchtower, receives ACK
+    //   2. buyers send payment hash / id to the hub
+    //   3. hub requests the signed payment from the seller's watchtower by id/hash
+    //   4. watchtower responds to hub with the payment message
+    //   5. hub responds to user with content
+    //  - How does the watchtower discovery process work?
+    //    - ideas:
+    //      1. onchain registry of sellers -> watchtowers
+    //       - mapping(address => Watchtower) watchtowersByUser;  Watchtower { string url, address addr }
+    //       - prevents MITM attacks to alter URL (again, hub (or whoever hacked it) is only one incentivized to do so
+    //       - the web3 provider to SpankPay is INFURA, which means they can lie about state
+    //       - would need a built-in light client to be able to not trust any third parties
+    //      2. site provides address of watchtower to the SpankPay wallet
+    //       - three cases (1&2 are offline payments, 3 is replay protection):
+    //         1. SpankChain operated site: SpankChain can change URL to be itself, and then withold payments
+    //         2. Third party site: less risky, the site could be its own watchtower (is this really a watchtower then?)
+    //         3. Live Performer: performer is responsible for sending txs to watchtower
+    //           1. buyer sends payment privately, directly to performer
+    //           2. performer sends payment to watchtower, receives ACK (adds delay, provides offline security)
+    //           3. performer sends to the hub to broadcast
+    //          - UX considerations:
+    //            - user can optimistically update UI to reflect payment upon sending
+    //              - if payment fails, either revert /
+    //            - performer can optimistically update UI to reflect payment upon receiving
+    //              - if watchtower ACK is not received... the performer shouldn't go offline
+    //              - show error message banner at the top of the screen (or in wallet) saying (you have de-synchronized from your watchtower)
+    //              - urges you to close your channel before you go offline
+    //              - if hub doesn't sign consensusClose immediately, the hub know that your watchtower is offline, and try to take advantage
+    //                - in this case, start the dispute process
+    //                - this should be wallet default behavior if hub doesn't comply to consensusClose EVER
+    //                - this forces the performer to stay online until the dispute period is complete... 1 hour?
+    //                - transaction relay networks / schedulers would be hugely helpful for this
+    //                  - this is *similar* to watchtowers, but not exactly because you are still signing the dispute txns
+    // Regarding watchtower network privacy - if the state is a merkle tree, you can reveal nonce without anything else
+    // Because of the liveness requirements for true non-custodial payments - it's likely that we still need to recreate the private messaging between buyer-seller
+    // - this reduces advantage of VCs over hashlocks... BUT - the actual flow for performers is better than hashlocks
+    // Security:
+    // - If it isn't possible to send payments directly, privately from SpankPay to SpankPay, then the website can always fish and receive the payment itself
+    // - Questions:
+    //   1. can the site snoop on HTTP requests made from inside the iframe? Can it prevent these messages from sending? MITM.
+    //   2. can iframes on websites set up direct p2p encrypted tcp/webrtc/socket connections with other iframes?
+    // Futility:
+    // - because we're already trusting the content server to provide the correct address for the performer, the watchtower registry doesn't matter...
+    // - this is the case unless the wallet is verifying the content itself
+    //   - this would require a P2P marketplace
+    //   - a user's "store" is an array of content each with metadata (price, previewPic, tags, videoHash)
+    //   - to purchase, money needs to be sent to an address, this address needs to hold encryption keys for content and share
+    //   - if I'm online, this can be me, but if I'm not, then I'm always trusting someone to act on my behalf
+    // - if the wallet holds payment history, you could offline reconciliate with the performer.
+    //   - you tell the perfomer "I bought your vid" and they say "no you didn't" and then you both say "weird"
+
+    // Security Model (solve liveness, not trustlessness):
+    // 1. Hub is honestly serving the site (performer addresses, watchtower urls)
+    // 2. Hub sends all states to watchtowers to protect against itself getting hacked
+    // 3. For offline/online payments, users pay hub, hub sends to watchtower
+    // 4. When offline users reconnect, request latest state from watchtower
+
+    // Hacked Scenarios:
+    // 1. Hot wallet
+    //  - drain hot wallet
+    //  - send in channel funds to all counterparties
+    //  - withdraw contract reserves
+    //  - Replay attack all channels onchain
+    //    - protected by watchtowers
+    // 2. Payment routing server
+    //  - stop broadcasting new VC payments to performers and watchtowers
+    //  - replay attack merge viewer VC into LC
+    //  - consensus close viewer LC onchain
+    // 3. Website - HTML
+    //  - change address of recipients to attacker wallet with an open channel
+    //  - hacked hub calls consensusClose with attacker wallet
+    // 4. Payment storage server
+    //  - performer comes online, hub lies about most recent state
+    //    - consensusClose and send themselves the funds
+    //  - performer queries watchtower, gets latest state up to hack
+    //  - if hub does not agree to update to latest watchtower state, close channels
+
+
+    // IF YOUR TRANSACTION LASTS FOR MORE THAN FOUR HOURS, PLEASE CONTACT US AT DR@SPANKCHAIN.COM
+
+    enum Status {
+        Empty,
+        Open,
+        Closing
     }
 
-    struct Channel {
-        address[2] partyAddresses; // 0: partyA 1: partyI
-        uint256[4] ethBalances; // 0: balanceA 1:balanceI 2:depositedA 3:depositedI
-        uint256[4] erc20Balances; // 0: balanceA 1:balanceI 2:depositedA 3:depositedI
-        uint256[2] initialDeposit; // 0: eth 1: tokens
-        uint256 sequence;
-        uint256 confirmTime;
-        bytes32 VCrootHash;
-        uint256 LCopenTimeout;
-        uint256 updateLCtimeout; // when update LC times out
-        ChannelStatus status;
-        bool isOpen; // true when both parties have joined
-        bool isUpdateLCSettling;
-        uint256 numOpenVC;
-        HumanStandardToken token; // TODO add onlyowner method for whitelisting tokens
+    struct Account {
+        uint256 userETH;
+        uint256 hubETH;
+        mapping (address => uint256) userTokens;
+        mapping (address => uint256) hubTokens;
+        uint256 txCount; // persisted onchain even when empty
+        uint256 accountClosingTime;
+        uint256 tabClosingTime;
+        bytes32 tabRoot;
+        uint256 tabCount;
+        Status status;
+        mapping(address => Tab) tabs;
     }
 
-    enum VirtualChannelStatus {
-        Nonexistent,
-        Settling,
-        Settled
+    struct Tab {
+        uint256 userETH;
+        uint256 recipientETH;
+        mapping (address => uint256) userTokens;
+        mapping (address => uint256) recipientTokens;
+        uint256 txCount;
     }
 
-    // TODO new enum for VC states
-    // virtual-channel state
-    struct VirtualChannel {
-        VirtualChannelStatus status;
-        uint256 sequence;
-        uint256 updateVCtimeout; // when update VC times out
-        // channel state
-        address partyA; // VC participant A
-        address partyB; // VC participant B
-        uint256[2] ethBalances;
-        uint256[2] erc20Balances;
-        uint256[2] bond;
-        HumanStandardToken token;
+    mapping (address => Account) public accounts;
+
+    mapping (address => bool) public approvedTokens;
+    address public hub;
+    uint256 public challengePeriod
+
+    uint256 public reserveETH;
+    mapping (address => uint256) public reserveTokens;
+
+    constructor(address[] _approvedTokens, address _hub, uint256 _challengePeriod) public {
+        approvedToken = _approvedTokens;
+        hub = _hub;
+        challengePeriod = _challengePeriod;
     }
 
-    mapping(bytes32 => VirtualChannel) public virtualChannels;
-    mapping(bytes32 => Channel) public Channels;
-
-    address public approvedToken;
-    address public hubAddress;
-
-    constructor(address _token, address _hubAddress) public {
-        approvedToken = _token;
-        hubAddress = _hubAddress;
+    modifier onlyHub() {
+        require(msg.sender == hub);
+        _;
     }
+
+    // TODO hub approve / revoke tokens
+
+    // TODO think about if hub ever opens an account and deposits ETH on behalf of user
+    // - airdrop on to users
+    // - custodial deposit (user sends us BOOTY / ETH)
+
+    // TODO bulkHubOpenAccounts (airdrop)
+    // - allow hub to open multiple user accounts at once, saving lots of txns and simplifying airdrops
+    // TODO consensusUpdateWithDeposit
+    // - this ...
+
+    // What is the protocol for depositing into an open channel?
+    // Use case: Performer is blowing up, lots of people are joining their channel, hub needs to deposit extra BOOTY
+    // Two options:
+    // 1. Offchain ACK First
+    //    1. Hub prepares a consensusUpdateWithDeposit which also deposits extra booty into the account
+    //    2. The hub has to hold off on sending any more payments to the performer until this update
+    // 2. Onchain deposit first
+    //    1. hub initiates the deposit
+    //    2. hub continues opening tabs with the user as needed and sending payments
+    //    3. when the deposit is confirmed, the hub requests the user's sig on a state update acknowledging the deposit
+    //       3.1. the hub will stop sending payments / opening tabs with the performer until the deposit is acknowledged
+    //       3.2. if the performer doesn't ack the deposit, after a certain time limit (TODO), the hub will close the channel
+    //    4. once the hub's deposit is acknowledged, the hub will continue to send payments / open tabs
+
+    // The difference between a vanilla deposit and a consensusUpdate is:
+    // - consensusUpdate locks in a tabRoot, which means no new tabs can be opened while we wait for the tx to get confirmed
+    // - deposit would not affect the tabRoot, so new tabs could be opened while we wait for tx to get confirmed
+    // - problem with a deposit is being able to withdraw from it if the user doesn't acknowledge it
+    //   - this makes the case for a separate "deposits" data structure
+    //   - alternatively, we make sure the onchain balances *are greater than* the signed balances, and the remainder is returned to the owner
+    // - so we still want a hubDeposit function to allow the hub to add funds to a performer account async
+    // - what about users depositing into their accounts?
+    //   - they too could tip / open new tabs while their deposit is pending
+    //   - once it has been confirmed, they would stop until the deposit is acknowledged
+
+    // So then for partial withdrawals, we have a few use cases:
+    // 1. hub wants to rebalance liquidity between performer channels
+    //  - move funds out of a performer's account and into its reserves
+    //  - OR move funds out of a performer's account and directly into another performer's account
+    //    - partialWithdrawal + deposit
+    //    - can this be done in a single tx?
+    //  - OR claim funds out of a user's account and move to a performer account
+    //    - for BOOTY, this doesn't make a whole lot of sense, because performer collat is in BOOTY but user spend is in ETH
+    //    - for users who generate/buy their own BOOTY and use it to tip beyond the BOOTY LIMIT we could claim the extra though
+    // 2. performer wants to withdraw *some* of the money
+    // 3. user wants to withdraw *some* of the money
+
+    // Partial withdrawal protocol
+    // - should partial withdrawals be prevented by open tabs? can't withdraw if you have tabs open?
+    //   - what if you can withdraw whatever is in your account, but not your tabs?
+
+    // consensusUpdate can be used for partial withdrawals
+    // - what if we have a function called partialWithdrawals that wraps consensusUpdate?
+
+    // If the hub is opening the account, all the funds come from the hub's reserves.
+    // - the edge case is if users want to open a channel with tokens *only*
+    // - in that case, the user should still open the channel
+    // - so if NONE of the funds are coming from the user, do they need to sign?
+    // - does the hub need the user's signature in order to withdraw?
+    // - if the only way to update state
+    //   - possible exit scenarios:
+    //     1. no state updates
+    //     2. state updates + consensusClose
+    //     3. state updates + byzantineClose
+    // - It's easier to prevent footgun if hub requires signature from user on initial state
+    //   - because then I know I can always exit
+    // - I should be able to settle the onchain state without requiring a mutually signed update reflecting the onchain state...
+    // - So I need a function which starts the closing process and *doesn't* take a mutually signed state
+    //   - startExit -> start the exit process using the onchain state, no sigs required
+    //   - startExitWithUpdate -> start the exit process using offchain state, 2x sigs required
+    //   - challengeExit -> challenge the exit with a higher txCount, 2x sigs required -> if success, account is immediately closed
+    //   - emptyAccount -> after the challenge period expires, close/empty the account
+    function hubOpenAccount(
+        address user,
+        uint256 userETH,
+        uint256 hubETH,
+        address[] userTokenAddresses,
+        address[] hubTokenAddresses,
+        uint256[] userTokenValues,
+        uint256[] hubTokenValues,
+    ) public onlyHub {
+        require(reserveETH == userETH.add(hubETH), "insufficient ETH");
+
+        // the user account must be empty
+        Account storage account = accounts[user];
+        require(account.Status == Status.Empty, "account must be empty");
+        require(account.tabCount == 0, "account may not have open tabs");
+
+        account.user = user;
+        account.userETH = userETH;
+        account.hubETH = hubETH;
+
+        // After an Account has been emptied, some of the Threads might still be in dispute onchain...
+        // How to prevent an account from being re-opened until all the Threads are closed?
+        // 1. startExit / startExitWithUpdate
+        // 2. emptyAccount / challengeExit
+        // 3. startExitTabs / startExitTabsWithUpdate
+        // 4. emptyTabs / challengeExitTabs
+        //  - emptyTabs could be called once at the end of the timeout for all open tabs (loop over array)
+        //    - can I do this without an array? (send array of tab recipient addresses to empty?)
+        //  - challengeExitTab is called (also with an array of tab recipients?)
+        // Need to give the user/hub time to dispute threads
+
+        // When I do startExit, where does the offchain state get saved?
+        // If there were onchain deposits that are not reflected in the offchain state, they can't be overwritten...
+        // - so I need to save the deposits / separate to the actual balances...
+
+    }
+
+    // If the user is opening the account, the user and hub fund their own balances.
+    function userOpenAccount() public {
+        uint256 hubETH,
+        address[] userTokenAddresses,
+        address[] hubTokenAddresses,
+        uint256[] userTokenValues,
+        uint256[] hubTokenValues,
+
+    }
+
 
     function createChannel(
         bytes32 _lcID,
@@ -154,16 +445,16 @@ contract LedgerChannel {
         uint256 _confirmTime,
         address _token,
         uint256[2] _balances // [eth, token]
-    ) 
+    )
         public
-        payable 
+        payable
     {
         require(Channels[_lcID].status == ChannelStatus.Nonexistent, "Channel already exists");
         require(_token == approvedToken, "Token is not whitelisted");
         require(_partyI == hubAddress, "Channel must be created with hub");
 
         // Set initial ledger channel state
-        // Alice must execute this and we assume the initial state 
+        // Alice must execute this and we assume the initial state
         // to be signed from this requirement
         // Alternative is to check a sig as in joinChannel
         Channels[_lcID].status = ChannelStatus.Opened;
@@ -173,7 +464,7 @@ contract LedgerChannel {
 
         Channels[_lcID].sequence = 0;
         Channels[_lcID].confirmTime = _confirmTime;
-        // is close flag, lc state sequence, number open vc, vc root hash, partyA... 
+        // is close flag, lc state sequence, number open vc, vc root hash, partyA...
         //Channels[_lcID].stateHash = keccak256(uint256(0), uint256(0), uint256(0), bytes32(0x0), bytes32(msg.sender), bytes32(_partyI), balanceA, balanceI);
         Channels[_lcID].LCopenTimeout = now.add(_confirmTime);
         Channels[_lcID].initialDeposit = _balances;
@@ -208,7 +499,7 @@ contract LedgerChannel {
         Channels[_lcID].erc20Balances[2] = 0;
         Channels[_lcID].erc20Balances[3] = 0;
 
-        Channels[_lcID].partyAddresses[0].transfer(ethbalanceA); 
+        Channels[_lcID].partyAddresses[0].transfer(ethbalanceA);
         require(Channels[_lcID].token.transfer(Channels[_lcID].partyAddresses[0], tokenbalanceA), "CreateChannel: token transfer failure");
 
         emit DidLCClose(_lcID, 0, ethbalanceA, tokenbalanceA, 0, 0);
@@ -231,7 +522,7 @@ contract LedgerChannel {
 
         require(msg.value == _balances[0], "State balance does not match sent value");
         Channels[_lcID].ethBalances[1] = msg.value;
- 
+
         require(Channels[_lcID].token.transferFrom(msg.sender, this, _balances[1]), "joinChannel: token transfer failure");
         Channels[_lcID].erc20Balances[1] = _balances[1];
 
@@ -242,12 +533,12 @@ contract LedgerChannel {
     // additive updates of monetary state
     // TODO check to figure out if party can push counterparty to unrecoverable state with malicious deposit
     function deposit(
-        bytes32 _lcID, 
-        address recipient, 
+        bytes32 _lcID,
+        address recipient,
         uint256[2] _balances // [eth, token]
-    ) 
-        public 
-        payable 
+    )
+        public
+        payable
     {
         require(Channels[_lcID].status == ChannelStatus.Joined, "Channel status must be Joined");
         require(
@@ -272,19 +563,19 @@ contract LedgerChannel {
             require(Channels[_lcID].token.transferFrom(msg.sender, this, _balances[1]), "deposit: token transfer failure");
             Channels[_lcID].erc20Balances[3] = Channels[_lcID].erc20Balances[3].add(_balances[1]);
         }
-        
+
         emit DidLCDeposit(_lcID, recipient, _balances[0], _balances[1]);
     }
 
     // TODO: Check there are no open virtual channels, the client should have cought this before signing a close LC state update
     function consensusCloseChannel(
-        bytes32 _lcID, 
-        uint256 _sequence, 
+        bytes32 _lcID,
+        uint256 _sequence,
         uint256[4] _balances, // 0: ethBalanceA 1:ethBalanceI 2:tokenBalanceA 3:tokenBalanceI
-        string _sigA, 
+        string _sigA,
         string _sigI
-    ) 
-        public 
+    )
+        public
     {
         // assume num open vc is 0 and root hash is 0x0
         //require(Channels[_lcID].sequence < _sequence);
@@ -302,9 +593,9 @@ contract LedgerChannel {
                 _sequence,
                 uint256(0),
                 bytes32(0x0),
-                Channels[_lcID].partyAddresses[0], 
-                Channels[_lcID].partyAddresses[1], 
-                _balances[0], 
+                Channels[_lcID].partyAddresses[0],
+                Channels[_lcID].partyAddresses[1],
+                _balances[0],
                 _balances[1],
                 _balances[2],
                 _balances[3]
@@ -345,13 +636,13 @@ contract LedgerChannel {
     // Byzantine functions
     // TODO only allowing one update. should not block launch.
     function updateLCstate(
-        bytes32 _lcID, 
+        bytes32 _lcID,
         uint256[6] updateParams, // [sequence, numOpenVc, ethbalanceA, ethbalanceI, tokenbalanceA, tokenbalanceI]
-        bytes32 _VCroot, 
-        string _sigA, 
+        bytes32 _VCroot,
+        string _sigA,
         string _sigI
-    ) 
-        public 
+    )
+        public
     {
         Channel storage channel = Channels[_lcID];
         require(
@@ -370,22 +661,36 @@ contract LedgerChannel {
             "On-chain token balances must be higher than provided balances"
         );
 
-        if (channel.status == ChannelStatus.Settling) { 
+        // Question: If the channel is settling, we have to wait until the timeout expires before updating it again?
+        // - why is this the case?
+        // - how is updateLCState used?
+        //   1. The first time updateLCState is called, updateLCtimeout is set to now + confirmTime (which is set at opening)
+        //   2. If the channel is already settling, updateLCState must be called again before the timeout expires
+        //      2.1. The channel timeout will be reset
+        //   3. After the channel timeout expires, we can add VC updates / close VC channels
+        //      3.1. call initVC for each VC - this starts the VC timeout (for each VC) and sets it to now + confirmTime
+        //      3.2. call settleVC for each VC - this resets the VC timeout
+        //      3.3. after the VC timeout expires, call closeVC
+        //   4. After the channel timeout expires & all VCs are closed, we can call byzantineClose
+        // - what happens if there are no VCs?
+        //   - If no VCs, then call updateLCState, wait for updateLCtimeout to expire, then call byzantineClose
+
+        if (channel.status == ChannelStatus.Settling) {
             require(channel.updateLCtimeout > now, "Update timeout not expired");
         }
-      
+
         bytes32 _state = keccak256(
             abi.encodePacked(
                 _lcID,
-                false, 
-                updateParams[0], 
-                updateParams[1], 
-                _VCroot, 
-                channel.partyAddresses[0], 
-                channel.partyAddresses[1], 
-                updateParams[2], 
+                false,
+                updateParams[0],
+                updateParams[1],
+                _VCroot,
+                channel.partyAddresses[0],
+                channel.partyAddresses[1],
+                updateParams[2],
                 updateParams[3],
-                updateParams[4], 
+                updateParams[4],
                 updateParams[5]
             )
         );
@@ -409,31 +714,31 @@ contract LedgerChannel {
         // make settlement flag
 
         emit DidLCUpdateState (
-            _lcID, 
-            updateParams[0], 
-            updateParams[1], 
-            updateParams[2], 
+            _lcID,
+            updateParams[0],
+            updateParams[1],
+            updateParams[2],
             updateParams[3],
             updateParams[4],
-            updateParams[5], 
+            updateParams[5],
             _VCroot,
             channel.updateLCtimeout
         );
     }
 
-    // supply initial state of VC to "prime" the force push game 
+    // supply initial state of VC to "prime" the force push game
     // TODO: combine with settleVC
     function initVCstate(
-        bytes32 _lcID, 
-        bytes32 _vcID, 
-        bytes _proof, 
-        address _partyA, 
-        address _partyB, 
+        bytes32 _lcID,
+        bytes32 _vcID,
+        bytes _proof,
+        address _partyA,
+        address _partyB,
         uint256[2] _bond,
         uint256[4] _balances, // 0: ethBalanceA 1:ethBalanceB 2:tokenBalanceA 3:tokenBalanceB
         string sigA
-    ) 
-        public 
+    )
+        public
     {
         // sub-channel must be open
         require(Channels[_lcID].status == ChannelStatus.Settling, "Channel status must be Settling");
@@ -468,18 +773,18 @@ contract LedgerChannel {
     }
 
     // TODO: verify state transition since the hub did not agree to this state
-    // make sure the A/B balances are not beyond ingrids bonds  
+    // make sure the A/B balances are not beyond ingrids bonds
     // Params: vc init state, vc final balance, vcID
     function settleVC(
-        bytes32 _lcID, 
-        bytes32 _vcID, 
-        uint256 updateSeq, 
-        address _partyA, 
+        bytes32 _lcID,
+        bytes32 _vcID,
+        uint256 updateSeq,
+        address _partyA,
         address _partyB,
         uint256[4] updateBal, // [ethupdateBalA, ethupdateBalB, tokenupdateBalA, tokenupdateBalB]
         string sigA
-    ) 
-        public 
+    )
+        public
     {
         // sub-channel must be open
         require(Channels[_lcID].status == ChannelStatus.Settling, "Channel status must be Settling");
@@ -494,7 +799,7 @@ contract LedgerChannel {
         );
         require(
             virtualChannels[_vcID].bond[0] == updateBal[0].add(updateBal[1]) &&
-            virtualChannels[_vcID].bond[1] == updateBal[2].add(updateBal[3]), 
+            virtualChannels[_vcID].bond[1] == updateBal[2].add(updateBal[3]),
             "Incorrect balances for bonded amount"
         );
         // Check time has passed on updateLCtimeout and has not passed the time to store a vc state
@@ -504,15 +809,15 @@ contract LedgerChannel {
 
         bytes32 _updateState = keccak256(
             abi.encodePacked(
-                _vcID, 
-                updateSeq, 
-                _partyA, 
-                _partyB, 
-                virtualChannels[_vcID].bond[0], 
-                virtualChannels[_vcID].bond[1], 
-                updateBal[0], 
-                updateBal[1], 
-                updateBal[2], 
+                _vcID,
+                updateSeq,
+                _partyA,
+                _partyB,
+                virtualChannels[_vcID].bond[0],
+                virtualChannels[_vcID].bond[1],
+                updateBal[0],
+                updateBal[1],
+                updateBal[2],
                 updateBal[3]
             )
         );
@@ -544,7 +849,7 @@ contract LedgerChannel {
 
         // reduce the number of open virtual channels stored on LC
         Channels[_lcID].numOpenVC = Channels[_lcID].numOpenVC.sub(1);
-        // close vc 
+        // close vc
         virtualChannels[_vcID].status = VirtualChannelStatus.Settled;
 
         // re-introduce the balances back into the LC state from the settled VC
@@ -580,7 +885,7 @@ contract LedgerChannel {
         uint256 totalEthDeposit = channel.initialDeposit[0].add(channel.ethBalances[2]).add(channel.ethBalances[3]);
         uint256 totalTokenDeposit = channel.initialDeposit[1].add(channel.erc20Balances[2]).add(channel.erc20Balances[3]);
 
-        uint256 possibleTotalEthBeforeDeposit = channel.ethBalances[0].add(channel.ethBalances[1]); 
+        uint256 possibleTotalEthBeforeDeposit = channel.ethBalances[0].add(channel.ethBalances[1]);
         uint256 possibleTotalTokenBeforeDeposit = channel.erc20Balances[0].add(channel.erc20Balances[1]);
 
         if (possibleTotalEthBeforeDeposit < totalEthDeposit) {
@@ -628,7 +933,7 @@ contract LedgerChannel {
             require(
                 channel.token.transfer(channel.partyAddresses[1], tokenbalanceI),
                 "byzantineCloseChannel: token transfer failure"
-            );          
+            );
         }
 
         emit DidLCClose(_lcID, channel.sequence, ethbalanceA, ethbalanceI, tokenbalanceA, tokenbalanceI);
