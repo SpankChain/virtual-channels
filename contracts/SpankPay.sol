@@ -18,8 +18,6 @@
 //  - this allows you to exit if the deposit goes through but the counterparty refused to confirm offchain
 //
 // TODO:
-// 1. Use ERC20/StandardToken over HumanStandardToken
-// 2. Token whitelist, managed by hub, only affects new channels
 // 3. Do I need numChannels?
 // 4. msg.sender opens channel on behalf of a set of delegate addresses
 //  - possibly skip for this version
@@ -124,9 +122,6 @@ contract SpankPay {
     //   1. the consensusUpdate expires
     //   2. the consensusUpdate succeeds
 
-    // Also need support for hub to deposit / withdraw ETH / ERC20
-    // - deposit (address[] tokens, uint256[] values)
-    // - withdraw (ethAmount, address[] tokens, uint256[] values)
     // - maybe rescue tokens stupidly sent
     //   - make fallback not payable
     //   - tokens? keep track of tokens deposited in channels as a "totalBalance"
@@ -851,7 +846,7 @@ contract SpankPay {
         require(tokenAddresses.length == hubTokenValues.length);
         require(tokenAddresses.length == userTokenValues.length);
 
-        // transfer all tokens into this account
+        // empty all tokens
         for (uint256 i; i < tokenAddresses.length; i++) {
             ERC20 token = ERC20(tokenAddresses[i]);
 
@@ -884,6 +879,8 @@ contract SpankPay {
         account.status = Status.Empty;
     }
 
+
+
     // Why do I need this function? When do I want to checkpoint to chain?
     // I already checkpoint every time I need to deposit / withdraw
     // I think I only need this if I want to withdraw
@@ -903,6 +900,227 @@ contract SpankPay {
     //  - need to do a authorizedExchangeAndWithdrawal (timeout)
     // 3. user wants to withdraw *some* of the money
     //  - authorizedExchangeAndWithdrawal
+
+    // all partial withdrawals require a timer
+    // - why? to make sure it happens now
+    // - it isn't to make sure it happens now
+    // - it's to allow both parties to agree to invalidate that state if it fails.
+    // - 1. no timeout, tx submitted immediately
+    //   - fine
+    // - 2. no timeout, tx delayed / rejected
+    //   - neither party can ever submit a state update again
+    //   - does this matter?
+    //   - do we NEED to wait?
+    //   - what if we continue to allow payments that draw from the remaining balance?
+    //   - performer cashes out during a show
+    //     - hub starts an authorized withdrawal on their behalf
+    //     - they can still receive tips from hubs collat
+    //   - user withdraws some money
+    //     - hub starts an authorized withdrawal on their behalf
+    //     - they can tip from remaining balance
+    //   - can do the same thing we did for deposits, move money into a "pendingWithdrawals" variable offchain
+
+    // What do I really want?
+    // - to update onchain with any more recent mutually signed state update at any time
+    // - only unilateral withdrawals trigger challenge periods
+    // - to execute one or more transactions onchain as part of an update
+    //   - hubDeposit (ETH / tokens)
+    //   - userDeposit (ETH / tokens) -> more difficult, requires token approval
+    //   - hubWithdrawal
+    //   - userWithdrawal
+    //   - exchange
+
+    // I could pass in a byteArray of signed txs to execute
+    // - bytes -> encode txs [num of transactions, length of 1st tx, type, value, length of 2nd tx, type, value, ... ]
+    // - or pass in hella variables
+    //   - pendingHubETHDeposit
+    //   - pendingHubTokenDeposits
+    //   - pendingUserETHDeposit
+    //   - pendingUserTokenDeposits
+    //   - pendingHubETHWithdrawal
+    //   - pendingHubTokenWithdrawals
+    //   - pendingUserETHWithdrawal
+    //   - pendingUserTokenWithdrawals
+
+    // this would cover the exchange withdrawal case too, actually
+    // - update + pendingUserETHWithdrawals + pendingHubETHDeposits
+    // - what happens if hub doesn't have the ETH?
+    //   - tx fails
+    //   - then what?
+    //
+    // if we think in terms of txns, its:
+    // 1. hub deposit ETH in channel
+    // 2. hub / user exchange ETH / BOOTY
+    // 3. user withdraw ETH
+    // 4. hub withdraw BOOTY (optionally)
+
+    // what would a retarded person do?
+    // 1. deposit ETH into performer channel
+    // 2. WAIT
+    // 3. in channel exchange
+    // 4. hubAuthorizedWithdrawal - performer gets ETH (to user address, not recipient)
+    // 5. WAIT
+    // 6. performer wallet transfers funds out to desired address
+    // 7. WAIT
+    // 8. some time later, hub calls withdrawal, starts a challenge period
+    // 9. WAIT A LONG TIME
+    // 10. hub gets BOOTY back.
+    // Confirmed, this is retarded.
+
+    // Less retarded - hubAuthorizedWithdrawalWithExchange
+    // 4. hubAuthorizedWithdrawalWithExchange - performer gets ETH (to user address, not recipient)
+    //  - hub deposits ETH and receives BOOTY as part of the withdrawal
+    // 5. WAIT
+    // 6. performer wallet transfers funds out to desired address
+    // 7. WAIT
+    // 8. some time later, hub calls withdrawal, starts a challenge period
+    // 9. WAIT A LONG TIME
+    // 10. hub gets BOOTY back.
+
+    // Even Less retarded - hubAuthorizedWithdrawalWithExchange(recipient)
+    // 4. hubAuthorizedWithdrawalWithExchange(recipient) - performer gets ETH to recipient address
+    //  - hub deposits ETH and receives BOOTY as part of the withdrawal
+    // 5. WAIT
+    // 8. some time later, hub calls withdrawal, starts a challenge period
+    // 9. WAIT A LONG TIME
+    // 10. hub gets BOOTY back.
+
+    function executeTxns()
+
+    // I could pass in a byteArray of signed txs to execute
+    // - bytes -> encode txs [num of transactions, length of 1st tx, type, value, length of 2nd tx, type, value, ... ]
+    // - or pass in hella variables
+    //   - pendingHubETHDeposit
+    //     - type = hub ETH deposit
+    //     - amount = 1000
+    //   - pendingHubTokenDeposits
+    //     - type = hub token deposit
+    //     - token = BOOTY
+    //     - amount = 1000
+    //   - pendingUserETHDeposit
+    //   - pendingUserTokenDeposits
+    //   - pendingHubETHWithdrawal
+    //     - type = hub ETH withdrawal
+    //     - address = hub (can omit for hub)
+    //     - amount = 1000
+    //   - pendingHubTokenWithdrawals
+    //   - pendingUserETHWithdrawal
+    //   - pendingUserTokenWithdrawals
+    //     - type = user token withdrawal
+    //     - token = BOOTY
+    //     - amount = 1000
+    //     - recipient = 0xSomeAddress
+    //   - exchange
+    //     - type = exchange
+    //     - hub currency = BOOTY
+    //     - user currency = ETH
+    //     - hub amount = 1000
+    //     - user amount = 5000
+    //     - timeout?
+
+    // What are the actual user stories that we're optimizing?
+    // - for user / performer withdrawals, we could ask the user to keep the window open (this is not great UX)
+    //   - then again, it isn't *that bad* either, because the user could simply open another tab or something
+    // - for user deposits (2 txns, doesn't get much better than this)
+    //   1. user send ETH to wallet
+    //   2. WAIT
+    //   3. userOpenChannel
+    //   4. WAIT
+    //   5. offchain exchange
+    //   6. user can start tipping
+
+    // Priorities:
+    // - so far, I've been trying to combine ComeSwap and SpankPay
+    // - my priority is to get BOOTY on the camsite and the SpankPay SDK out ASAP
+    // - that means this contract is fine with 1 token (BOOTY) and ETH.
+    // - it also means the exchange functionality can be limited to just SpankPay BOOTY/ETH xfers
+    // - I haven't thought through the UX of ComeSwap enough (thinking it through today made that clear)
+    // - We'll probably need to do more thinking around it before adding that all to the contract
+    // - if it does end up using something like Lineup.sol, then it'll take a lot more work.
+
+    function hubAuthorizedWithdrawal(
+        address user,
+        uint256 hubETH,
+        uint256 userETH
+        address[] tokenAddresses,
+        uint256[] hubTokenValues,
+        uint256[] userTokenValues,
+        uint256 txCount,
+        string[] sigs
+    ) public onlyHub shielded {
+        // the user account must be open
+        Account storage account = accounts[user];
+        require(account.Status == Status.Open, "account must be open");
+
+        // prepare state hash to check hub sig
+        bytes32 state = keccak256(
+            abi.encodePacked(
+                address(this),
+                user,
+                hubETH,
+                userETH,
+                tokenAddresses,
+                hubTokenValues,
+                userTokenValues,
+                txCount,
+                true, // extra bit for authorized closing
+            )
+        );
+
+        // check hub and user sigs against state hash
+        require(hub == ECTools.recoverSigner(state, sigs[0]));
+        require(user == ECTools.recoverSigner(state, sigs[1]));
+
+        // txCount must be higher than the current txCount
+        require(txCount > account.txCount);
+
+        // eth balances must be conserved
+        require(hubETH.add(userETH) == account.hubETH.add(account.userETH));
+
+        // reset ETH balances
+        account.hubETH = 0;
+        account.userETH = 0;
+
+        // transfer ETH to reserves and user
+        reserveETH = reserveETH.add(hubETH);
+        user.transfer(userETH);
+
+        // confirm token arrays match
+        require(tokenAddresses.length == hubTokenValues.length);
+        require(tokenAddresses.length == userTokenValues.length);
+
+        // empty all tokens
+        for (uint256 i; i < tokenAddresses.length; i++) {
+            ERC20 token = ERC20(tokenAddresses[i]);
+
+            // token values must be conserved
+            require(hubTokenValues[i].add(userTokenValues[i]) == account.hubTokens[token].add(account.userTokens[token]);
+
+            // token must be active
+            require(account.activeTokens[token]);
+
+            // deactivate token
+            account.activeTokens[token] = false;
+            account.numActiveTokens = account.numActiveTokens.sub(1);
+
+            // reset token balances
+            account.userTokens[token] = 0;
+            account.hubTokens[token] = 0;
+
+            // transfer tokens to reserve and user
+            reserveTokens[token] = reserveTokens[token].add(hubTokenValues[i]);
+            require(token.transfer(user, userTokenValues[i]));
+        }
+
+        // check that all tokens have been deactivated
+        require(account.numActiveTokens == 0);
+
+        // reset state variables
+        account.txCount = txCount;
+        account.tabRoot = bytes32(0x0);
+        account.tabCount = 0;
+        account.status = Status.Empty;
+    }
 
     // Do I need separate functions for user/hub authorized withdrawals?
     // - both parties need to sign
