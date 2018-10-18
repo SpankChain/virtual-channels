@@ -1,6 +1,8 @@
 // Notes:
 // 1. hub reserve ETH / token
 // 2. deposit / withdrawal for hub reserves
+// - use transfer and track token / ETH balance directly
+// - also helps steal stupid people's frozen tokens / ETH
 // 3. topLevel -> shielded
 // 4. create + join -> hubOpen / userOpen
 // 5. Channel -> Account
@@ -12,6 +14,12 @@
 // 11. deposit -> user deposit + hub deposit
 // 12. remove channelOpenTimeout
 // 13. startChannelSettlement -> startExit / startExitWithUpdate
+//     1. startExit OR startExitWithUpdate (either party)
+//      - (keep track of who started the exit)
+//     2. emptyAccountWithChallenge (other party)
+//     3. [time runs out]
+//     4. emptyAccount (either party)
+
 // 14. checkpointChannelDispute -> emptyAccountWithChallenge (immediately empties channel, but not tabs)
 //   - no back and forth on settlement
 // 15. byzantineCloseChannel -> emptyAccount (empties after confirmation time, but not tabs)
@@ -20,8 +28,21 @@
 // 16. signature scheme - do we always need to sign the same set of state vars?
 // 17. initThread -> startExitTabs / startExitTabsWithUpdates
 //   - multiple tabs at once
+//   - client should handle appropriate batching
+//   - if one thread exit initiation fails, all should fail
 // 18. settleThread -> emptyTabs (empties after conf time)
 //   - no back and forth settlement
+
+//     sender close tabs
+//     1. startExitTabs / startExitTabsWithUpdates
+//     2. WAIT
+//     3. emptyTabs
+
+//     receiver close tabs
+//     1. startExitTabs / startExitTabsWithUpdates
+//     3. recipientEmptyTabs
+//     TODO add function to combine
+
 // 19. closeThread -> recipientEmptyTabs (recipient or watchtower can immediately empty with an update)
 // 20. confirmTime / openTimeout / updateTimeout -> global confirmationTime + account.closingTime + tab.closingTime
 // 21. HumanStandardToken -> ERC20
@@ -36,7 +57,7 @@
 //  - can the hub reclaim when user deposits?
 //  - yes, if we use a timeout to prevent replay attacks
 //  - timeouts will be required infra for ComeSwap anyways
-// 5. withdraw -> user can provide recipient address
+// 5. withdraw -> user can provide recipient address (should be set in iframe, defaults to msg.sender)
 // 6. combine initVC and settleVC for recipient (startExitTabsWithUpdate + emptyTabs)
 //  - best as a separate 5th function?
 //  - probably overkill
@@ -47,7 +68,6 @@
 // 9. watchtower support
 //  - set when user opens channel
 //  - can close channels on their behalf
-// 10.
 
 pragma solidity ^0.4.24;
 pragma experimental ABIEncoderV2;
@@ -57,6 +77,13 @@ import "./lib/token/HumanStandardToken.sol";
 import "./lib/SafeMath.sol";
 
 /// @title Connext Channel Manager - A layer2 micropayment network
+
+/*
+TODO:
+- remove channel id and use partyA as id
+- on close, move to nonexistent and ensure that everything is zero-ed out (ALL CHANNEL STATE)
+- combine init and settle thread into one function in a separate version
+ */
 
 contract ChannelManager {
     using SafeMath for uint256;
@@ -72,12 +99,6 @@ contract ChannelManager {
         uint256 openTimeout
     );
 
-    event DidChannelJoin (
-        bytes32 indexed channelId,
-        uint256 weiBalanceI,
-        uint256 tokenBalanceI
-    );
-
     event DidChannelDeposit (
         bytes32 indexed channelId,
         address indexed recipient,
@@ -90,17 +111,6 @@ contract ChannelManager {
         address indexed recipient,
         uint256 weiWithdrawal,
         uint256 tokenWithdrawal
-    );
-
-    event DidChannelCheckpoint (
-        bytes32 indexed channelId,
-        uint256 sequence,
-        uint256 weiBalanceA,
-        uint256 tokenBalanceA,
-        uint256 weiBalanceI,
-        uint256 tokenBalanceI,
-        uint256 numOpenThread,
-        bytes32 threadRoot
     );
 
     event DidChannelCheckpointDispute (
@@ -170,7 +180,6 @@ contract ChannelManager {
     enum ChannelStatus {
         Nonexistent,
         Opened,
-        Joined,
         Settling,
         Settled
     }
@@ -204,53 +213,106 @@ contract ChannelManager {
         uint256 updateTimeout;
     }
 
-    enum CheckpointType {
-        Checkpoint,
-        Deposit,
-        Withdraw,
-        Close
-    }
-
     mapping(bytes32 => Thread) public threads;
     mapping(bytes32 => Channel) public channels;
-
-    bool topLevel = true;
 
     // globals
     HumanStandardToken public approvedToken;
     address public hubAddress;
+    uint256 totalBondedAmountWei;
+    uint256 totalBondedAmountToken;
+
+    // reentrancy protection
+    bool locked = false;
+    modifier noReentrancy() {
+        require(!locked, "Reentrant call");
+
+        locked = true;
+        _;
+        locked = false;
+    }
+
+    modifier onlyHub() {
+        require(msg.sender == hubAddress, "Function is restricted to hub");
+        _;
+    }
 
     constructor(address _tokenAddress, address _hubAddress) public {
         approvedToken = HumanStandardToken(_tokenAddress);
         hubAddress = _hubAddress;
     }
 
+    // createChannel is called by the user after getting a sig from the hub verifying the parameters.
+    // the hubs funds are assumed to be already loaded onto this contract (checked in this function).
+    // payable amount is the weiBalanceA, so no need to pass it in
     function createChannel(
-        bytes32 channelId,
-        uint256 confirmTime, // TODO can we hardcode this too?
-        uint256 tokenBalance
+        bytes32 channelId, // TODO use partyA address as channelId
+        uint256 weiBalanceI,
+        uint256 tokenBalanceA,
+        uint256 tokenBalanceI,
+        uint256 sigExpiry,
+        uint256 confirmTime,
+        string sigI
     )
         public
         payable
+        noReentrancy
     {
-        require(topLevel, "createChannel: Top level function can only be called directly");
         require(channels[channelId].status == ChannelStatus.Nonexistent, "createChannel: Channel already exists");
         require(msg.sender != hubAddress, "createChannel: Cannot create channel with yourself");
+        require(now < sigExpiry, "createChannel: sigExpiry time is over, channel cannot be created");
+        require(
+            _getUnallocatedHubFundsWei() > weiBalanceI,
+            "createChannel: Contract wei funds not sufficient to create channel"
+        );
+        require(
+            _getUnallocatedHubFundsToken() > tokenBalanceI,
+            "createChannel: Contract token funds not sufficient to create channel"
+        );
 
-        // Set initial ledger channel state
-        // Alice must execute this and we assume the initial state
-        // to be signed from this requirement
+        bytes32 fingerprint = keccak256(
+            abi.encodePacked(
+                channelId,
+                msg.sender, // partyA
+                hubAddress, // partyI
+                msg.value, // weiBalanceA
+                weiBalanceI,
+                tokenBalanceA,
+                tokenBalanceI,
+                sigExpiry,
+                confirmTime
+            )
+        );
+
+        // make sure hub address signed the opening sig
+        require(
+            ECTools.recoverSigner(fingerprint, sigI) == hubAddress,
+            "createChannel: Hub signature invalid"
+        );
+
         Channel storage channel = channels[channelId];
 
+        // channel attributes
         channel.status = ChannelStatus.Opened;
         channel.partyA = msg.sender; // partyA
         channel.sequence = 0;
         channel.confirmTime = confirmTime;
         channel.openTimeout = now.add(confirmTime);
 
+        // channel balances
         channel.balancesA[0] = msg.value; // wei deposit
-        require(approvedToken.transferFrom(msg.sender, this, tokenBalance), "createChannel: Token transfer failure");
-        channel.balancesA[1] = tokenBalance; // token deposit
+        channel.balancesI[0] = weiBalanceI;
+        channel.balancesA[1] = tokenBalanceA; // token deposit
+        channel.balancesI[1] = tokenBalanceI; // token deposit
+
+        // add to running total of bonded amount
+        totalBondedAmountWei = totalBondedAmountWei.add(channel.balancesI[0]);
+        totalBondedAmountToken = totalBondedAmountToken.add(channel.balancesI[1]);
+
+        require(
+            approvedToken.transferFrom(msg.sender, this, tokenBalanceA),
+            "createChannel: Token transfer failure"
+        );
 
         emit DidChannelOpen(
             channelId,
@@ -261,67 +323,11 @@ contract ChannelManager {
         );
     }
 
-    function channelOpenTimeout(bytes32 channelId) public {
-        require(topLevel, "channelOpenTimeout: Top level function can only be called directly");
-
-        Channel storage channel = channels[channelId];
-
-        require(msg.sender == channel.partyA, "channelOpenTimeout: Request not sent by partyA");
-        require(channel.status == ChannelStatus.Opened, "channelOpenTimeout: Channel status must be Opened");
-        require(now > channel.openTimeout, "channelOpenTimeout: Channel openTimeout has not expired");
-
-        // reentrancy protection
-        channel.status = ChannelStatus.Settled;
-        uint256 weiBalanceA = channel.balancesA[0];
-        uint256 tokenBalanceA = channel.balancesA[1];
-
-        channel.balancesA[0] = 0; // wei
-        channel.balancesA[1] = 0; // token
-        channel.balancesI[0] = 0; // wei
-        channel.balancesI[1] = 0; // token
-
-        channel.partyA.transfer(weiBalanceA);
-        require(
-            approvedToken.transfer(channel.partyA, tokenBalanceA),
-            "channelOpenTimeout: Token transfer failure"
-        );
-
-        emit DidChannelClose(
-            channelId,
-            0, // sequence
-            weiBalanceA,
-            tokenBalanceA,
-            0, // weiBalanceI
-            0 // tokenBalanceI
-        );
-    }
-
-    function joinChannel(bytes32 channelId, uint256 tokenBalance) public payable {
-        require(topLevel, "joinChannel: Top level function can only be called directly");
-
-        Channel storage channel = channels[channelId];
-
-        require(channel.status == ChannelStatus.Opened, "joinChannel: Channel status must be Opened");
-        require(msg.sender == hubAddress, "joinChannel: Channel can only be joined by counterparty");
-
-        channel.status = ChannelStatus.Joined;
-
-        channel.balancesI[0] = msg.value; // wei
-        require(
-            approvedToken.transferFrom(msg.sender, this, tokenBalance),
-            "joinChannel: token transfer failure"
-        );
-        channel.balancesI[1] = tokenBalance; // token
-
-        emit DidChannelJoin(
-            channelId,
-            channel.balancesI[0], // wei
-            channel.balancesI[1] // token
-        );
-    }
-
+    // deposit can be called be either party to add balance to the channel. this requires a double signed message
+    // containing the deposit amount as a pending deposit.
     function deposit(
         bytes32 channelId,
+        uint256 weiDeposit, // needs to be specified because if it's hub it won't be transferred
         uint256 tokenDeposit,
         uint256 sequence,
         uint256 numOpenThread,
@@ -331,29 +337,45 @@ contract ChannelManager {
     )
         public
         payable
+        noReentrancy
     {
-        require(topLevel, "deposit: Top level function can only be called directly");
-
         Channel storage channel = channels[channelId];
 
-        require(channel.status == ChannelStatus.Joined, "deposit: Channel status must be Joined");
+        require(channel.status == ChannelStatus.Opened, "deposit: Channel status must be Opened");
         require(
             msg.sender == channel.partyA || msg.sender == hubAddress,
             "deposit: Sender must be channel member"
         );
 
+        // if hub deposits it will be coming from the unallocated funds so we need to make sure there is enough
+        if (msg.sender == hubAddress) {
+            require(
+                _getUnallocatedHubFundsWei() > weiDeposit,
+                "deposit: Contract wei funds not sufficient to create channel"
+            );
+            require(
+                _getUnallocatedHubFundsToken() > tokenDeposit,
+                "deposit: Contract token funds not sufficient to create channel"
+            );
+        } else {
+            require(weiDeposit == msg.value, "deposit: Value must match amount specified");
+        }
+
         // store deposits by party who sent transaction
         uint256[2] memory depositA;
         uint256[2] memory depositI;
         if (msg.sender == channel.partyA) {
-            depositA[0] = msg.value; // wei
+            depositA[0] = weiDeposit; // wei
             depositA[1] = tokenDeposit; // token
-        } else if (msg.sender == hubAddress) {
-            depositI[0] = msg.value; // wei
+            depositI[0] = 0; // wei
+            depositI[1] = 0; // token
+        } else {
+            depositI[0] = weiDeposit; // wei
             depositI[1] = tokenDeposit; // token
+            depositA[0] = 0; // wei
+            depositA[1] = 0; // token
         }
 
-        // checkpoint on chain
         _verifyUpdateSig(
             channel,
             channelId,
@@ -389,7 +411,16 @@ contract ChannelManager {
         channel.balancesI[1] = channel.balancesI[1].add(depositI[1]); // tokenBalanceI
         channel.threadRootHash = threadRootHash;
 
-        require(approvedToken.transferFrom(msg.sender, this, tokenDeposit), "deposit: token transfer failure");
+        // transfer tokens if partyA, otherwise just add to contract's locked up amount
+        if (msg.sender == channel.partyA) {
+            require(
+                approvedToken.transferFrom(msg.sender, this, tokenDeposit),
+                "deposit: Token transfer failure"
+            );
+        } else {
+            totalBondedAmountWei = totalBondedAmountWei.add(weiDeposit);
+            totalBondedAmountToken = totalBondedAmountToken.add(tokenDeposit);
+        }
 
         emit DidChannelDeposit(
             channelId,
@@ -401,7 +432,7 @@ contract ChannelManager {
 
     function withdraw(
         bytes32 channelId,
-        uint256[2] withdrawals, // [wei, token]
+        uint256[2] withdrawals, // [wei, token] // TODO can we split these up
         uint256 sequence,
         uint256 numOpenThread,
         bytes32 threadRootHash,
@@ -410,12 +441,11 @@ contract ChannelManager {
     )
         public
         payable
+        noReentrancy
     {
-        require(topLevel, "withdraw: Top level function can only be called directly");
-
         Channel storage channel = channels[channelId];
 
-        require(channel.status == ChannelStatus.Joined, "withdraw: Channel status must be Joined");
+        require(channel.status == ChannelStatus.Opened, "withdraw: Channel status must be Opened");
         require(
             msg.sender == channel.partyA || msg.sender == hubAddress,
             "withdraw: Sender must be channel member"
@@ -427,11 +457,33 @@ contract ChannelManager {
         uint256[2] memory withdrawalA;
         uint256[2] memory withdrawalI;
         if (msg.sender == channel.partyA) {
+            require(
+                withdrawals[0] >= channel.balancesA[0],
+                "withdraw: Channel wei balance is less than requested withdrawal"
+            );
+            require(
+                withdrawals[1] >= channel.balancesA[1],
+                "withdraw: Channel wei balance is less than requested withdrawal"
+            );
+
             withdrawalA[0] = withdrawals[0]; // wei
             withdrawalA[1] = withdrawals[1]; // token
+            withdrawalI[0] = 0; // wei
+            withdrawalI[1] = 0; // token
         } else if (msg.sender == hubAddress) {
+            require(
+                withdrawals[0] >= channel.balancesI[0],
+                "withdraw: Channel wei balance is less than requested withdrawal"
+            );
+            require(
+                withdrawals[1] >= channel.balancesI[1],
+                "withdraw: Channel wei balance is less than requested withdrawal"
+            );
+
             withdrawalI[0] = withdrawals[0]; // wei
             withdrawalI[1] = withdrawals[1]; // token
+            withdrawalA[0] = 0; // wei
+            withdrawalA[1] = 0; // token
         }
 
         _verifyUpdateSig(
@@ -469,9 +521,15 @@ contract ChannelManager {
         channel.balancesI[1] = channel.balancesI[1].sub(withdrawalI[1]); // tokenBalanceI
         channel.threadRootHash = threadRootHash;
 
-        // not possible to send to the wrong person because the sig will fail if the other party sends
-        msg.sender.transfer(withdrawals[0]);
-        require(approvedToken.transfer(msg.sender, withdrawals[1]), "withdraw: Token transfer failure");
+        // if partyA, transfer, otherwise decrement from hub
+        // variables will be 0 for non-sender
+        channel.partyA.transfer(withdrawalA[0]);
+        require(
+            approvedToken.transfer(channel.partyA, withdrawalA[1]),
+            "withdraw: Token transfer failure"
+        );
+        totalBondedAmountWei = totalBondedAmountWei.sub(withdrawalI[0]);
+        totalBondedAmountToken = totalBondedAmountToken.sub(withdrawalI[1]);
 
         emit DidChannelWithdraw(
             channelId,
@@ -484,17 +542,16 @@ contract ChannelManager {
     function consensusCloseChannel(
         bytes32 channelId,
         uint256 sequence,
-        uint256[4] balances, // [weiBalanceA, weiBalanceI, tokenBalanceA, tokenBalanceI]
+        uint256[4] balances, // [weiBalanceA, weiBalanceI, tokenBalanceA, tokenBalanceI] // TODO can we separate these?
         string sigA,
         string sigI
     )
         public
+        noReentrancy
     {
-        require(topLevel, "consensusCloseChannel: Top level function can only be called directly");
-
         Channel storage channel = channels[channelId];
 
-        require(channel.status == ChannelStatus.Joined, "consensusCloseChannel: Channel status must be Joined");
+        require(channel.status == ChannelStatus.Opened, "consensusCloseChannel: Channel status must be Opened");
         // everything that is on chain must be accounted for in passed in balances
         require(
             balances[0].add(balances[1]) == channel.balancesA[0].add(channel.balancesI[0]),
@@ -514,10 +571,10 @@ contract ChannelManager {
             [
                 sequence,
                 uint256(0), // numOpenThread must be 0
-                channel.balancesA[0], // wei
-                channel.balancesI[0], // wei
-                channel.balancesA[1], // token
-                channel.balancesI[1], // token
+                balances[0], // weiBalanceA
+                balances[1], // weiBalanceI
+                balances[2], // tokenBalanceA
+                balances[3], // tokenBalanceI
                 0, // pending deposit
                 0, // pending deposit
                 0, // pending deposit
@@ -533,24 +590,26 @@ contract ChannelManager {
         );
 
         // this will prevent reentrancy
-        channel.status = ChannelStatus.Settled;
+        channel.status = ChannelStatus.Settled; // TODO: can change to non-existent and zero out when channel closes
 
         channel.balancesA[0] = 0; // wei
         channel.balancesA[1] = 0; // token
         channel.balancesI[0] = 0; // wei
         channel.balancesI[1] = 0; // token
+        channel.threadRootHash = bytes32(0x0);
+        channel.sequence = 0;
+        channel.numOpenThread = 0;
 
+        // transfer for partyA
         channel.partyA.transfer(balances[0]); // weiBalanceA
-        hubAddress.transfer(balances[1]); // weiBalanceI
-
         require(
             approvedToken.transfer(channel.partyA, balances[2]),
             "consensusCloseChannel: Token transfer failure"
         ); // tokenBalanceA
-        require(
-            approvedToken.transfer(hubAddress, balances[3]),
-            "consensusCloseChannel: Token transfer failure"
-        ); // tokenBalanceI
+
+        // unallocate funds for hub
+        totalBondedAmountWei = totalBondedAmountWei.sub(balances[1]); // weiBalanceI
+        totalBondedAmountToken = totalBondedAmountToken.sub(balances[3]); // tokenBalanceI
 
         emit DidChannelClose(
             channelId,
@@ -562,79 +621,17 @@ contract ChannelManager {
         );
     }
 
-    function checkpointChannel(
-        bytes32 channelId,
-        // updateParams = [sequence, numOpenThread, weiBalanceA, weiBalanceI, tokenBalanceA, tokenBalanceI,
-        // pendingDepositWeiA, pendingDepositWeiI, pendingDepositTokenA, pendingDepositTokenI,
-        // pendingWithdrawalWeiA, pendingWithdrawalWeiI, pendingWithdrawalTokenA, pendingWithdrawalTokenI]
-        uint256[14] updateParams,
-        bytes32 threadRootHash,
-        string sigA,
-        string sigI
-    )
-        public
-    {
-        require(topLevel, "checkpointChannel: Top level function can only be called directly");
-
-        Channel storage channel = channels[channelId];
-        require(channel.status == ChannelStatus.Joined, "checkpointChannel: Channel status must be Joined or Settling");
-        // require for all checkpoints
-        require(
-            updateParams[0] > channel.sequence,
-            "checkpointChannel: Sequence must be higher or zero-state update"
-        );
-        // input balances can be less than on-chain balances because of balance bonded in threads
-        require(
-            updateParams[2].add(updateParams[3]) <= channel.balancesA[0].add(channel.balancesI[0]),
-            "checkpointChannel: On-chain eth balances must be higher than provided balances"
-        );
-        require(
-            updateParams[4].add(updateParams[5]) <= channel.balancesA[1].add(channel.balancesI[1]),
-            "checkpointChannel: On-chain token balances must be higher than provided balances"
-        );
-
-        // verify sig and update chain
-        _verifyUpdateSig(
-            channel,
-            channelId,
-            false, // isClose
-            updateParams,
-            threadRootHash, // threadRootHash
-            sigA,
-            sigI
-        );
-
-        // update chain state, do not account for pending
-        channel.sequence = updateParams[0];
-        channel.numOpenThread = updateParams[1];
-        channel.balancesA[0] = updateParams[2]; // weiBalanceA
-        channel.balancesI[0] = updateParams[3]; // weiBalanceI
-        channel.balancesA[1] = updateParams[4]; // tokenBalanceA
-        channel.balancesI[1] = updateParams[5]; // tokenBalanceI
-        channel.threadRootHash = threadRootHash;
-
-        emit DidChannelCheckpoint(
-            channelId,
-            updateParams[0], // sequence
-            updateParams[2], // weiBalanceA
-            updateParams[3], // weiBalanceI
-            updateParams[4], // tokenBalanceA
-            updateParams[5], // tokenBalanceI
-            updateParams[1], // numOpenThread
-            threadRootHash
-        );
-    }
-
     // BYZANTINE FUNCTIONS
-    function startChannelSettlement(bytes32 channelId) public {
-        require(topLevel, "startChannelSettlement: Top level function can only be called directly");
-
+    function startChannelChallenge(bytes32 channelId) public noReentrancy {
         Channel storage channel = channels[channelId];
 
-        require(msg.sender == channel.partyA || msg.sender == hubAddress, "startChannelSettlement: Sender must be part of channel");
         require(
-            channel.status == ChannelStatus.Joined,
-            "startChannelSettlement: Channel status must be Joined"
+            msg.sender == channel.partyA || msg.sender == hubAddress,
+            "startChannelChallenge: Sender must be part of channel"
+        );
+        require(
+            channel.status == ChannelStatus.Opened,
+            "startChannelChallenge: Channel status must be Opened"
         );
 
         channel.status = ChannelStatus.Settling;
@@ -653,31 +650,31 @@ contract ChannelManager {
         );
     }
 
-    function checkpointChannelDispute(
+    function challengeChannelState(
         bytes32 channelId,
         // updateParams = [sequence, numOpenThread, weiBalanceA, weiBalanceI, tokenBalanceA, tokenBalanceI,
         // pendingDepositWeiA, pendingDepositWeiI, pendingDepositTokenA, pendingDepositTokenI,
         // pendingWithdrawalWeiA, pendingWithdrawalWeiI, pendingWithdrawalTokenA, pendingWithdrawalTokenI]
-        uint256[14] updateParams,
+        uint256[14] updateParams, // TODO: can we break this up
         bytes32 threadRootHash,
         string sigA,
         string sigI
     )
         public
+        noReentrancy
     {
-        require(topLevel, "checkpointChannelDispute: Top level function can only be called directly");
-
         Channel storage channel = channels[channelId];
-        require(channel.status == ChannelStatus.Settling, "checkpointChannel: Channel status must be Settling");
-        require(now < channel.updateTimeout);
+
+        require(channel.status == ChannelStatus.Settling, "challengeChannelState: Channel status must be Settling");
+        require(now < channel.updateTimeout, "challengeChannelState: Timeout is expired");
         // input balances can be less than on-chain balances because of balance bonded in threads
         require(
             updateParams[2].add(updateParams[3]) <= channel.balancesA[0].add(channel.balancesI[0]),
-            "checkpointChannel: On-chain eth balances must be higher than provided balances"
+            "challengeChannelState: On-chain eth balances must be higher than provided balances"
         );
         require(
             updateParams[4].add(updateParams[5]) <= channel.balancesA[1].add(channel.balancesI[1]),
-            "checkpointChannel: On-chain token balances must be higher than provided balances"
+            "challengeChannelState: On-chain token balances must be higher than provided balances"
         );
 
         // verify sig and update chain
@@ -725,13 +722,19 @@ contract ChannelManager {
         string sigA
     )
         public
+        noReentrancy
     {
-        require(topLevel, "initThread: Top level function can only be called directly");
-        require(msg.sender == partyA || msg.sender == partyB || msg.sender == hubAddress, "initThread: Sender must be part of thread");
-        require(channels[channelId].status == ChannelStatus.Settling, "initThread: Channel status must be Settling");
+        // currently this allows the other party who isnt involved in this channel to submit this
+        require(
+            msg.sender == partyA || msg.sender == partyB || msg.sender == hubAddress,
+            "initThread: Sender must be part of thread"
+        );
+        require(
+            channels[channelId].status == ChannelStatus.Settling,
+            "initThread: Channel status must be Settling"
+        );
         require(threads[threadId].status == ThreadStatus.Nonexistent, "initThread: Thread exists");
         require(now > channels[channelId].updateTimeout, "initThread: Update channel timeout not expired");
-        // dont need to check parties because root hash contains the initial state and was verified by hub
 
         bytes32 initState = keccak256(
             abi.encodePacked(
@@ -740,9 +743,9 @@ contract ChannelManager {
                 partyA,
                 partyB,
                 balances[0], // weiBalanceA
-                uint256(0), // weiBalanceI
+                uint256(0), // weiBalanceB, assumes unidirectional
                 balances[1], // tokenBalanceA
-                uint256(0) // tokenBalanceA
+                uint256(0) // tokenBalanceB, assumes unidirectional
             )
         );
 
@@ -787,9 +790,8 @@ contract ChannelManager {
         string sigA
     )
         public
+        noReentrancy
     {
-        require(topLevel, "settleThread: Top level function can only be called directly");
-
         Thread storage thread = threads[threadId];
 
         require(
@@ -855,23 +857,25 @@ contract ChannelManager {
         );
     }
 
-    function closeThread(bytes32 channelId, bytes32 threadId) public {
-        require(topLevel, "closeThread: Top level function can only be called directly");
-
+    function closeThread(bytes32 channelId, bytes32 threadId) public noReentrancy {
         Channel storage channel = channels[channelId];
         Thread storage thread = threads[threadId];
 
+        require(
+            msg.sender == thread.partyA || msg.sender == thread.partyB || msg.sender == hubAddress,
+            "settleThread: Sender must be part of thread"
+        );
         require(channel.status == ChannelStatus.Settling, "closeThread: Channel status must be Settling");
-        require(thread.status == ThreadStatus.Settling, "closeThread: Virtual channel status must be Settling");
-        require(now > thread.updateTimeout, "closeThread: Update VC timeout has not expired.");
+        require(thread.status == ThreadStatus.Settling, "closeThread: Thread status must be Settling");
+        require(now > thread.updateTimeout, "closeThread: Update thread timeout has not expired.");
 
-        // reduce the number of open virtual channels stored on LC
+        // reduce the number of open thread stored on LC
         channel.numOpenThread = channel.numOpenThread.sub(1);
-        // close vc
+        // close thread
         thread.status = ThreadStatus.Settled;
 
-        // re-introduce the balances back into the LC state from the settled VC
-        // decide if this lc is alice or bob in the vc
+        // re-introduce the balances back into the channel state from the settled thread
+        // decide if this channel is alice or bob in the thread
         if(thread.partyA == channel.partyA) {
             // channel A to I: partyA += threadBalanceA, partyI += threadBalanceB
             // wei
@@ -902,16 +906,14 @@ contract ChannelManager {
         );
     }
 
-    // TODO: allow either LC end-user to nullify the settled LC state and return to off-chain
-    function byzantineCloseChannel(bytes32 channelId) public {
-        require(topLevel, "byzantineCloseChannel: Top level function can only be called directly");
-
+    // TODO: allow either channel end-user to nullify the settled channel state and return to off-chain
+    function byzantineCloseChannel(bytes32 channelId) public noReentrancy {
         Channel storage channel = channels[channelId];
 
         // check settlement flag
         require(channel.status == ChannelStatus.Settling, "byzantineCloseChannel: Channel status must be Settling");
         require(channel.numOpenThread == 0, "byzantineCloseChannel: Open threads must be 0");
-        require(now > channel.updateTimeout, "byzantineCloseChannel: Channel timeout not over.");
+        require(now > channel.updateTimeout, "byzantineCloseChannel: Channel timeout not over");
 
         // reentrancy
         channel.status = ChannelStatus.Settled;
@@ -926,17 +928,16 @@ contract ChannelManager {
         channel.balancesI[0] = 0;
         channel.balancesI[1] = 0;
 
+        // transfer for partyA
         channel.partyA.transfer(weibalanceA);
-        hubAddress.transfer(weibalanceI);
-
         require(
             approvedToken.transfer(channel.partyA, tokenbalanceA),
-            "byzantineCloseChannel: token transfer failure"
+            "byzantineCloseChannel: Token transfer failure"
         );
-        require(
-            approvedToken.transfer(hubAddress, tokenbalanceI),
-            "byzantineCloseChannel: token transfer failure"
-        );
+
+        // unallocate funds for hub
+        totalBondedAmountWei = totalBondedAmountWei.sub(channel.balancesI[0]);
+        totalBondedAmountToken = totalBondedAmountToken.sub(channel.balancesI[1]);
 
         emit DidChannelClose(
             channelId,
@@ -945,6 +946,23 @@ contract ChannelManager {
             weibalanceI,
             tokenbalanceA,
             tokenbalanceI
+        );
+    }
+
+    function hubContractWithdraw(uint256 weiAmount, uint256 tokenAmount) public noReentrancy onlyHub {
+        require(
+            _getUnallocatedHubFundsWei() >= weiAmount,
+            "hubContractWithdraw: Contract wei funds not sufficient to create channel"
+        );
+        require(
+            _getUnallocatedHubFundsToken() >= tokenAmount,
+            "hubContractWithdraw: Contract token funds not sufficient to create channel"
+        );
+
+        hubAddress.transfer(weiAmount);
+        require(
+            approvedToken.transfer(hubAddress, tokenAmount),
+            "hubContractWithdraw: Token transfer failure"
         );
     }
 
@@ -965,7 +983,7 @@ contract ChannelManager {
     {
         require(
             updateParams[0] > channel.sequence,
-            "checkpointChannel: Sequence must be higher or zero-state update"
+            "_verifyUpdateSig: Sequence must be higher or zero-state update"
         );
 
         // need to encode double here because of weird stack issues
@@ -1000,12 +1018,20 @@ contract ChannelManager {
 
         require(
             ECTools.recoverSigner(fingerprint, sigA) == channel.partyA,
-            "checkpointChannel: Party A signature invalid"
+            "_verifyUpdateSig: Party A signature invalid"
         );
         require(
             ECTools.recoverSigner(fingerprint, sigI) == hubAddress,
-            "checkpointChannel: Party I signature invalid"
+            "_verifyUpdateSig: Party I signature invalid"
         );
+    }
+
+    function _getUnallocatedHubFundsWei() public view returns (uint256) {
+        return address(this).balance.sub(totalBondedAmountWei);
+    }
+
+    function _getUnallocatedHubFundsToken() public view returns (uint256) {
+        return approvedToken.balanceOf(address(this)).sub(totalBondedAmountToken);
     }
 
     function _isContained(bytes32 _hash, bytes _proof, bytes32 _root) internal pure returns (bool) {

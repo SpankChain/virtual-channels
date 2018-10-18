@@ -3,7 +3,7 @@ pragma solidity ^0.4.23;
 import "./lib/ECTools.sol";
 import "./lib/token/HumanStandardToken.sol";
 
-/// @title Set Virtual Channels - A layer2 hub and spoke payment network 
+/// @title Set Virtual Channels - A layer2 hub and spoke payment network
 
 contract VulnerableLedgerChannel {
 
@@ -36,9 +36,9 @@ contract VulnerableLedgerChannel {
     );
 
     event DidLCUpdateState (
-        bytes32 indexed channelId, 
-        uint256 sequence, 
-        uint256 numOpenVc, 
+        bytes32 indexed channelId,
+        uint256 sequence,
+        uint256 numOpenVc,
         uint256 ethBalanceA,
         uint256 tokenBalanceA,
         uint256 ethBalanceI,
@@ -57,30 +57,30 @@ contract VulnerableLedgerChannel {
     );
 
     event DidVCInit (
-        bytes32 indexed lcId, 
-        bytes32 indexed vcId, 
-        bytes proof, 
-        uint256 sequence, 
-        address partyA, 
-        address partyB, 
-        uint256 balanceA, 
-        uint256 balanceB 
+        bytes32 indexed lcId,
+        bytes32 indexed vcId,
+        bytes proof,
+        uint256 sequence,
+        address partyA,
+        address partyB,
+        uint256 balanceA,
+        uint256 balanceB
     );
 
     event DidVCSettle (
-        bytes32 indexed lcId, 
+        bytes32 indexed lcId,
         bytes32 indexed vcId,
-        uint256 updateSeq, 
-        uint256 updateBalA, 
+        uint256 updateSeq,
+        uint256 updateBalA,
         uint256 updateBalB,
         address challenger,
         uint256 updateVCtimeout
     );
 
     event DidVCClose(
-        bytes32 indexed lcId, 
-        bytes32 indexed vcId, 
-        uint256 balanceA, 
+        bytes32 indexed lcId,
+        bytes32 indexed vcId,
+        uint256 balanceA,
         uint256 balanceB
     );
 
@@ -127,15 +127,15 @@ contract VulnerableLedgerChannel {
         uint256 _confirmTime,
         address _token,
         uint256[2] _balances // [eth, token]
-    ) 
+    )
         public
-        payable 
+        payable
     {
         require(Channels[_lcID].partyAddresses[0] == address(0), "Channel has already been created.");
         require(_partyI != 0x0, "No partyI address provided to LC creation");
         require(_balances[0] >= 0 && _balances[1] >= 0, "Balances cannot be negative");
         // Set initial ledger channel state
-        // Alice must execute this and we assume the initial state 
+        // Alice must execute this and we assume the initial state
         // to be signed from this requirement
         // Alternative is to check a sig as in joinChannel
         Channels[_lcID].partyAddresses[0] = msg.sender;
@@ -144,7 +144,7 @@ contract VulnerableLedgerChannel {
         if(_balances[0] != 0) {
             require(msg.value == _balances[0], "Eth balance does not match sent value");
             Channels[_lcID].ethBalances[0] = msg.value;
-        } 
+        }
         if(_balances[1] != 0) {
             Channels[_lcID].token = HumanStandardToken(_token);
             require(Channels[_lcID].token.transferFrom(msg.sender, this, _balances[1]),"CreateChannel: token transfer failure");
@@ -153,7 +153,7 @@ contract VulnerableLedgerChannel {
 
         Channels[_lcID].sequence = 0;
         Channels[_lcID].confirmTime = _confirmTime;
-        // is close flag, lc state sequence, number open vc, vc root hash, partyA... 
+        // is close flag, lc state sequence, number open vc, vc root hash, partyA...
         //Channels[_lcID].stateHash = keccak256(uint256(0), uint256(0), uint256(0), bytes32(0x0), bytes32(msg.sender), bytes32(_partyI), balanceA, balanceI);
         Channels[_lcID].LCopenTimeout = now + _confirmTime;
         Channels[_lcID].initialDeposit = _balances;
@@ -168,7 +168,7 @@ contract VulnerableLedgerChannel {
 
         if(Channels[_lcID].initialDeposit[0] != 0) {
             Channels[_lcID].partyAddresses[0].transfer(Channels[_lcID].ethBalances[0]);
-        } 
+        }
         if(Channels[_lcID].initialDeposit[1] != 0) {
             require(Channels[_lcID].token.transfer(Channels[_lcID].partyAddresses[0], Channels[_lcID].erc20Balances[0]),"CreateChannel: token transfer failure");
         }
@@ -187,10 +187,10 @@ contract VulnerableLedgerChannel {
         if(_balances[0] != 0) {
             require(msg.value == _balances[0], "state balance does not match sent value");
             Channels[_lcID].ethBalances[1] = msg.value;
-        } 
+        }
         if(_balances[1] != 0) {
             require(Channels[_lcID].token.transferFrom(msg.sender, this, _balances[1]),"joinChannel: token transfer failure");
-            Channels[_lcID].erc20Balances[1] = _balances[1];          
+            Channels[_lcID].erc20Balances[1] = _balances[1];
         }
 
         Channels[_lcID].initialDeposit[0]+=_balances[0];
@@ -227,22 +227,22 @@ contract VulnerableLedgerChannel {
                 Channels[_lcID].erc20Balances[3] += _balance;
             } else {
                 require(msg.value == _balance, "state balance does not match sent value");
-                Channels[_lcID].ethBalances[3] += msg.value; 
+                Channels[_lcID].ethBalances[3] += msg.value;
             }
         }
-        
+
         emit DidLCDeposit(_lcID, recipient, _balance, isToken);
     }
 
     // TODO: Check there are no open virtual channels, the client should have cought this before signing a close LC state update
     function consensusCloseChannel(
-        bytes32 _lcID, 
-        uint256 _sequence, 
+        bytes32 _lcID,
+        uint256 _sequence,
         uint256[4] _balances, // 0: ethBalanceA 1:ethBalanceI 2:tokenBalanceA 3:tokenBalanceI
-        string _sigA, 
+        string _sigA,
         string _sigI
-    ) 
-        public 
+    )
+        public
     {
         // assume num open vc is 0 and root hash is 0x0
         //require(Channels[_lcID].sequence < _sequence);
@@ -259,9 +259,9 @@ contract VulnerableLedgerChannel {
                 _sequence,
                 uint256(0),
                 bytes32(0x0),
-                Channels[_lcID].partyAddresses[0], 
-                Channels[_lcID].partyAddresses[1], 
-                _balances[0], 
+                Channels[_lcID].partyAddresses[0],
+                Channels[_lcID].partyAddresses[1],
+                _balances[0],
                 _balances[1],
                 _balances[2],
                 _balances[3]
@@ -280,7 +280,7 @@ contract VulnerableLedgerChannel {
 
         if(_balances[2] != 0 || _balances[3] != 0) {
             require(Channels[_lcID].token.transfer(Channels[_lcID].partyAddresses[0], _balances[2]),"happyCloseChannel: token transfer failure");
-            require(Channels[_lcID].token.transfer(Channels[_lcID].partyAddresses[1], _balances[3]),"happyCloseChannel: token transfer failure");          
+            require(Channels[_lcID].token.transfer(Channels[_lcID].partyAddresses[1], _balances[3]),"happyCloseChannel: token transfer failure");
         }
 
         numChannels--;
@@ -291,13 +291,13 @@ contract VulnerableLedgerChannel {
     // Byzantine functions
 
     function updateLCstate(
-        bytes32 _lcID, 
+        bytes32 _lcID,
         uint256[6] updateParams, // [sequence, numOpenVc, ethbalanceA, ethbalanceI, tokenbalanceA, tokenbalanceI]
-        bytes32 _VCroot, 
-        string _sigA, 
+        bytes32 _VCroot,
+        string _sigA,
         string _sigI
-    ) 
-        public 
+    )
+        public
     {
         Channel storage channel = Channels[_lcID];
         require(channel.isOpen);
@@ -305,22 +305,22 @@ contract VulnerableLedgerChannel {
         require(channel.ethBalances[0] + channel.ethBalances[1] >= updateParams[2] + updateParams[3]);
         require(channel.erc20Balances[0] + channel.erc20Balances[1] >= updateParams[4] + updateParams[5]);
 
-        if(channel.isUpdateLCSettling == true) { 
+        if(channel.isUpdateLCSettling == true) {
             require(channel.updateLCtimeout > now);
         }
-      
+
         bytes32 _state = keccak256(
             abi.encodePacked(
                 _lcID,
-                false, 
-                updateParams[0], 
-                updateParams[1], 
-                _VCroot, 
-                channel.partyAddresses[0], 
-                channel.partyAddresses[1], 
-                updateParams[2], 
+                false,
+                updateParams[0],
+                updateParams[1],
+                _VCroot,
+                channel.partyAddresses[0],
+                channel.partyAddresses[1],
+                updateParams[2],
                 updateParams[3],
-                updateParams[4], 
+                updateParams[4],
                 updateParams[5]
             )
         );
@@ -342,30 +342,30 @@ contract VulnerableLedgerChannel {
         // make settlement flag
 
         emit DidLCUpdateState (
-            _lcID, 
-            updateParams[0], 
-            updateParams[1], 
-            updateParams[2], 
+            _lcID,
+            updateParams[0],
+            updateParams[1],
+            updateParams[2],
             updateParams[3],
             updateParams[4],
-            updateParams[5], 
+            updateParams[5],
             _VCroot,
             channel.updateLCtimeout
         );
     }
 
-    // supply initial state of VC to "prime" the force push game  
+    // supply initial state of VC to "prime" the force push game
     function initVCstate(
-        bytes32 _lcID, 
-        bytes32 _vcID, 
-        bytes _proof, 
-        address _partyA, 
-        address _partyB, 
+        bytes32 _lcID,
+        bytes32 _vcID,
+        bytes _proof,
+        address _partyA,
+        address _partyB,
         uint256[2] _bond,
         uint256[4] _balances, // 0: ethBalanceA 1:ethBalanceI 2:tokenBalanceA 3:tokenBalanceI
         string sigA
-    ) 
-        public 
+    )
+        public
     {
         require(Channels[_lcID].isOpen, "LC is closed.");
         // sub-channel must be open
@@ -400,18 +400,18 @@ contract VulnerableLedgerChannel {
     }
 
     //TODO: verify state transition since the hub did not agree to this state
-    // make sure the A/B balances are not beyond ingrids bonds  
+    // make sure the A/B balances are not beyond ingrids bonds
     // Params: vc init state, vc final balance, vcID
     function settleVC(
-        bytes32 _lcID, 
-        bytes32 _vcID, 
-        uint256 updateSeq, 
-        address _partyA, 
+        bytes32 _lcID,
+        bytes32 _vcID,
+        uint256 updateSeq,
+        address _partyA,
         address _partyB,
         uint256[4] updateBal, // [ethupdateBalA, ethupdateBalB, tokenupdateBalA, tokenupdateBalB]
         string sigA
-    ) 
-        public 
+    )
+        public
     {
         require(Channels[_lcID].isOpen, "LC is closed.");
         // sub-channel must be open
@@ -423,7 +423,7 @@ contract VulnerableLedgerChannel {
         );
         require(
             virtualChannels[_vcID].bond[0] == updateBal[0] + updateBal[1] &&
-            virtualChannels[_vcID].bond[1] == updateBal[2] + updateBal[3], 
+            virtualChannels[_vcID].bond[1] == updateBal[2] + updateBal[3],
             "Incorrect balances for bonded amount");
         // Check time has passed on updateLCtimeout and has not passed the time to store a vc state
         // virtualChannels[_vcID].updateVCtimeout should be 0 on uninitialized vc state, and this should
@@ -433,15 +433,15 @@ contract VulnerableLedgerChannel {
 
         bytes32 _updateState = keccak256(
             abi.encodePacked(
-                _vcID, 
-                updateSeq, 
-                _partyA, 
-                _partyB, 
-                virtualChannels[_vcID].bond[0], 
-                virtualChannels[_vcID].bond[1], 
-                updateBal[0], 
-                updateBal[1], 
-                updateBal[2], 
+                _vcID,
+                updateSeq,
+                _partyA,
+                _partyB,
+                virtualChannels[_vcID].bond[0],
+                virtualChannels[_vcID].bond[1],
+                updateBal[0],
+                updateBal[1],
+                updateBal[2],
                 updateBal[3]
             )
         );
@@ -509,7 +509,7 @@ contract VulnerableLedgerChannel {
         uint256 totalEthDeposit = channel.initialDeposit[0] + channel.ethBalances[2] + channel.ethBalances[3];
         uint256 totalTokenDeposit = channel.initialDeposit[1] + channel.erc20Balances[2] + channel.erc20Balances[3];
 
-        uint256 possibleTotalEthBeforeDeposit = channel.ethBalances[0] + channel.ethBalances[1]; 
+        uint256 possibleTotalEthBeforeDeposit = channel.ethBalances[0] + channel.ethBalances[1];
         uint256 possibleTotalTokenBeforeDeposit = channel.erc20Balances[0] + channel.erc20Balances[1];
 
         if(possibleTotalEthBeforeDeposit < totalEthDeposit) {
@@ -550,7 +550,7 @@ contract VulnerableLedgerChannel {
             require(
                 channel.token.transfer(channel.partyAddresses[1], tokenbalanceI),
                 "byzantineCloseChannel: token transfer failure"
-            );          
+            );
         }
 
         channel.isOpen = false;
