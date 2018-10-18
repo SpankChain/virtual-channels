@@ -1,58 +1,56 @@
 // Refucktor!
 //
 // Questions:
-// 1. The VC root hash only reflects the initial states of each VC - why?
-//  - we could make it so the VC root hash updates every time, right?
-//  - wrong, because in order to settle a VC into the LC the counterparty needs to sign
-// 2.
-//
-// Notes:
 // 1.
 //
+// Notes:
+// 1. DB primary key should be hub address + contract address
+// 2. Future work
+//  - Multisig integrations
+//  - User identity contracts / Meta Txns (makes sense if user is sending funds / cooperative hub)
+// 3. As a gas optimization, if we're only using a few tokens (ETH / SPANK / BOOTY) then we could store the array onchain
+//  - this would allow us to avoid passing these in every time
+//
+// Design:
+// 1. timeouts - only used when hub authorizes the user to transfer its reserve balances into their account
+// 2. hub first, then user for all variable assignments / transfers / checks
+// 3. to deposit into open channel, contract requires you to have mutually signed state acknowledging pending deposit upfront
+//  - this allows you to exit if the deposit goes through but the counterparty refused to confirm offchain
+//
+// TODO:
+// 1. Use ERC20/StandardToken over HumanStandardToken
+// 2. Token whitelist, managed by hub, only affects new channels
+// 3. Do I need numChannels?
+// 4. msg.sender opens channel on behalf of a set of delegate addresses
+//  - possibly skip for this version
+//  - would need to implement access control
+//  - do we need this for watchtowers anyways? Possibly easier to simply close/reopen
+// 5. discussion about functions with timeouts
+//  - authorizedOpen
+//  - authorizedClose
+//  - authorizedUpdate
+// 6. bulkHubOpenAccounts (airdrop)
+//  - allow hub to open multiple user accounts at once, saving lots of txns and simplifying airdrops
+
+
 
 pragma solidity ^0.4.23;
 
 import "./lib/ECTools.sol";
-import "./lib/token/HumanStandardToken.sol";
+import "./lib/ERC20.sol";
 import "./lib/SafeMath.sol";
 
-/// @title Set Virtual Channels - A layer2 hub and spoke payment network
-
-contract LedgerChannel {
+contract SpankPay {
     using SafeMath for uint256;
 
-    string public constant NAME = "Ledger Channel Manager";
+    string public constant NAME = "SpankPay";
     string public constant VERSION = "0.0.1";
 
     uint256 public numChannels = 0; // TODO why does this exist
 
-    // Let's use a single hub address per contract
-    // - if we want to change the hub, then we can deploy a new contract
-    // - this saves us from needing to deal with contract complexity around storing hub addresses
-    // - need to think through how this affects the DB architecture
-    //   - store contract address on the table to know which contract version / hub address we're using.
+    // SPEC OUT ALL FUNCTIONS
 
-    // Let's move to allow multi-token channels / deposits.
-    // - token whitelist enforced by the hub
-    // - only affects new channels
 
-    // I can upgrade BOOTY to have more features
-    // - approveAndCall to allow single calls (per token) to the contract
-    // - what about tx batching contracts? -> bulk send proxy contracts
-
-    // Reverse the assumption that user - hub need to send eachother an init signed message
-    // - the contract will store deposits separate from balances until confirmed by offchain signature
-    // - deposits can be added to as many times as desired
-
-    // two types of state updates:
-    // 1. offchain, mutual
-    // - consensus join
-    //   -> annoying bit is about approves on tokens
-    //   -> only one user can transfer at a time...
-    //      - unless the hub has it's funds in a contract
-    //      - but then it's the USER that needs their funds in a contract
-    //      - the hub will be the one sending the tx anyway, so ETH can come from hot wallet
-    //
     // - consensus close
     // - consensus update (timer -> 2 mins) + challenge
     //   - payment
@@ -63,40 +61,6 @@ contract LedgerChannel {
     // - startSettle
     // - challenge
     // - settle
-
-    // SKIP - multisigs don't exist yet, fuck it.
-    // Multisig interop
-    // - TODO read sergey's report
-    // - msg.sender can open channel on behalf of a set of delegate signers
-    // - access controls (approve / revoke / bulk update)
-
-    // SKIP - only helps avoid gas / pay in tokens for gas
-    // - and requires user contract...
-    // Meta Txns
-    // https://github.com/austintgriffith/bouncer-proxy/blob/master/BouncerProxy/BouncerProxy.sol
-    // - Need to have a separate contract w/ permissions that holds the BOOTY
-    // - alternatively, we can use the payment channel as a BOOTY bank as well?
-    // - booty is immediately deposited into the contract by the hub on the user's behalf
-    //   - this is wont happen on the site unless we give out gift cards or allow fiat buy-in
-    //   - otherwise the user will always have ETH or BOOTY to deposit themselves...
-    // - what txs does a user execute, anyways?
-    //   - open channel
-    //   - join channel
-    //   - start settle
-    //   - challenge
-    //   - settle
-    //   - send ETH
-    //   - send BOOTY / SPANK / whitelisted ERC20
-    // - can't use MetaTxns without contract:
-    //   - funds comes from user (open channel, join channel, send ETH, send BOOTY)
-    //   - adversiaral vs. hub (start settle, challenge, settle)
-    //  - so basically, the only way to avoid gas costs is to use a contract
-    //  - this doesn't matter too much for users since they all should have ETH anyways
-    //    - this will only change once we have a fiat onramp / gift cards
-
-    // What if the hub is the only one allowed to create channels?
-    // - assumption is that the hub is always online anyways, so why not?
-    // - can I recreate a legit ETH xfer tx and broadcast it?
 
     // What if hub can store money on the contract to make deposits into and out of channels easier?
     // - can keep ETH / BOOTY on the contract, and then move it over.
@@ -266,6 +230,7 @@ contract LedgerChannel {
     //    - consensusClose and send themselves the funds
     //  - performer queries watchtower, gets latest state up to hack
     //  - if hub does not agree to update to latest watchtower state, close channels
+    // 5. fishing the site to control the wallet iframe
 
 
     // IF YOUR TRANSACTION LASTS FOR MORE THAN FOUR HOURS, PLEASE CONTACT US AT DR@SPANKCHAIN.COM
@@ -317,8 +282,9 @@ contract LedgerChannel {
     uint256 public reserveETH;
     mapping (address => uint256) public reserveTokens;
 
-    constructor(address[] _approvedTokens, address _hub, uint256 _challengePeriod) public {
-        approvedToken = _approvedTokens;
+    bool locked;
+
+    constructor(address _hub, uint256 _challengePeriod) public {
         hub = _hub;
         challengePeriod = _challengePeriod;
     }
@@ -328,16 +294,55 @@ contract LedgerChannel {
         _;
     }
 
-    // TODO hub approve / revoke tokens
+    modifier shielded() {
+        require(!locked, "Reentrant call.");
+        locked = true;
+        _;
+        locked = false;
+    }
 
-    // TODO think about if hub ever opens an account and deposits ETH on behalf of user
-    // - airdrop on to users
-    // - custodial deposit (user sends us BOOTY / ETH)
+    function approveTokens(address[] tokenAddresses) public onlyHub shielded {
+        for (uint256 i; i < _approvedTokens.length; i++) {
+            approvedTokens[_approvedTokens[i]] = true;
+        }
+    }
 
-    // TODO bulkHubOpenAccounts (airdrop)
-    // - allow hub to open multiple user accounts at once, saving lots of txns and simplifying airdrops
-    // TODO consensusUpdateWithDeposit
-    // - this ...
+    function unapproveTokens(address[] tokenAddresses) public onlyHub shielded {
+        for (uint256 i; i < _approvedTokens.length; i++) {
+            approvedTokens[_approvedTokens[i]] = false;
+        }
+    }
+
+    function hubDepositETH() public payable onlyHub shielded {
+        reserveETH = reserveETH.add(msg.value);
+    }
+
+    function hubDepositTokens(address[] tokenAddresses, uint256[] tokenValues) public onlyHub shielded {
+        require(tokenAddresses.length == tokenValues.length);
+
+        for (uint256 i; i < tokenAddresses.length; i++) {
+            ERC20 token = ERC20(tokenAddresses[i]);
+            require(approvedTokens[token]);
+            reserveTokens[token] = reserveTokens[token].add(tokenValues[i]);
+            require(token.transferFrom(hub, address(this), tokenValues[i]));
+        }
+    }
+
+    function hubWithdrawETH(address recipient, uint256 value) public onlyHub shielded {
+        reserveETH = reserveETH.sub(value);
+        recipient.transfer(value);
+    }
+
+    function hubWithdrawTokens(address recipient, address[] tokenAddresses, uint256[] tokenValues) public onlyHub shielded {
+        require(tokenAddresses.length == tokenValues.length);
+
+        for (uint256 i; i < tokenAddresses.length; i++) {
+            ERC20 token = ERC20(tokenAddresses[i]);
+            require(approvedTokens[token]);
+            reserveTokens[token] = reserveTokens[token].sub(tokenValues[i]);
+            require(token.transfer(recipient, tokenValues[i]));
+        }
+    }
 
     // What is the protocol for depositing into an open channel?
     // Use case: Performer is blowing up, lots of people are joining their channel, hub needs to deposit extra BOOTY
@@ -401,25 +406,56 @@ contract LedgerChannel {
     //   - startExitWithUpdate -> start the exit process using offchain state, 2x sigs required
     //   - challengeExit -> challenge the exit with a higher txCount, 2x sigs required -> if success, account is immediately closed
     //   - emptyAccount -> after the challenge period expires, close/empty the account
+
+
+    // TODO add watchtower support
     function hubOpenAccount(
         address user,
-        uint256 userETH,
         uint256 hubETH,
-        address[] userTokenAddresses,
-        address[] hubTokenAddresses,
-        uint256[] userTokenValues,
+        uint256 userETH,
+        address[] tokenAddresses,
         uint256[] hubTokenValues,
-    ) public onlyHub {
-        require(reserveETH == userETH.add(hubETH), "insufficient ETH");
+        uint256[] userTokenValues,
+    ) public onlyHub shielded {
+        // TODO not sure if this is needed, because should throw when we try to subtract from reserve balance
+        require(reserveETH >= hubETH.add(userETH), "insufficient ETH");
 
         // the user account must be empty
         Account storage account = accounts[user];
         require(account.Status == Status.Empty, "account must be empty");
         require(account.tabCount == 0, "account may not have open tabs");
 
-        account.user = user;
-        account.userETH = userETH;
+        // transfer ETH into this account
+        uint256 totalETH = userETH.add(hubETH);
+        reserveETH = reserveETH.sub(totalETH);
         account.hubETH = hubETH;
+        account.userETH = userETH;
+
+        // update channel status
+        account.txCount = account.txCount.add(1);
+        account.status = Status.Open;
+
+        // confirm token arrays match
+        require(tokenAddresses.length == hubTokenValues.length);
+        require(tokenAddresses.length == userTokenValues.length);
+
+        // transfer all tokens into this account
+        for (uint256 i; i < tokenAddresses.length; i++) {
+            ERC20 token = ERC20(tokenAddresses[i]);
+            require(approvedTokens[token]);
+            uint256 totalTokenValue = userTokenValues[i].add(hubTokenValues[i]);
+            reserveTokens[token] = reserveTokens[token].sub(totalTokenValue);
+            account.hubTokens[token] = hubTokenValues[i];
+            account.userTokens[token] = userTokenValues[i];
+        }
+
+        // reset dispute variables
+        account.tabRoot = bytes32(0x0);
+        account.accountClosingTime = 0;
+        account.tabClosingTime = 0;
+    }
+
+
 
         // After an Account has been emptied, some of the Threads might still be in dispute onchain...
         // How to prevent an account from being re-opened until all the Threads are closed?
@@ -481,18 +517,405 @@ contract LedgerChannel {
         // Ameen's notes:
         // - I think this forces the perfomer to stop accepting new tabs / VCs until the deposit is executed
 
-    }
-
     // If the user is opening the account, the user and hub fund their own balances.
-    function userOpenAccount() public {
+    // TODO watchtower support
+    function userOpenAccount(
         uint256 hubETH,
-        address[] userTokenAddresses,
-        address[] hubTokenAddresses,
-        uint256[] userTokenValues,
+        address[] tokenAddresses,
         uint256[] hubTokenValues,
+        uint256[] userTokenValues,
+        uint256 timeout,
+        string sig
+    ) public payable shielded {
+        address user = msg.sender;
+        uint256 userETH = msg.value;
+
+        require(reserveETH >= hubETH.add(userETH), "insufficient ETH");
+
+        // the user account must be empty
+        Account storage account = accounts[user];
+        require(account.Status == Status.Empty, "account must be empty");
+        require(account.tabCount == 0, "account may not have open tabs");
+
+        // the timeout must not have passed
+        require(now < timeout);
+
+        // prepare state hash to check hub sig
+        bytes32 state = keccak256(
+            abi.encodePacked(
+                address(this),
+                user,
+                account.txCount.add(1),
+                timeout,
+                hubETH,
+                userETH,
+                tokenAddresses,
+                hubTokenValues
+                userTokenValues
+            )
+        );
+
+        // check hub sig against state hash
+        require(hub == ECTools.recoverSigner(state, sig));
+
+        // transfer ETH into this account
+        reserveETH = reserveETH.sub(hubETH);
+        account.hubETH = hubETH;
+        account.userETH = userETH;
+
+        // update channel status
+        account.txCount = account.txCount.add(1);
+        account.status = Status.Open;
+
+        // confirm token arrays match
+        require(tokenAddresses.length == hubTokenValues.length);
+        require(tokenAddresses.length == userTokenValues.length);
+
+        // transfer all tokens into this account
+        for (uint256 i; i < tokenAddresses.length; i++) {
+            ERC20 token = ERC20(tokenAddresses[i]);
+            require(approvedTokens[token]);
+            reserveTokens[token] = reserveTokens[token].sub(hubTokenValues[i]);
+            account.hubTokens[token] = hubTokenValues[i];
+            account.userTokens[token] = userTokenValues[i];
+            require(token.transferFrom(user, address(this), userTokenValues[i]));
+        }
+
+        // reset dispute variables
+        account.tabRoot = bytes32(0x0);
+        account.accountClosingTime = 0;
+        account.tabClosingTime = 0;
+    }
+
+    // Usage:
+    // 1. Hub deposits extra BOOTY into performer account as collateral during a popping show
+    // 2. Hub deposits extra ETH / ERC20 into a SpankPay account to facilitate exchange
+
+    // will this come with an exchange message by the user?
+    // - will the offchain exchange have a timeout?
+    // - is that even possible?
+    // - user signs an exchange update - $100 ETH for $100 SPANK ... hub does... nothing.
+    //   - then later the exchange rate goes up and the hub countersigns...
+    //   - there is no way to prove that the hub signed earlier or later
+    // - we can make the default behavior of the wallet to exit the channel if the hub takes too long to respond to exchange requests
+    // - the hub can also say "no"...
+    // - what if an exchange update is proposed but never used?
+    //   - the user makes another exchange update later, can this point to the previous one to invalidate it?
+    //   - what if the hub signs the second one, then later signs the first one and invalidates the second one?
+    //   - the second one would need to be signed with a higher txCount in order to invalidate the first
+    //   - this means that we're occasionally going to skip txs
+    //   - the client must be programmed to treat exchange updates differently than normal
+    //     1. proposeExchange
+    //      - save to local storage
+    //      - starts timer
+    //      - if hub doesn't respond within 1 min -> startExitWithUpdate
+    //      - if hub rejects exchange, it needs to provide a signed update with original state but higher txCount
+    //      - if hub doesn't provide higher txCount state update -> startExitWithUpdate
+
+    // Only allows hub to deposit into their own balance
+    // - if the goal is to transfer to the user's balance, then we can xfer offchain
+    function hubDepositIntoAccount(
+        address user,
+        uint256 hubETH,
+        uint256 userETH
+        uint256 pendingHubETH,
+        address[] tokenAddresses,
+        uint256[] hubTokenValues,
+        uint256[] userTokenValues,
+        uint256[] pendingHubTokenValues,
+        uint256 txCount,
+        bytes32 tabRoot,
+        uint256 tabCount,
+        string[] sigs
+    ) public onlyHub shielded {
+        // TODO not sure if this is needed, because should throw when we try to subtract from reserve balance
+        require(reserveETH >= pendingHubETH, "insufficient ETH");
+
+        // the user account must be open
+        Account storage account = accounts[user];
+        require(account.Status == Status.Open, "account must be open");
+
+        // prepare state hash to check hub sig
+        bytes32 state = keccak256(
+            abi.encodePacked(
+                address(this),
+                user,
+                hubETH,
+                userETH,
+                pendingHubETH,
+                tokenAddresses,
+                hubTokenValues,
+                userTokenValues,
+                pendingHubTokenValues,
+                txCount,
+                tabRoot,
+                tabCount
+            )
+        );
+
+        // check hub and user sigs against state hash
+        require(hub == ECTools.recoverSigner(state, sigs[0]));
+        require(user == ECTools.recoverSigner(state, sigs[1]));
+
+        // txCount must be higher than the current txCount
+        require(txCount > account.txCount);
+
+        // eth balances must be conserved
+        require(hubETH.add(userETH) == account.hubETH.add(account.userETH));
+
+        // transfer ETH into this account
+        reserveETH = reserveETH.sub(pendingHubETH);
+        account.hubETH = hubETH.add(pendingHubETH);
+        account.userETH = userETH;
+
+        // confirm token arrays match
+        require(tokenAddresses.length == hubTokenValues.length);
+        require(tokenAddresses.length == userTokenValues.length);
+        require(tokenAddresses.length == pendingHubTokenValues.length);
+
+        // transfer all tokens into this account
+        for (uint256 i; i < tokenAddresses.length; i++) {
+            ERC20 token = ERC20(tokenAddresses[i]);
+            require(approvedTokens[token]);
+
+            // token values must be conserved
+            require(hubTokenValues[i].add(userTokenValues[i]) == account.hubTokens[token].add(account.userTokens[token]);
+
+            reserveTokens[token] = reserveTokens[token].sub(pendingHubTokenValues[i]);
+            account.hubTokens[token] = hubTokenValues[i].add(pendingHubTokenValues[i]);
+            account.userTokens[token] = userTokenValues[i];
+        }
+
+        // set state variables
+        account.txCount = txCount;
+        account.tabRoot = tabRoot;
+        account.tabCount = tabCount;
+    }
+
+    // Usage:
+    // 1. User depositing BOOTY into the account to tip
+    // 2. User depositing ETH into the account to be exchanged for BOOTY to tip
+    //  - accompanied by offchain exchange update
+    // 3. User depositing ETH / ERC20 tokens to trade
+    function userDepositIntoAccount(
+        uint256 hubETH,
+        uint256 userETH,
+        address[] tokenAddresses,
+        uint256[] hubTokenValues,
+        uint256[] userTokenValues,
+        uint256[] pendingUserTokenValues,
+        uint256 txCount,
+        bytes32 tabRoot,
+        uint256 tabCount,
+        string[] sigs
+    ) public shielded {
+        address user = msg.sender;
+        uint256 pendingUserETH = msg.value;
+
+        // the user account must be open
+        Account storage account = accounts[user];
+        require(account.Status == Status.Open, "account must be open");
+
+        // prepare state hash to check hub sig
+        bytes32 state = keccak256(
+            abi.encodePacked(
+                address(this),
+                user,
+                hubETH,
+                userETH,
+                pendingUserETH,
+                tokenAddresses,
+                hubTokenValues,
+                userTokenValues,
+                pendingUserTokenValues,
+                txCount,
+                tabRoot,
+                tabCount
+            )
+        );
+
+        // check hub and user sigs against state hash
+        require(hub == ECTools.recoverSigner(state, sigs[0]));
+        require(user == ECTools.recoverSigner(state, sigs[1]));
+
+        // txCount must be higher than the current txCount
+        require(txCount > account.txCount);
+
+        // eth balances must be conserved
+        require(hubETH.add(userETH) == account.hubETH.add(account.userETH));
+
+        // transfer ETH into this account
+        account.hubETH = hubETH;
+        account.userETH = userETH.add(pendingUserETH);
+
+        // confirm token arrays match
+        require(tokenAddresses.length == hubTokenValues.length);
+        require(tokenAddresses.length == userTokenValues.length);
+        require(tokenAddresses.length == pendingHubTokenValues.length);
+
+        // transfer all tokens from user to this contract
+        for (uint256 i; i < tokenAddresses.length; i++) {
+            ERC20 token = ERC20(tokenAddresses[i]);
+            require(approvedTokens[token]);
+
+            // token values must be conserved
+            require(hubTokenValues[i].add(userTokenValues[i]) == account.hubTokens[token].add(account.userTokens[token]);
+
+            account.hubTokens[token] = hubTokenValues[i];
+            account.userTokens[token] = userTokenValues[i].add(pendingUserTokenValues[i]);
+            require(token.transferFrom(user, address(this), pendingUserTokenValues[i]));
+        }
+
+        // set state variables
+        account.txCount = txCount;
+        account.tabRoot = tabRoot;
+        account.tabCount = tabCount;
+    }
+
+    // Why do I need this function? When do I want to checkpoint to chain?
+    // I already checkpoint every time I need to deposit / withdraw
+    // I think I only need this if I want to withdraw
+    // function consensusUpdate()
+
+    // So then for partial withdrawals, we have a few use cases:
+    // 1. hub wants to rebalance liquidity between performer channels
+    //  - move BOOTY out of a performer's account and into its reserves
+    //  - OR move BOOTY out of a performer's account and directly into another performer's account
+    //    - partialWithdrawal + deposit
+    //    - can this be done in a single tx?
+    //  - OR claim ETH / BOOTY out of a user's account and move to a performer account
+    //    - for BOOTY, this doesn't make a whole lot of sense, because performer collat is in BOOTY but user spend is in ETH
+    //    - for users who generate/buy their own BOOTY and use it to tip beyond the BOOTY LIMIT we could claim the extra though
+    // 2. performer wants to withdraw *some* of the money
+    //  - they have BOOTY in their side of the channel, but want ETH
+    //  - need to do a authorizedExchangeAndWithdrawal (timeout)
+    // 3. user wants to withdraw *some* of the money
+    //  - authorizedExchangeAndWithdrawal
+
+    // Do I need separate functions for user/hub authorized withdrawals?
+    // - both parties need to sign
+    // - do we want to do withdrawals at the same time?
+    //   - user partial withdrawals 90% of ETH in their channel, if they drop below BOOTY limit, hub can withdraw extra BOOTY
+    //   - performer wants to withdraw their earned BOOTY -> ETH, hub can withdraw their BOOTY collateral
+    //   - sometimes, we do want to allow the hub to piggyback on the withdrawal
+    // - what if the hub always sent the transaction?
+    // - users are never sending funds, so the tx doesn't have to come from them
+    // - I think hub initiating all of them is fine.
+    //   - saves user gas
+    //   - assumption is hub is always online anyways
+    //   - if hub is offline, then the tx should be unilateral anyways
+
+    // For *withExchange functions we need to add timeouts
+    // If the hub is the only one that can call, it gives the hub a free option...
+    // If the timeout is 5 mins, that's not so bad.
+
+    function authorizedWithdrawal()
+
+    // Does this serve the comeswap exchange use case?
+    // - userOpenAccount (user -> ETH, hub -> SPANK)
+    // - user requests sig from hub on openAccount
+    //   - user needs to know how much the hub is willing to deposit
+    //     - this can be done as part of the first request or a round-trip
+    //   - user provides signed update on in-channel exchange (needs to know how much hub will deposit)
+    //   - once hub sees the signed exchange it will sign the userOpenAccount msg and the exchange message
+    // - do these need separate values?
+
+    // What about users that just want to exchange?
+    // - how would we represent their balance in the UX?
+    // - should we even allow this?
+
+    // I come in to trade SPANK for ETH
+    // 1. User has an open account with all the SPANK
+    //     1. User wants to transfer it to a separate address
+    //     - authorizedWithdrawalWithExchange(address destination)
+    //     2. User wants to exchange but keep the funds in the same address, onchain
+    //     - authorizedWithdrawalWithExchange
+    //     3. User wants to exchange and keep the funds offchain
+    //     - hubDepositIntoAccount -> offchain exchange
+    // 2. User has an open account, but not with the SPANK
+    //     1. User wants to transfer it to a separate address
+    //     - userDepositIntoAccount -> authorizedWithdrawalWithExchange(address destination)
+    //     2. User wants to exchange but keep the funds in the same address, onchain
+    //     - userDepositIntoAccount -> authorizedWithdrawalWithExchange
+    //     3. User wants to exchange and keep the funds offchain
+    //     - userDepositIntoAccount -> offchain exchange
+    // 3. User does not have an account
+    //     1. User wants to transfer it to a separate address
+    //     - userOpenAccount -> authorizedWithdrawalWithExchange(address destination)
+    //     2. User wants to exchange but keep the funds in the same address, onchain
+    //     - userOpenAccount -> authorizedWithdrawalWithExchange
+    //     3. User wants to exchange and keep the funds offchain
+    //     - userOpenAccount -> offchain exchange
+
+    // Does the user want to keep the money in their account?
+    // 1. User wants to transfer it to a separate address
+    // 2. User wants to exchange but keep the funds in the same address, onchain
+    // 3. User wants to exchange and keep the funds offchain
+
+    // This is silly. If the user *just* wants to exchange, then we can just exchange
+    // - we don't need to create account and save all their data...
+
+    // takes ETH / tokens from user, and authorizes xfer of ETH / tokens from hub
+    // - skips account?
+    // - UX? What happens when a user arrives at ComeSwap?
+    // - If it uses SpankPay natively, will the tokens automatically get deposited into the account?
+    //   - does the user need to authorize which tokens get deposited?
+    //   - could open up a loading screen "tokens detected -> depositing into your account"
+    // - Probably two use cases - instant vs. slow
+    //   - instant -> request hub deposit funds in channel
+    //   - slow -> exchange with hub's onchain reserves
+    // - Then exiting can be a separate tx
+    //   - this is a worse UX, because now I have 3-4 (counting initial approve) on chain txs instead of just 1-2
+
+    // What if I had two contracts - SpankPay and ComeSwap
+    // - ComeSwap deals with all exchange functions
+    // - SpankPay deals with all payment / tabs functions
+    // - Both could use the same liquidity pool
+    // - Both use the same sig auth scheme for the hub
+    // - Best way to figure it out?
+    //   - make all functions first, then refactor?
+    //   - idk...
+
+    // What if the user wants to use metamask directly?
+    // UX - select wallet - SpankPay (default) / MetaMask / ...
+    // If SpankPay selected, exchanges go through your SpankPay account...
+    // Otherwise can exchange directly.
+    function authorizedExchange() {
 
     }
 
+    // Possible to create convenience wrappers do combine calls into atomic functions
+    // - need to be careful with how shielded works then
+    // - I think it would work, because each function is independently shielded
+
+    // Usage:
+    // 1. User (viewer / performer) has BOOTY in SpankPay, wants to withdraw to ETH
+    //  - hub may also simultaneously want to withdraw some of their BOOTY / ETH collateral
+    // 2. Hub wants to withdraw ETH / BOOTY accumulated in a viewer channel
+    // 3. Hub wants to withdraw BOOTY collateral from a performer's channel
+    function authorizedWithdrawalWithExchange()
+
+    function authorizedExit()
+
+    function authorizedExitWithExchange()
+
+    // Unilateral functions
+
+    function startExit
+
+    function startExitWithUpdate
+
+    function emptyAccount
+
+    function emptyAccountWithChallenge
+
+    function startExitTabs
+
+    function startExitTabsWithUpdate
+
+    function emptyTabs
+
+    function emptyTabsWithChallenge
 
     function createChannel(
         bytes32 _lcID,
