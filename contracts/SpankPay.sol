@@ -253,6 +253,8 @@ contract SpankPay {
         uint256 tabCount;
         Status status;
         mapping(address => Tab) tabs;
+        mapping (address => bool) activeTokens;
+        uint256 numActiveTokens;
     }
 
     struct Tab {
@@ -262,6 +264,8 @@ contract SpankPay {
         mapping (address => uint256) recipientTokens;
         uint256 txCount;
         Status status;
+        mapping (address => bool) activeTokens;
+        uint256 numActiveTokens;
     }
 
     // Do I need to store challenges / proposed state updates separately?
@@ -328,19 +332,19 @@ contract SpankPay {
         }
     }
 
-    function hubWithdrawETH(address recipient, uint256 value) public onlyHub shielded {
+    function hubWithdrawETH(uint256 value) public onlyHub shielded {
         reserveETH = reserveETH.sub(value);
-        recipient.transfer(value);
+        hub.transfer(value);
     }
 
-    function hubWithdrawTokens(address recipient, address[] tokenAddresses, uint256[] tokenValues) public onlyHub shielded {
+    function hubWithdrawTokens(address[] tokenAddresses, uint256[] tokenValues) public onlyHub shielded {
         require(tokenAddresses.length == tokenValues.length);
 
         for (uint256 i; i < tokenAddresses.length; i++) {
             ERC20 token = ERC20(tokenAddresses[i]);
             require(approvedTokens[token]);
             reserveTokens[token] = reserveTokens[token].sub(tokenValues[i]);
-            require(token.transfer(recipient, tokenValues[i]));
+            require(token.transfer(hub, tokenValues[i]));
         }
     }
 
@@ -443,13 +447,16 @@ contract SpankPay {
         for (uint256 i; i < tokenAddresses.length; i++) {
             ERC20 token = ERC20(tokenAddresses[i]);
             require(approvedTokens[token]);
+            require(!account.activeTokens[token]); // token can't already be active
+            account.activeTokens[token] = true;
+            account.numActiveTokens = account.numActiveTokens.add(1);
             uint256 totalTokenValue = userTokenValues[i].add(hubTokenValues[i]);
             reserveTokens[token] = reserveTokens[token].sub(totalTokenValue);
             account.hubTokens[token] = hubTokenValues[i];
             account.userTokens[token] = userTokenValues[i];
         }
 
-        // reset dispute variables
+        // reset state variables
         account.tabRoot = bytes32(0x0);
         account.accountClosingTime = 0;
         account.tabClosingTime = 0;
@@ -575,6 +582,9 @@ contract SpankPay {
         for (uint256 i; i < tokenAddresses.length; i++) {
             ERC20 token = ERC20(tokenAddresses[i]);
             require(approvedTokens[token]);
+            require(!account.activeTokens[token]); // token can't already be active
+            account.activeTokens[token] = true;
+            account.numActiveTokens = account.numActiveTokens.add(1);
             reserveTokens[token] = reserveTokens[token].sub(hubTokenValues[i]);
             account.hubTokens[token] = hubTokenValues[i];
             account.userTokens[token] = userTokenValues[i];
@@ -611,6 +621,8 @@ contract SpankPay {
     //      - if hub doesn't respond within 1 min -> startExitWithUpdate
     //      - if hub rejects exchange, it needs to provide a signed update with original state but higher txCount
     //      - if hub doesn't provide higher txCount state update -> startExitWithUpdate
+    //      - NOTE - have to be careful of user not exiting if *they* are offline and not the hub
+    //        - exit would fail bc tx may not broadcast?
 
     // Only allows hub to deposit into their own balance
     // - if the goal is to transfer to the user's balance, then we can xfer offchain
@@ -681,6 +693,12 @@ contract SpankPay {
             // token values must be conserved
             require(hubTokenValues[i].add(userTokenValues[i]) == account.hubTokens[token].add(account.userTokens[token]);
 
+            // activate token if not already active
+            if (!account.activeTokens[token]) {
+                account.activeTokens[token] = true;
+                account.numActiveTokens = account.numActiveTokens.add(1);
+            }
+
             reserveTokens[token] = reserveTokens[token].sub(pendingHubTokenValues[i]);
             account.hubTokens[token] = hubTokenValues[i].add(pendingHubTokenValues[i]);
             account.userTokens[token] = userTokenValues[i];
@@ -708,7 +726,7 @@ contract SpankPay {
         bytes32 tabRoot,
         uint256 tabCount,
         string[] sigs
-    ) public shielded {
+    ) public payable shielded {
         address user = msg.sender;
         uint256 pendingUserETH = msg.value;
 
@@ -761,6 +779,12 @@ contract SpankPay {
             // token values must be conserved
             require(hubTokenValues[i].add(userTokenValues[i]) == account.hubTokens[token].add(account.userTokens[token]);
 
+            // activate token if not already active
+            if (!account.activeTokens[token]) {
+                account.activeTokens[token] = true;
+                account.numActiveTokens = account.numActiveTokens.add(1);
+            }
+
             account.hubTokens[token] = hubTokenValues[i];
             account.userTokens[token] = userTokenValues[i].add(pendingUserTokenValues[i]);
             require(token.transferFrom(user, address(this), pendingUserTokenValues[i]));
@@ -770,6 +794,94 @@ contract SpankPay {
         account.txCount = txCount;
         account.tabRoot = tabRoot;
         account.tabCount = tabCount;
+    }
+
+    // requires all tabs to be closed
+    // usage:
+    // 1. user wants to empty the account
+    // 2. hub wants to empty the account
+    function hubAuthorizedEmptyAccount(
+        address user,
+        uint256 hubETH,
+        uint256 userETH
+        address[] tokenAddresses,
+        uint256[] hubTokenValues,
+        uint256[] userTokenValues,
+        uint256 txCount,
+        string[] sigs
+    ) public onlyHub shielded {
+        // the user account must be open
+        Account storage account = accounts[user];
+        require(account.Status == Status.Open, "account must be open");
+
+        // prepare state hash to check hub sig
+        bytes32 state = keccak256(
+            abi.encodePacked(
+                address(this),
+                user,
+                hubETH,
+                userETH,
+                tokenAddresses,
+                hubTokenValues,
+                userTokenValues,
+                txCount,
+                true, // extra bit for authorized closing
+            )
+        );
+
+        // check hub and user sigs against state hash
+        require(hub == ECTools.recoverSigner(state, sigs[0]));
+        require(user == ECTools.recoverSigner(state, sigs[1]));
+
+        // txCount must be higher than the current txCount
+        require(txCount > account.txCount);
+
+        // eth balances must be conserved
+        require(hubETH.add(userETH) == account.hubETH.add(account.userETH));
+
+        // reset ETH balances
+        account.hubETH = 0;
+        account.userETH = 0;
+
+        // transfer ETH to reserves and user
+        reserveETH = reserveETH.add(hubETH);
+        user.transfer(userETH);
+
+        // confirm token arrays match
+        require(tokenAddresses.length == hubTokenValues.length);
+        require(tokenAddresses.length == userTokenValues.length);
+
+        // transfer all tokens into this account
+        for (uint256 i; i < tokenAddresses.length; i++) {
+            ERC20 token = ERC20(tokenAddresses[i]);
+
+            // token values must be conserved
+            require(hubTokenValues[i].add(userTokenValues[i]) == account.hubTokens[token].add(account.userTokens[token]);
+
+            // token must be active
+            require(account.activeTokens[token]);
+
+            // deactivate token
+            account.activeTokens[token] = false;
+            account.numActiveTokens = account.numActiveTokens.sub(1);
+
+            // reset token balances
+            account.userTokens[token] = 0;
+            account.hubTokens[token] = 0;
+
+            // transfer tokens to reserve and user
+            reserveTokens[token] = reserveTokens[token].add(hubTokenValues[i]);
+            require(token.transfer(user, userTokenValues[i]));
+        }
+
+        // check that all tokens have been deactivated
+        require(account.numActiveTokens == 0);
+
+        // reset state variables
+        account.txCount = txCount;
+        account.tabRoot = bytes32(0x0);
+        account.tabCount = 0;
+        account.status = Status.Empty;
     }
 
     // Why do I need this function? When do I want to checkpoint to chain?
