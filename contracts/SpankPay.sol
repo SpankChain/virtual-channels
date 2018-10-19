@@ -33,7 +33,7 @@ contract ChannelManager {
         uint256 channelClosingTime;
         uint256 threadClosingTime;
         Status status;
-        mapping(address => mapping(address => Thread)) threads; // [sender, receiver]
+        mapping(address => mapping(address => Thread)) threads; // channels[user].threads[sender][receiver]
     }
 
     struct Thread {
@@ -45,8 +45,9 @@ contract ChannelManager {
 
     mapping(address => Channel) public channels;
 
-    ERC20 public approvedToken;
     address public hub;
+    uint256 public challengePeriod;
+    ERC20 public approvedToken;
 
     uint256 public totalChannelWei;
     uint256 public totalChannelToken;
@@ -111,7 +112,6 @@ contract ChannelManager {
     //      pendingTokenDeposits: [0, 0],
     //      pendingWeiWithdrawals: [0, 200],
     //      pendingTokenWithdrawals: [200, 0]
-    //      proposer: hub (special flag)
     // }
 
     // This might allow the user to exit, but only if the deposit/exchange succeeds...
@@ -259,11 +259,10 @@ contract ChannelManager {
         uint256[2] pendingTokenDeposits, // [hub, user]
         uint256[2] pendingWeiWithdrawals, // [hub, user]
         uint256[2] pendingTokenWithdrawals, // [hub, user]
-        uint256[2] txCount, // persisted onchain even when empty
+        uint256[2] txCount, // [global, onchain] persisted onchain even when empty
         bytes32 threadRoot,
         uint256 threadCount,
         uint256 timeout,
-        string sigHub, // TODO - do we need this, if hub sends (they can sign it at the time)
         string sigUser
     ) public noReentrancy onlyHub {
         Channel storage channel = channels[user];
@@ -290,8 +289,7 @@ contract ChannelManager {
             )
         );
 
-        // check hub and user sigs against state hash
-        require(hub == ECTools.recoverSigner(state, sigHub));
+        // check user sig against state hash
         require(user == ECTools.recoverSigner(state, sigUser));
 
         require(txCount[0] > channel.txCount[0], "global txCount must be higher than the current global txCount");
@@ -762,6 +760,7 @@ contract ChannelManager {
         channel.threadCount = threadCount;
 
         channel.exitInitiator = address(0x0);
+        channel.channelClosingTime = 0;
         channel.threadClosingTime = now.add(challengePeriod);
         channel.status == Status.ThreadDispute;
     }
