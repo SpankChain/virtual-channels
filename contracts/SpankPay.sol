@@ -10,7 +10,6 @@ import "./lib/ECTools.sol";
 import "./lib/ERC20.sol";
 import "./lib/SafeMath.sol";
 
-
 contract ChannelManager {
     using SafeMath for uint256;
 
@@ -427,15 +426,150 @@ contract ChannelManager {
         channel.threadCount = threadCount;
     }
 
-    /*
+    /**********************
      * Unilateral Functions
-     */
+     *********************/
 
     // start exit with onchain state
-    function startExit() {}
+    function startExit(
+        address user
+    ) public noReentrancy {
+        Channel storage channel = channels[user];
+        require(!channel.inDispute, "account must not be in dispute");
+
+        require(msg.sender == hub || msg.sender == user, "exit initiator must be user or hub");
+
+        channel.exitInitiator = msg.sender;
+        channel.channelClosingTime = now.add(challengePeriod);
+        channel.isDisputed = true;
+    }
+
+    // TODO - is it possible to get out of a trade / timeout state?
+    // - yes, because I can exit with a previous state before the exchange operation is committed to chain
+    // - hub / client need to deal with this edge case
+
+    // TODO - what if the most recent state has pending deposits / withdrawals that never got finalized?
+    // - how do we know they never got finalized?
+    // - scenario1:
+    //   1. user initiates deposit via userAuthorizedDeposit w/ no timeout
+    //   2. user continues making payments / opening threads while it is being confirmed
+    //   3. the deposit tx confirms, but the current offchain txCount is higher than the deposit tx
+    //   4. if the hub doesn't acknlowedge the deposit, the user initiates a startExitWithUpdate
+    //   5. the update still includes the pendingDeposit which finalized but wasn't acknowledged
+    //
+    //   1 - Chain { weiBalances: [100, 100, 200] }
+    //   1 - Channel { weiBalances: [100, 100] }
+
+    //   2 - Chain { weiBalances: [100, 100, 200] }
+    //   2 - Channel { weiBalances: [100, 100], pendingDeposits: [0, 100] }
+    //
+    //   Deposit success
+    //   3 - Chain { weiBalances: [100, 200, 300] }
+    //   3 - Channel { weiBalances: [100, 100], pendingDeposits: [0, 100], txCount: 2 }
+
+    //   Other offchain payment
+    //   4 - Chain { weiBalances: [100, 200, 300] }
+    //   4 - Channel { weiBalances: [110, 90], pendingDeposits: [0, 100], txCount: 3 }
+
+    // - scenario2:
+    //   1. user initiates deposit via userAuthorizedDeposit w/ no timeout
+    //   2. user continues making payments / opening threads while it is being confirmed
+    //   3. ***before*** the deposit tx confirms, the user initiates a startExitWithUpdate
+    //   4. the update still includes the pendingDeposit which was never finalized
+    // - in s1, the user's weiBalance[1] will include the pendingDeposit
+    // - in s2, the user's weiBalance[1] will **not** include the pendingDeposit
+    // - this function needs to handle both cases (and generally all non time-sensitive deposit / withdrawal)
+
+    //   1 - Chain { weiBalances: [100, 100, 200] }
+    //   1 - Channel { weiBalances: [100, 100] }
+
+    //   2 - Chain { weiBalances: [100, 100, 200] }
+    //   2 - Channel { weiBalances: [100, 100], pendingDeposits: [0, 100], txCount: 2 }
+
+    //   Other offchain payment
+    //   3 - Chain { weiBalances: [100, 100, 200] }
+    //   3 - Channel { weiBalances: [110, 90], pendingDeposits: [0, 100], txCount: 3 }
+
+    // Problem - can't really rely on the offchain weiBalances values because some $$ could be in threads.
+    // If we had offchain total value, that would probably be sufficient
 
     // start exit with offchain state
-    function startExitWithUpdate() {}
+    function startExitWithUpdate(
+        address user,
+        uint256[2] weiBalances, // [hub, user]
+        uint256[2] tokenBalances, // [hub, user]
+        uint256[2] pendingWeiDeposits, // [hub, user]
+        uint256[2] pendingTokenDeposits, // [hub, user]
+        uint256[2] pendingWeiWithdrawals, // [hub, user]
+        uint256[2] pendingTokenWithdrawals, // [hub, user]
+        uint256 txCount, // persisted onchain even when empty
+        bytes32 threadRoot,
+        uint256 threadCount,
+        uint256 timeout,
+        string sigHub,
+        string sigUser
+    ) public noReentrancy {
+        Channel storage channel = channels[user];
+        require(!channel.inDispute, "account must not be in dispute");
+
+        require(msg.sender == hub || msg.sender == user, "exit initiator must be user or hub");
+
+        require(timeout == 0, "can't start exit with time-sensitive states");
+
+        // prepare state hash to check hub sig
+        bytes32 state = keccak256(
+            abi.encodePacked(
+                address(this),
+                user,
+                weiBalances, // [hub, user]
+                tokenBalances, // [hub, user]
+                pendingWeiDeposits, // [hub, user]
+                pendingTokenDeposits, // [hub, user]
+                pendingWeiWithdrawals, // [hub, user]
+                pendingTokenWithdrawals, // [hub, user]
+                txCount, // persisted onchain even when empty
+                threadRoot,
+                threadCount,
+                timeout
+            )
+        );
+
+        // check hub and user sigs against state hash
+        require(hub == ECTools.recoverSigner(state, sigHub));
+        require(user == ECTools.recoverSigner(state, sigUser));
+
+        require(txCount > channel.txCount, "txCount must be higher than the current txCount");
+
+        // offchain wei/token balances do not exceed onchain total wei/token
+        require(weiBalances[0].add(weiBalances[1]) <= channel.weiBalances[2], "wei must be conserved");
+        require(tokenBalances[0].add(tokenBalances[1]) <= channel.tokenBalances[2], "tokens must be conserved");
+
+        // normally, replace onchain w/ offchain + pending
+
+        // add pending withdrawals back in (only if they didn't work)
+
+
+        // update hub wei channel balance, account for deposit/withdrawal in reserves
+        channel.weiBalances[0] = weiBalances[0].add(pendingWeiDeposits[0]).sub(pendingWeiWithdrawals[0]);
+
+        // update user wei channel balance, account for deposit/withdrawal in reserves
+        channel.weiBalances[1] = weiBalances[1].add(pendingWeiDeposits[1]).sub(pendingWeiWithdrawals[1]);
+
+        // update hub token channel balance, account for deposit/withdrawal in reserves
+        channel.tokenBalances[0] = tokenBalances[0].add(pendingTokenDeposits[0]).sub(pendingTokenWithdrawals[0]);
+
+        // update user token channel balance, account for deposit/withdrawal in reserves
+        channel.tokenBalances[1] = tokenBalances[1].add(pendingTokenDeposits[1]).sub(pendingTokenWithdrawals[1]);
+
+        // update state variables
+        channel.txCount = txCount;
+        channel.threadRoot = threadRoot;
+        channel.threadCount = threadCount;
+
+        channel.exitInitiator = msg.sender;
+        channel.channelClosingTime = now.add(challengePeriod);
+        channel.isDisputed = true;
+    }
 
     // after timer expires
     function emptyChannel() {}
