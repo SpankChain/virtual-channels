@@ -2,6 +2,7 @@
 // - watchtowers
 // - if time, add convenience method to allow recipient to close all threads in 1 tx
 // - document assumptions around threads / persisted txCounts
+// - document timeouts, txCount[2] (global, onchain)
 
 pragma solidity ^0.4.24;
 pragma experimental ABIEncoderV2;
@@ -704,8 +705,8 @@ contract ChannelManager {
         string sigUser
     ) public noReentrancy {
         Channel storage channel = channels[user];
-        require(channel.status == Status.ChannelDispute, "channel must be open");
-        require(channel.channelClosingTime < now, "channel closing time must have passed");
+        require(channel.status == Status.ChannelDispute, "channel must be in dispute");
+        require(now < channel.channelClosingTime, "channel closing time must not have passed");
 
         require(msg.sender != channel.exitInitiator, "challenger can not be exit initiator");
         require(msg.sender == hub || msg.sender == user, "challenger must be either user or hub");
@@ -828,7 +829,17 @@ contract ChannelManager {
     //   - nukeThreads
 
     // either party starts exit with initial state
-    function startExitThreads() {}
+    function startExitThreads(
+        address[] user,
+        address[] sender,
+        address[] recipient,
+        uint256[] weiBalances, // [sender1, recipient1, sender2, recipient2] - double the length of other arrays
+        uint256[] tokenBalances, // [sender1, recipient1, sender2, recipient2] - double the length of other arrays
+        bytes proof, // TODO how to split up? Are all proofs fixed length?
+        string sig // TODO how to split up?
+    ) public noReentrancy {
+
+    }
 
     // either party starts exit with offchain state
     function startExitThreadsWithUpdates() {}
