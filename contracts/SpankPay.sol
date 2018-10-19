@@ -16,7 +16,12 @@ contract ChannelManager {
     string public constant NAME = "Channel Manager";
     string public constant VERSION = "0.0.1";
 
-    // TODO figure out isDispute vs. status
+    enum Status {
+       Open,
+       ChannelDispute,
+       ThreadDispute
+    }
+
     struct Channel {
         uint256[3] weiBalances; // [hub, user, total]
         uint256[3] tokenBalances // [hub, user, total]
@@ -26,15 +31,15 @@ contract ChannelManager {
         address exitInitiator;
         uint256 channelClosingTime;
         uint256 threadClosingTime;
-        bool isDisputed;
+        Status status;
         mapping(address => mapping(address => Thread)) threads; // [sender, receiver]
     }
 
     struct Thread {
         uint256[2] weiBalances; // [hub, user]
         uint256[2] tokenBalances // [hub, user]
-        uint256 txCount; // should this txCount persist to chain even when empty?
-        bool isDisputed;
+        uint256 txCount; // persisted onchain even when empty
+        bool inDispute; // needed so we don't close threads twice
     }
 
     mapping(address => Channel) public channels;
@@ -261,7 +266,7 @@ contract ChannelManager {
         string sigUser
     ) public noReentrancy onlyHub {
         Channel storage channel = channels[user];
-        require(!channel.inDispute, "account must not be in dispute");
+        require(channel.status == Status.Open, "channel must be open");
 
         // Usage: exchange operations to protect user from exchange rate fluctuations
         require(timeout == 0 || now < timeout, "the timeout must be zero or not have passed");
@@ -351,7 +356,7 @@ contract ChannelManager {
         require(msg.value == pendingWeiDeposits[1], "msg.value is not equal to pending user deposit");
 
         Channel storage channel = channels[user];
-        require(!channel.inDispute, "account must not be in dispute");
+        require(channel.status == Status.Open, "channel must be open");
 
         // Usage:
         // 1. exchange operations to protect hub from exchange rate fluctuations
@@ -437,13 +442,13 @@ contract ChannelManager {
         address user
     ) public noReentrancy {
         Channel storage channel = channels[user];
-        require(!channel.inDispute, "account must not be in dispute");
+        require(channel.status == Status.Open, "channel must be open");
 
         require(msg.sender == hub || msg.sender == user, "exit initiator must be user or hub");
 
         channel.exitInitiator = msg.sender;
         channel.channelClosingTime = now.add(challengePeriod);
-        channel.isDisputed = true;
+        channel.status = Status.ChannelDispute;
     }
 
     // TODO - is it possible to get out of a trade / timeout state?
@@ -623,7 +628,7 @@ contract ChannelManager {
         string sigUser
     ) public noReentrancy {
         Channel storage channel = channels[user];
-        require(!channel.inDispute, "account must not be in dispute");
+        require(channel.status == Status.Open, "channel must be open");
 
         require(msg.sender == hub || msg.sender == user, "exit initiator must be user or hub");
 
@@ -679,14 +684,148 @@ contract ChannelManager {
 
         channel.exitInitiator = msg.sender;
         channel.channelClosingTime = now.add(challengePeriod);
-        channel.isDisputed = true;
+        channel.status == Status.ChannelDispute;
     }
 
-    // after timer expires
-    function emptyChannel() {}
-
     // party that didn't start exit can challenge and empty
-    function emptyChannelWithChallenge() {}
+    function emptyChannelWithChallenge(
+        address user,
+        uint256[2] weiBalances, // [hub, user]
+        uint256[2] tokenBalances, // [hub, user]
+        uint256[2] pendingWeiDeposits, // [hub, user]
+        uint256[2] pendingTokenDeposits, // [hub, user]
+        uint256[2] pendingWeiWithdrawals, // [hub, user]
+        uint256[2] pendingTokenWithdrawals, // [hub, user]
+        uint256[2] txCount, // persisted onchain even when empty
+        bytes32 threadRoot,
+        uint256 threadCount,
+        uint256 timeout,
+        string sigHub,
+        string sigUser
+    ) public noReentrancy {
+        Channel storage channel = channels[user];
+        require(channel.status == Status.ChannelDispute, "channel must be open");
+        require(channel.channelClosingTime < now, "channel closing time must have passed");
+
+        require(msg.sender != channel.exitInitiator, "challenger can not be exit initiator");
+        require(msg.sender == hub || msg.sender == user, "challenger must be either user or hub");
+
+        require(timeout == 0, "can't start exit with time-sensitive states");
+
+        // prepare state hash to check hub sig
+        bytes32 state = keccak256(
+            abi.encodePacked(
+                address(this),
+                user,
+                weiBalances, // [hub, user]
+                tokenBalances, // [hub, user]
+                pendingWeiDeposits, // [hub, user]
+                pendingTokenDeposits, // [hub, user]
+                pendingWeiWithdrawals, // [hub, user]
+                pendingTokenWithdrawals, // [hub, user]
+                txCount, // persisted onchain even when empty
+                threadRoot,
+                threadCount,
+                timeout
+            )
+        );
+
+        // check hub and user sigs against state hash
+        require(hub == ECTools.recoverSigner(state, sigHub));
+        require(user == ECTools.recoverSigner(state, sigUser));
+
+        require(txCount[0] > channel.txCount[0], "global txCount must be higher than the current global txCount");
+        require(txCount[1] >= channel.txCount[1], "onchain txCount must be higher or equal to the current onchain txCount");
+
+        // offchain wei/token balances do not exceed onchain total wei/token
+        require(weiBalances[0].add(weiBalances[1]) <= channel.weiBalances[2], "wei must be conserved");
+        require(tokenBalances[0].add(tokenBalances[1]) <= channel.tokenBalances[2], "tokens must be conserved");
+
+        // pending onchain txs have been executed - force update offchain state to reflect this
+        if (txCount[1] == channel.txCount[1]) {
+            weiBalances[0] = weiBalances[0].add(pendingWeiDeposits[0]).sub(pendingWeiWithdrawals[0]);
+            weiBalances[1] = weiBalances[1].add(pendingWeiDeposits[1]).sub(pendingWeiWithdrawals[1]);
+            tokenBalances[0] = tokenBalances[0].add(pendingTokenDeposits[0]).sub(pendingTokenWithdrawals[0]);
+            tokenBalances[1] = tokenBalances[1].add(pendingTokenDeposits[1]).sub(pendingTokenWithdrawals[1]);
+        }
+
+        // set the channel wei/token balances
+        channel.weiBalances[0] = weiBalances[0];
+        channel.weiBalances[1] = weiBalances[1];
+        channel.tokenBalances[0] = tokenBalances[0];
+        channel.tokenBalances[1] = tokenBalances[1];
+
+        // update state variables
+        channel.txCount = txCount;
+        channel.threadRoot = threadRoot;
+        channel.threadCount = threadCount;
+
+        channel.exitInitiator = address(0x0);
+        channel.threadClosingTime = now.add(challengePeriod);
+        channel.status == Status.ThreadDispute;
+    }
+
+    // after timer expires - anyone can call
+    function emptyChannel(
+        address user
+    ) public noReentrancy {
+        Channel storage channel = channels[user];
+        require(channel.status == Status.ChannelDispute, "channel must be in dispute");
+
+        require(channel.channelClosingTime < now, "channel closing time must have passed");
+
+        // deduct hub/user wei/tokens from total channel balances
+        channel.weiBalances[2] = channel.weiBalances[2].sub(channel.weiBalances[0]).sub(channel.weiBalances[1]);
+        channel.tokenBalances[2] = channel.tokenBalances[2].sub(channel.tokenBalances[0]).sub(channel.tokenBalances[1]);
+
+        // transfer hub wei balance from channel to reserves
+        totalChannelWei = totalChannelWei.sub(channel.weiBalances[0]);
+        channel.weiBalances[0] = 0;
+
+        // transfer user wei balance to user
+        totalChannelWei = totalChannelWei.sub(channel.weiBalances[1]);
+        user.transfer(channel.weiBalances[1]);
+        channel.weiBalances[1] = 0;
+
+        // transfer hub token balance from channel to reserves
+        totalChannelTokens = totalChannelToken.sub(channel.tokenBalances[0]);
+        channel.tokenBalances[0] = 0;
+
+        // transfer user token balance to user
+        totalChannelTokens = totalChannelToken.sub(channel.tokenBalances[1]);
+        require(approvedToken.transfer(user, channel.tokenBalances[1]), "user token withdrawal transfer failed");
+        channel.tokenBalances[1] = 0;
+
+        channel.exitInitiator = address(0x0);
+        channel.channelClosingTime = 0;
+        channel.threadClosingTime = now.add(challengePeriod):
+        channel.status = Status.ThreadDispute;
+    }
+
+    // states
+    // open
+    // - hubAuthorizedUpdate -> open
+    // - userAuthorizedUpdate -> open
+    // - startExit -> channelDispute
+    // - startExitWithUpdate -> channelDispute
+    // channelDispute + before channelClosingTime
+    // - emptyChannelWithChallenge -> threadDispute
+    // channelDispute + after channelClosingTime
+    // - emptyChannel -> threadDispute
+    // threadDisptue + before threadClosingTime
+    // - startExitThreads -> threadDispute, thread.inDispute == true
+    // - startExitThreadsWithUpdates -> threadDispute, thread.inDispute == true
+    // threadDispute + before threadClosingTime, after startExitThreads/Update (thread.inDispute == true)
+    // - recipientEmptyThreads -> open
+    // threadDispute + after threadClosingTime
+    // - emptyThreads -> open
+    // threadDispute + (now > threadClosingTime + challengePeriod * 10)
+    // - nukeThreads -> open
+
+    // Question: what happens if both parties lost all thread updates and can't call startExitThreads?
+    // - how can we return the channel to a useable state?
+    // - should we have a different timeout
+    //   - nukeThreads
 
     // either party starts exit with initial state
     function startExitThreads() {}
@@ -700,3 +839,5 @@ contract ChannelManager {
     // recipient can empty anytime after initialization
     function recipientEmptyThreads() {}
 
+    // anyone can call to re-open an accont stuck in threadDispute after 10x challengePeriods
+    function nukeThreads() {}
