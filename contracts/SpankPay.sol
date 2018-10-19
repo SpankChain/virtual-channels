@@ -20,7 +20,7 @@ contract ChannelManager {
     // TODO figure out isDispute vs. status
     struct Channel {
         uint256 weiBalances[3]; // [hub, user, total]
-        uint256 tokenBalances[3] // [hub, user, total
+        uint256 tokenBalances[3] // [hub, user, total]
         uint256 txCount; // persisted onchain even when empty
         bytes32 threadRoot;
         uint256 threadCount;
@@ -92,15 +92,77 @@ contract ChannelManager {
     }
 
     // assume 1 BOOTY = 1 ETH
-    // state1 { hubETH: 0, hubBOOTY: 10, userETH: 0, userBOOTY: 200 }
+
     // state1 {
+    //                   hub / user
     //      weiBalances: [0, 0],
     //      tokenBalances: [10, 200],
+    // }
+
+    // state2 {
+    //      weiBalances: [0, 0],
+    //      tokenBalances: [10, 0],
+    //      pendingWeiDeposits: [0, 200], <- hub deposits ETH on behalf of the user
+    //      pendingTokenDeposits: [0, 0],
+    //      pendingWeiWithdrawals: [0, 200],
+    //      pendingTokenWithdrawals: [200, 0]
+    //      proposer: hub (special flag)
+    // }
+
+    // This might allow the user to exit, but only if the deposit/exchange succeeds...
+    // state3 {
+    //      weiBalances: [0, 0],
+    //      tokenBalances: [5, 5], <- performer earns 5 more BOOTY
     //      pendingWeiDeposits: [0, 200], <- hub deposits ETH on behalf of the user
     //      pendingTokenDeposits: [0, 0],
     //      pendingWeiWithdrawals: [0, 200],
     //      pendingTokenWithdrawals: [200, 0],
     // }
+
+    // state3 {
+    //      weiBalances: [0, 0],
+    //      tokenBalances: [5, 5], <- performer earns 5 more BOOTY
+    //      pendingWeiDeposits: [200, 0], <- hub deposits ETH on behalf of the user
+    //      pendingTokenDeposits: [0, 0],
+    //      pendingWeiExchange: [0, 200], <- wei to be credited
+    //      pendingTokenExchange: [200, 0], <- tokens to be credited
+    //      pendingWeiWithdrawals: [0, 200],
+    //      pendingTokenWithdrawals: [200, 0],
+    // }
+
+    // balances = balances + withdrawal - deposit - exchange credit + exchange debit
+    // hub wei = balances [0] + withdrawal [0] - deposit [200] - exchange credit [0] + exchange debit [200]
+    channel.weiBalances[0] = weiBalances[0].add(pendingWeiWithdrawals[0]).sub(pendingWeiDeposits[0]).sub(pendingWeiExchange[0]).add(pendingWeiExchange[1]);
+    // ? = 0 + 0 - 200 + 0 + 200 = 0 check!
+
+    // New user deposits eth, hub deposits booty (into their own balances)
+    // state0 {
+    //      weiBalances: [0, 0],
+    //      tokenBalances: [0, 0],
+    //      pendingWeiDeposits: [0, 100],
+    //      pendingTokenDeposits: [69, 0],
+    //      pendingWeiExchange: [0, 0], <- alternatively, could do exchange onchain...
+    //      pendingTokenExchange: [0, 0], <- alternatively, could do exchange onchain...
+    //      pendingWeiWithdrawals: [0, 0],
+    //      pendingTokenWithdrawals: [0, 0],
+    // }
+
+    // mutually acknowledge channel deposit
+    // state1 {
+    //      weiBalances: [0, 100],
+    //      tokenBalances: [69, 0],
+    // }
+
+    // offchain exchange - hub sells user 69 token for 69 wei
+    // state2 {
+    //      weiBalances: [69, 31],
+    //      tokenBalances: [0, 69],
+    // }
+
+    // balances = balances + withdrawal - deposit - exchange credit + exchange debit
+    // hub wei = balances [0] + withdrawal [0] - deposit [200] - exchange credit [0] + exchange debit [200]
+    channel.weiBalances[0] = weiBalances[0].add(pendingWeiWithdrawals[0]).sub(pendingWeiDeposits[0]).sub(pendingWeiExchange[0]).add(pendingWeiExchange[1]);
+    // ? = 0 + 0 - 200 + 0 + 200 = 0 check!
 
     // Question:
     // - Can the user take this state and submit it themselves?
@@ -108,14 +170,82 @@ contract ChannelManager {
 
     // assume 1 BOOTY = 1 ETH
     // state1 { hubETH: 0, hubBOOTY: 10, userETH: 0, userBOOTY: 200 }
+
+    // hub prepares to deposit BOOTY
+    // state2 { hubETH: 0, hubBOOTY: 10, userETH: 0, userBOOTY: 200, pendingHubBOOTYDeposit: 200 }
+
+    // user acknowledges deposit
+    // state3 { hubETH: 0, hubBOOTY: 210, userETH: 0, userBOOTY: 200 }
+
+    // USER DEPOSIT FLOW
+    // assume 1 BOOTY = 1 ETH
+    // state1 { hubETH: 0, hubBOOTY: 10, userETH: 0, userBOOTY: 200 }
+    // state1.1 { hubETH: 0, hubBOOTY: 20, userETH: 0, userBOOTY: 190 }
+
+    // user prepares to deposit ETH
+    // state2 { hubETH: 0, hubBOOTY: 10, userETH: 0, userBOOTY: 200, pendingUserETHDeposit: 200 }
+    // state2.1 { hubETH: 0, hubBOOTY: 20, userETH: 0, userBOOTY: 190, pendingUserETHDeposit: 200 }
+    // Scenario: deposit success, then hub startsExit with 1.1
+    // - well channel.weiBalance[1] should have increased by pendingUserETHDeposit
+    // - if exit function returns all extra balance to the owner then it's fine...
+
+    // user acknowledges deposit
+    // state3 { hubETH: 0, hubBOOTY: 210, userETH: 0, userBOOTY: 200 }
+
+
     // state2 { hubETH: 0, hubBOOTY: 10, userETH: 0, userBOOTY: 0, pendingHubETHDeposit: 200, pendingUserETHWithdrawal: 200, pendingHubBOOTYWithdrawal: 200, txCount: 5 }
-    // state3 { hubETH: 0, hubBOOTY: 10, userETH: 0, userBOOTY: 0 }
-    // state4 { hubETH: 0, hubBOOTY: 5, userETH: 0, userBOOTY: 5, txCount: 6 }
+    // state3 { hubETH: 0, hubBOOTY: 5, userETH: 0, userBOOTY: 5, pendingHubETHDeposit: 200, pendingUserETHWithdrawal: 200, pendingHubBOOTYWithdrawal: 200, txCount: 6 }
+    // ^ user needs to be able to settle with just that state
 
     // All funds come from the hub
     // - is it critical to have the hub be able to deposit into the user's balance in the channel?
     //   - it would be probably easier for the hub to simply send money in a state update afterwards
     // TODO add withdrawal address for the user
+    // - not every state update can be used as an *authorized update*
+    // - the ideally behind mutually signed states is to allow *unilateral exit* with just that state
+
+    // BUT WAIT
+    // - you can't add additional states on top of a state that has a timeout
+    // - if the timeout expires, then all the other states will be invalid
+    // - FAILS the user story of hub depositing into open performer channel while performer has a popping show, because timeout
+
+    // What needs a timeout?
+    // - exchange
+    // - hub liability (hub agrees to deposit)
+
+
+    // 1. user deposit into open channel without stopping tips
+    //  - Two options:
+    //    1. user calls userAuthorizedUpdate with timeout
+    //    - hub deposits BOOTY at the same time
+    //    - user can't tip more than total in current thread
+    //    - users can't merge threads / open new threads until tx completes
+    //    2. user calls deposit (no timeout)
+    //    - hub separately later deposits more BOOTY
+    //    - user can keep tipping / opening new threads
+    //    - sometime later, they see their BOOTY limit increase
+    //    3. during the timeout, fork the state, sign both
+    //    - user wants to close a thread while the timeout for their deposit is pending
+    //    - user signs 2 state updates with the same txCount
+    //      1. includes pendingDeposit (and timeout) as part of the state
+    //      2. does not include pendingDeposit as part of the state
+    //    - Possible outcomes:
+    //      1. Deposit succeeds
+    //         1. hub can exit with the latest state from non-deposit branch
+    //          - can't prevent it by making sure all balances add up
+    //          - could try using two different versions
+    //      2. Deposit expires
+    // 2. performer withdraw out of open channel + exchange
+    //  - performer has BOOTY, wants to cash out ETH
+    //  - hub also wants to claim BOOTY
+    // 3. hub deposit BOOTY as collateral into performer channel during show
+    // 4. allow hub to reclaim ETH / BOOTY more easily when users / performers deposit/withdraw
+
+    // Pattern:
+    // - For all exchange operations or liability introducing operations, the hub will set / expect a timeout.
+    //   - The user / hub will not sign any further updates until the tx succeeds or expires
+    // - Anytime both parties agree, and there are no withdrawals / exchanges, can update onchain without challenge
+    // - Dispute are required for unauthorized withdrawals
     function hubAuthorizedUpdate(
         address user,
         uint256[2] weiBalances, // [hub, user]
@@ -128,14 +258,14 @@ contract ChannelManager {
         bytes32 threadRoot,
         uint256 threadCount,
         uint256 timeout,
-        string sigHub,
+        string sigHub, // TODO - do we need this, if hub sends (they can sign it at the time)
         string sigUser
     ) public noReentrancy onlyHub {
-
         Channel storage channel = channels[user];
         require(!channel.inDispute, "account must not be in dispute");
 
-        require(now < timeout, "the timeout must not have passed");
+        // Usage: exchange operations to protect user from exchange rate fluctuations
+        require(timeout == 0 || now < timeout, "the timeout must be zero or not have passed");
 
         // prepare state hash to check hub sig
         bytes32 state = keccak256(
@@ -151,8 +281,7 @@ contract ChannelManager {
                 txCount, // persisted onchain even when empty
                 threadRoot,
                 threadCount,
-                timeout,
-                true // this bit is 1 if the hub proposed this state update (0 if user proposed)
+                timeout
             )
         );
 
@@ -178,27 +307,25 @@ contract ChannelManager {
 
         // update hub wei channel balance, account for deposit/withdrawal in reserves
         channel.weiBalances[0] = weiBalances[0].add(pendingWeiDeposits[0]).sub(pendingWeiWithdrawals[0]);
-        totalChannelWei = totalChannelWei.sub(pendingWeiDeposits[0]).add(pendingWeiWithdrawals[0]);
+        totalChannelWei = totalChannelWei.add(pendingWeiDeposits[0]).sub(pendingWeiWithdrawals[0]);
 
         // update user wei channel balance, account for deposit/withdrawal in reserves
         channel.weiBalances[1] = weiBalances[1].add(pendingWeiDeposits[1]).sub(pendingWeiWithdrawals[1]);
-        totalChannelWei = totalChannelWei.sub(pendingWeiDeposits[1]).add(pendingWeiWithdrawals[1]);
+        totalChannelWei = totalChannelWei.add(pendingWeiDeposits[1]);
+        user.transfer(pendingWeiWithdrawals[1]);
 
         // update hub token channel balance, account for deposit/withdrawal in reserves
         channel.tokenBalances[0] = tokenBalances[0].add(pendingTokenDeposits[0]).sub(pendingTokenWithdrawals[0]);
-        totalChannelToken = totalChannelToken.sub(pendingTokenDeposits[0]).add(pendingTokenWithdrawals[0]);
+        totalChannelToken = totalChannelToken.add(pendingTokenDeposits[0]).sub(pendingTokenWithdrawals[0]);
 
         // update user token channel balance, account for deposit/withdrawal in reserves
         channel.tokenBalances[1] = tokenBalances[1].add(pendingTokenDeposits[1]).sub(pendingTokenWithdrawals[1]);
-        totalChannelToken = totalChannelToken.sub(pendingTokenDeposits[1]).add(pendingTokenWithdrawals[1]);
-
-        // transfer wei/tokens to user
-        user.transfer(pendingWeiWithdrawals[1]);
+        totalChannelToken = totalChannelToken.add(pendingTokenDeposits[1]);
         require(approvedToken.transfer(user, pendingTokenWithdrawals[1]), "user token withdrawal transfer failed");
 
         // update channel total balances
-        channel.weiBalances[2] = channel.weiBalances[0].add(channel.weiBalances[1]);
-        channel.tokenBalances[2] = channel.tokenBalances[0].add(channel.tokenBalances[1]);
+        channel.weiBalances[2] = channel.weiBalances[2].add(pendingWeiDeposit[0]).add(pendingWeiDeposit[1]).sub(pendingWeiWithdrawals[0]).sub(pendingWeiWithdrawals[1]);
+        channel.tokenBalances[2] = channel.tokenBalances[2].add(pendingTokenDeposit[0]).add(pendingTokenDeposit[1]).sub(pendingTokenWithdrawals[0]).sub(pendingTokenWithdrawals[1]);
 
         // update state variables
         channel.txCount = txCount;
@@ -207,9 +334,97 @@ contract ChannelManager {
     }
 
     function userAuthorizedUpdate(
-
+        uint256[2] weiBalances, // [hub, user]
+        uint256[2] tokenBalances, // [hub, user]
+        uint256[2] pendingWeiDeposits, // [hub, user]
+        uint256[2] pendingTokenDeposits, // [hub, user]
+        uint256[2] pendingWeiWithdrawals, // [hub, user]
+        uint256[2] pendingTokenWithdrawals, // [hub, user]
+        uint256 txCount, // persisted onchain even when empty
+        bytes32 threadRoot,
+        uint256 threadCount,
+        uint256 timeout,
+        string sigHub,
+        string sigUser // TODO - do we need this, if hub sends (they can sign it at the time)
     ) public payable noReentrancy {
+        address user = msg.sender;
+        require(msg.value == pendingWeiDeposits[1], "msg.value is not equal to pending user deposit");
 
+        Channel storage channel = channels[user];
+        require(!channel.inDispute, "account must not be in dispute");
+
+        // Usage:
+        // 1. exchange operations to protect hub from exchange rate fluctuations
+        // 2. protect hub against infinite liability for deposits
+        require(timeout == 0 || now < timeout, "the timeout must be zero or not have passed");
+
+        // prepare state hash to check hub sig
+        bytes32 state = keccak256(
+            abi.encodePacked(
+                address(this),
+                user,
+                weiBalances, // [hub, user]
+                tokenBalances, // [hub, user]
+                pendingWeiDeposits, // [hub, user]
+                pendingTokenDeposits, // [hub, user]
+                pendingWeiWithdrawals, // [hub, user]
+                pendingTokenWithdrawals, // [hub, user]
+                txCount, // persisted onchain even when empty
+                threadRoot,
+                threadCount,
+                timeout
+            )
+        );
+
+        // check hub and user sigs against state hash
+        require(hub == ECTools.recoverSigner(state, sigHub));
+        require(user == ECTools.recoverSigner(state, sigUser));
+
+        require(txCount > channel.txCount, "txCount must be higher than the current txCount");
+
+        // offchain wei/token balances do not exceed onchain total wei/token
+        require(weiBalances[0].add(weiBalances[1]) <= channel.weiBalances[2], "wei must be conserved");
+        require(tokenBalances[0].add(tokenBalances[1]) <= channel.tokenBalances[2], "tokens must be conserved");
+
+        // hub has enough reserves for wei/token deposits
+        require(pendingWeiDeposits[0] <= getHubReserveWei(), "insufficient reserve wei for deposits");
+        require(pendingTokenDeposits[0]) <= getHubReserveTokens(), "insufficient reserve tokens for deposits");
+
+        // transfer user token deposit to this contract
+        require(approvedToken.transferFrom(msg.sender, address(this), pendingTokenDeposits[1]), "user token deposit failed");
+
+        // check that channel balances and pending deposits cover wei/token withdrawals
+        require(channel.weiBalances[0].add(pendingWeiDeposits[0]) >= weiBalances[0].add(pendingWeiWithdrawals[0]), "insufficient wei for hub withdrawal");
+        require(channel.weiBalances[1].add(pendingWeiDeposits[1]) >= weiBalances[1].add(pendingWeiWithdrawals[1]), "insufficient wei for user withdrawal");
+        require(channel.tokenBalances[0].add(pendingTokenDeposits[0]) >= tokenBalances[0].add(pendingTokenWithdrawals[0]), "insufficient tokens for hub withdrawal");
+        require(channel.tokenBalances[1].add(pendingTokenDeposits[1]) >= tokenBalances[1].add(pendingTokenWithdrawals[1]), "insufficient tokens for user withdrawal");
+
+        // update hub wei channel balance, account for deposit/withdrawal in reserves
+        channel.weiBalances[0] = weiBalances[0].add(pendingWeiDeposits[0]).sub(pendingWeiWithdrawals[0]);
+        totalChannelWei = totalChannelWei.add(pendingWeiDeposits[0]).sub(pendingWeiWithdrawals[0]);
+
+        // update user wei channel balance, account for deposit/withdrawal in reserves
+        channel.weiBalances[1] = weiBalances[1].add(pendingWeiDeposits[1]).sub(pendingWeiWithdrawals[1]);
+        totalChannelWei = totalChannelWei.add(pendingWeiDeposits[1]);
+        user.transfer(pendingWeiWithdrawals[1]);
+
+        // update hub token channel balance, account for deposit/withdrawal in reserves
+        channel.tokenBalances[0] = tokenBalances[0].add(pendingTokenDeposits[0]).sub(pendingTokenWithdrawals[0]);
+        totalChannelToken = totalChannelToken.add(pendingTokenDeposits[0]).sub(pendingTokenWithdrawals[0]);
+
+        // update user token channel balance, account for deposit/withdrawal in reserves
+        channel.tokenBalances[1] = tokenBalances[1].add(pendingTokenDeposits[1]).sub(pendingTokenWithdrawals[1]);
+        totalChannelToken = totalChannelToken.add(pendingTokenDeposits[1]);
+        require(approvedToken.transfer(user, pendingTokenWithdrawals[1]), "user token withdrawal transfer failed");
+
+        // update channel total balances
+        channel.weiBalances[2] = channel.weiBalances[2].add(pendingWeiDeposit[0]).add(pendingWeiDeposit[1]).sub(pendingWeiWithdrawals[0]).sub(pendingWeiWithdrawals[1]);
+        channel.tokenBalances[2] = channel.tokenBalances[2].add(pendingTokenDeposit[0]).add(pendingTokenDeposit[1]).sub(pendingTokenWithdrawals[0]).sub(pendingTokenWithdrawals[1]);
+
+        // update state variables
+        channel.txCount = txCount;
+        channel.threadRoot = threadRoot;
+        channel.threadCount = threadCount;
     }
 
     /*

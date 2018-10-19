@@ -720,7 +720,7 @@ contract SpankPay {
     //  - accompanied by offchain exchange update
     // 3. User depositing ETH / ERC20 tokens to trade
     // 4. deposit -> allow both parties to deposit when user deposits
-    //  - useful if user deposits ETH between BOOTY minimum and BOOTY limit, then adds more ETH
+    //  - useful if user deposits 20 ETH between BOOTY minimum 10 and BOOTY limit 69, then adds more ETH
     //  - hub will also deposit more BOOTY up to the BOOTY limit (now this function requires timeout)
     //  1. user opens account with $20 ETH, hub authorizes 20 BOOTY deposit -> userOpenAccount
     //  2. user deposits $100 ETH
@@ -852,10 +852,10 @@ contract SpankPay {
         // 2. then try to consensus close - this require will fail because it thinks you have less money
         //  - userETH = 100, hubETH = 100
         // TODO - either need a "total money in tabs"
-        // - or total onchain balance = account +
+        // - or total onchain balance
 
-        require(hubETH.add(userETH) == account.ethBalances[2]; // total
-        // require(hubETH.add(userETH) == account.hubETH.add(account.userETH));
+        // require(hubETH.add(userETH) == account.ethBalances[2]; // total
+        require(hubETH.add(userETH) == account.hubETH.add(account.userETH));
 
         // reset ETH balances
         account.hubETH = 0;
