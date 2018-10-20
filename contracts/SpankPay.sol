@@ -254,6 +254,7 @@ contract ChannelManager {
     // - Dispute are required for unauthorized withdrawals
     function hubAuthorizedUpdate(
         address user,
+        address recipient,
         uint256[2] weiBalances, // [hub, user]
         uint256[2] tokenBalances, // [hub, user]
         uint256[2] pendingWeiDeposits, // [hub, user]
@@ -277,6 +278,7 @@ contract ChannelManager {
             abi.encodePacked(
                 address(this),
                 user,
+                recipient,
                 weiBalances, // [hub, user]
                 tokenBalances, // [hub, user]
                 pendingWeiDeposits, // [hub, user]
@@ -318,7 +320,7 @@ contract ChannelManager {
         // update user wei channel balance, account for deposit/withdrawal in reserves
         channel.weiBalances[1] = weiBalances[1].add(pendingWeiDeposits[1]).sub(pendingWeiWithdrawals[1]);
         totalChannelWei = totalChannelWei.add(pendingWeiDeposits[1]).sub(pendingWeiWithdrawals[1]);
-        user.transfer(pendingWeiWithdrawals[1]);
+        recipient.transfer(pendingWeiWithdrawals[1]);
 
         // update hub token channel balance, account for deposit/withdrawal in reserves
         channel.tokenBalances[0] = tokenBalances[0].add(pendingTokenDeposits[0]).sub(pendingTokenWithdrawals[0]);
@@ -327,7 +329,7 @@ contract ChannelManager {
         // update user token channel balance, account for deposit/withdrawal in reserves
         channel.tokenBalances[1] = tokenBalances[1].add(pendingTokenDeposits[1]).sub(pendingTokenWithdrawals[1]);
         totalChannelToken = totalChannelToken.add(pendingTokenDeposits[1]).sub(pendingTokenWithdrawals[1]);
-        require(approvedToken.transfer(user, pendingTokenWithdrawals[1]), "user token withdrawal transfer failed");
+        require(approvedToken.transfer(recipient, pendingTokenWithdrawals[1]), "user token withdrawal transfer failed");
 
         // update channel total balances
         channel.weiBalances[2] = channel.weiBalances[2].add(pendingWeiDeposit[0]).add(pendingWeiDeposit[1]).sub(pendingWeiWithdrawals[0]).sub(pendingWeiWithdrawals[1]);
@@ -340,6 +342,7 @@ contract ChannelManager {
     }
 
     function userAuthorizedUpdate(
+        address recipient,
         uint256[2] weiBalances, // [hub, user]
         uint256[2] tokenBalances, // [hub, user]
         uint256[2] pendingWeiDeposits, // [hub, user]
@@ -369,6 +372,7 @@ contract ChannelManager {
             abi.encodePacked(
                 address(this),
                 user,
+                recipient,
                 weiBalances, // [hub, user]
                 tokenBalances, // [hub, user]
                 pendingWeiDeposits, // [hub, user]
@@ -413,7 +417,7 @@ contract ChannelManager {
         // update user wei channel balance, account for deposit/withdrawal in reserves
         channel.weiBalances[1] = weiBalances[1].add(pendingWeiDeposits[1]).sub(pendingWeiWithdrawals[1]);
         totalChannelWei = totalChannelWei.add(pendingWeiDeposits[1]);
-        user.transfer(pendingWeiWithdrawals[1]);
+        recipient.transfer(pendingWeiWithdrawals[1]);
 
         // update hub token channel balance, account for deposit/withdrawal in reserves
         channel.tokenBalances[0] = tokenBalances[0].add(pendingTokenDeposits[0]).sub(pendingTokenWithdrawals[0]);
@@ -422,7 +426,7 @@ contract ChannelManager {
         // update user token channel balance, account for deposit/withdrawal in reserves
         channel.tokenBalances[1] = tokenBalances[1].add(pendingTokenDeposits[1]).sub(pendingTokenWithdrawals[1]);
         totalChannelToken = totalChannelToken.add(pendingTokenDeposits[1]);
-        require(approvedToken.transfer(user, pendingTokenWithdrawals[1]), "user token withdrawal transfer failed");
+        require(approvedToken.transfer(recipient, pendingTokenWithdrawals[1]), "user token withdrawal transfer failed");
 
         // update channel total balances
         channel.weiBalances[2] = channel.weiBalances[2].add(pendingWeiDeposit[0]).add(pendingWeiDeposit[1]).sub(pendingWeiWithdrawals[0]).sub(pendingWeiWithdrawals[1]);
