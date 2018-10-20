@@ -111,7 +111,8 @@ contract ChannelManager {
     //      pendingWeiDeposits: [0, 200], <- hub deposits ETH on behalf of the user
     //      pendingTokenDeposits: [0, 0],
     //      pendingWeiWithdrawals: [0, 200],
-    //      pendingTokenWithdrawals: [200, 0]
+    //      pendingTokenWithdrawals: [200, 0],
+    //      timeout: 5 mins
     // }
 
     // This might allow the user to exit, but only if the deposit/exchange succeeds...
@@ -300,6 +301,7 @@ contract ChannelManager {
         require(tokenBalances[0].add(tokenBalances[1]) <= channel.tokenBalances[2], "tokens must be conserved");
 
         // hub has enough reserves for wei/token deposits
+        // TODO - hub reserves only need to cover deposits - withdrawals
         require(pendingWeiDeposits[0].add(pendingWeiDeposits[1]) <= getHubReserveWei(), "insufficient reserve wei for deposits");
         require(pendingTokenDeposits[0].add(pendingTokenDeposits[1]) <= getHubReserveTokens(), "insufficient reserve tokens for deposits");
 
@@ -315,7 +317,7 @@ contract ChannelManager {
 
         // update user wei channel balance, account for deposit/withdrawal in reserves
         channel.weiBalances[1] = weiBalances[1].add(pendingWeiDeposits[1]).sub(pendingWeiWithdrawals[1]);
-        totalChannelWei = totalChannelWei.add(pendingWeiDeposits[1]);
+        totalChannelWei = totalChannelWei.add(pendingWeiDeposits[1]).sub(pendingWeiWithdrawals[1]);
         user.transfer(pendingWeiWithdrawals[1]);
 
         // update hub token channel balance, account for deposit/withdrawal in reserves
@@ -324,7 +326,7 @@ contract ChannelManager {
 
         // update user token channel balance, account for deposit/withdrawal in reserves
         channel.tokenBalances[1] = tokenBalances[1].add(pendingTokenDeposits[1]).sub(pendingTokenWithdrawals[1]);
-        totalChannelToken = totalChannelToken.add(pendingTokenDeposits[1]);
+        totalChannelToken = totalChannelToken.add(pendingTokenDeposits[1]).sub(pendingTokenWithdrawals[1]);
         require(approvedToken.transfer(user, pendingTokenWithdrawals[1]), "user token withdrawal transfer failed");
 
         // update channel total balances
@@ -472,6 +474,7 @@ contract ChannelManager {
     //   Deposit success
     //   3 - Chain { weiBalances: [100, 200, 300], txCount: [2, 2] }
     //   3 - Channel { weiBalances: [100, 100, 200], pendingDeposits: [0, 100], txCount: [2, 2] }
+    //   3.1. - Channel { weiBalances: [100, 200, 300], txCount: [3, 2] } <- want this to happen
 
     //   Other offchain payment
     //   4 - Chain { weiBalances: [100, 200, 300], [2, 2] }
@@ -668,6 +671,13 @@ contract ChannelManager {
             weiBalances[1] = weiBalances[1].add(pendingWeiDeposits[1]).sub(pendingWeiWithdrawals[1]);
             tokenBalances[0] = tokenBalances[0].add(pendingTokenDeposits[0]).sub(pendingTokenWithdrawals[0]);
             tokenBalances[1] = tokenBalances[1].add(pendingTokenDeposits[1]).sub(pendingTokenWithdrawals[1]);
+
+        // pending onchain txs have *not* been executed - revert pending withdrawals back into offchain balances
+        } else {
+            weiBalances[0] = weiBalances[0].add(pendingWeiWithdrawals[0]);
+            weiBalances[1] = weiBalances[1].add(pendingWeiWithdrawals[1]);
+            tokenBalances[0] = tokenBalances[0].add(pendingTokenWithdrawals[0]);
+            tokenBalances[1] = tokenBalances[1].add(pendingTokenWithdrawals[1]);
         }
 
         // set the channel wei/token balances
