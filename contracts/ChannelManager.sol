@@ -18,6 +18,65 @@ contract ChannelManager {
     uint256 public totalChannelWei;
     uint256 public totalChannelToken;
 
+    event DidHubContractWithdraw (
+        uint256 weiAmount,
+        uint256 tokenAmount
+    );
+
+    // Note: the payload of DidUpdateChannel contains the state that caused
+    // the update, not the state post-update (ex, if the update contains a
+    // deposit, the event's ``pendingDeposit`` field will be present and the
+    // event's ``balance`` field will not have been updated to reflect that
+    // balance).
+    event DidUpdateChannel (
+        indexed address user,
+        // TODO: Which of these options is better?
+        uint256 sender,    // Feels most "complete"
+        bool senderIsHub,  // Feels most "obvious"
+        uint256 senderIdx, // Fits best with the pattern below; I think the one I'm voting for?
+        uint256[2] weiBalances,
+        uint256[2] tokenBalances,
+        uint256[2] pendingWeiDeposits,
+        uint256[2] pendingTokenDeposits,
+        uint256[2] pendingWeiWithdrawals,
+        uint256[2] pendingTokenWithdrawals,
+        uint256[2] txCount,
+        bytes32 threadRoot,  // TODO: Is there value in including the thread* values?
+        uint256 threadCount, //       Is there any meaningful harm in including them?
+        uint256 timeout
+    );
+
+    // Note: unlike the DidUpdateChannel event, the ``DidStartExitChannel``
+    // event will contain the channel state after any state that has been
+    // applied as part of startExitWithUpdate.
+    event DidStartExitChannel (
+        indexed address user,
+        // TODO: Use the same name as in DidUpdateChannel, above
+        uint256 sender,    // Feels most "complete"
+        bool senderIsHub,  // Feels most "obvious"
+        uint256 senderIdx, // Fits best with the pattern below; I think the one I'm voting for?
+        uint256[2] weiBalances,
+        uint256[2] tokenBalances,
+        uint256[2] txCount,
+        bytes32 threadRoot, // TODO: Is there value in including the thread* values?
+        uint256 threadCount //       Is there any meaningful harm in including them?
+    );
+
+    // Note: like DidStartExitChannel, the payload contains thechannel state after
+    // any update has been applied.
+    event DidEmptyChannel (
+        indexed address user,
+        // TODO: Use the same name as in DidUpdateChannel, above
+        uint256 sender,    // Feels most "complete"
+        bool senderIsHub,  // Feels most "obvious"
+        uint256 senderIdx, // Fits best with the pattern below; I think the one I'm voting for?
+        uint256[2] weiBalances,
+        uint256[2] tokenBalances,
+        uint256[2] txCount,
+        bytes32 threadRoot, // TODO: Is there value in including the thread* values?
+        uint256 threadCount //       Is there any meaningful harm in including them?
+    );
+
     enum Status {
        Open,
        ChannelDispute,
@@ -81,6 +140,8 @@ contract ChannelManager {
             approvedToken.transfer(hub, tokenAmount),
             "hubContractWithdraw: Token transfer failure"
         );
+
+        emit DidHubContractWithdraw(weiAmount, tokenAmount);
     }
 
     function getHubReserveWei() public view returns (uint256) {
@@ -177,6 +238,21 @@ contract ChannelManager {
         channel.txCount = txCount;
         channel.threadRoot = threadRoot;
         channel.threadCount = threadCount;
+
+        emit DidUpdateChannel(
+            user,
+            0, // senderIdx
+            weiBalances,
+            tokenBalances,
+            pendingWeiDeposits,
+            pendingTokenDeposits,
+            pendingWeiWithdrawals,
+            pendingTokenWithdrawals,
+            txCount,
+            threadRoot,
+            threadCount,
+            timeout
+        );
     }
 
     function userAuthorizedUpdate(
@@ -274,6 +350,21 @@ contract ChannelManager {
         channel.txCount = txCount;
         channel.threadRoot = threadRoot;
         channel.threadCount = threadCount;
+
+        emit DidUpdateChannel(
+            user,
+            1, // senderIdx
+            weiBalances,
+            tokenBalances,
+            pendingWeiDeposits,
+            pendingTokenDeposits,
+            pendingWeiWithdrawals,
+            pendingTokenWithdrawals,
+            txCount,
+            threadRoot,
+            threadCount,
+            timeout
+        );
     }
 
     /**********************
@@ -292,6 +383,16 @@ contract ChannelManager {
         channel.exitInitiator = msg.sender;
         channel.channelClosingTime = now.add(challengePeriod);
         channel.status = Status.ChannelDispute;
+
+        emit DidStartExitChannel(
+            user,
+            msg.sender == hub ? 0 : 1,
+            [channel.weiBalances[0], channel.weiBalances[1]],
+            [channel.tokenBalances[0], channel.tokenBalances[1]],
+            channel.txCount,
+            channel.threadCount,
+            channel.exitInitiator
+        );
     }
 
     // start exit with offchain state
@@ -375,6 +476,16 @@ contract ChannelManager {
         channel.exitInitiator = msg.sender;
         channel.channelClosingTime = now.add(challengePeriod);
         channel.status == Status.ChannelDispute;
+
+        emit DidStartExitChannel(
+            user,
+            msg.sender == hub ? 0 : 1,
+            [channel.weiBalances[0], channel.weiBalances[1]],
+            [channel.tokenBalances[0], channel.tokenBalances[1]],
+            channel.txCount,
+            channel.threadCount,
+            channel.exitInitiator
+        );
     }
 
     // party that didn't start exit can challenge and empty
@@ -454,6 +565,16 @@ contract ChannelManager {
         channel.channelClosingTime = 0;
         channel.threadClosingTime = now.add(challengePeriod);
         channel.status == Status.ThreadDispute;
+
+        emit DidEmptyChannel(
+            user,
+            msg.sender == hub ? 0 : 1,
+            [channel.weiBalances[0], channel.weiBalances[1]],
+            [channel.tokenBalances[0], channel.tokenBalances[1]],
+            channel.txCount,
+            channel.threadCount,
+            channel.exitInitiator
+        );
     }
 
     // after timer expires - anyone can call
@@ -491,6 +612,16 @@ contract ChannelManager {
         channel.channelClosingTime = 0;
         channel.threadClosingTime = now.add(challengePeriod):
         channel.status = Status.ThreadDispute;
+
+        emit DidEmptyChannel(
+            user,
+            msg.sender == hub ? 0 : 1,
+            [channel.weiBalances[0], channel.weiBalances[1]],
+            [channel.tokenBalances[0], channel.tokenBalances[1]],
+            channel.txCount,
+            channel.threadCount,
+            channel.exitInitiator
+        );
     }
 
     // either party starts exit with initial state
